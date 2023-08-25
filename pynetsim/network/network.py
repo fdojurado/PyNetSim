@@ -170,5 +170,23 @@ class Network:
         shortest_paths = nx.single_source_dijkstra_path(graph, 1)
         print("Shortest paths: ", shortest_paths)
 
+        # Add the routing entries to each node.
+        # The entries are of the form (sink, hop_n, hop_n-1, ..., source)
+        for node in self.nodes.values():
+            # skip the sink node
+            if node.node_id == 1:
+                continue
+            for destination, path in shortest_paths.items():
+                if node.node_id != destination:
+                    continue
+                if len(path) < 2:
+                    continue
+                next_hop = path[-2]
+                node.add_routing_entry(1, next_hop)
+
+        # Print the routing table for each node
+        for node in self.nodes.values():
+            node.print_routing_table()
+
         # Plot the network
         self.plot_network()

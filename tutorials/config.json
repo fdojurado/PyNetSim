@@ -6,6 +6,11 @@
         "width": 200,
         "height": 200,
         "num_sink": 1,
+        "tsch": {
+            "slotframe_size": 21,
+            "slot_size": 0.01,
+            "channels": 2
+        },
         "nodes": [
             {
                 "node_id": 1,

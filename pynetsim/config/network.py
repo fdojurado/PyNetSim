@@ -1,4 +1,5 @@
 from pynetsim.config.nodes import NodesConfig
+from pynetsim.config.tsch import TSCHConfig
 
 NUM_SENSOR = 20
 TRANSMISSION_RANGE = 80
@@ -12,7 +13,8 @@ class NetworkConfig:
     def __init__(self, num_sensor=None, nodes=None,
                  transmission_range=None,
                  width=None, height=None,
-                 num_sink=None):
+                 num_sink=None,
+                 tsch=None):
 
         self.num_sensor = num_sensor
         self.transmission_range = transmission_range
@@ -20,6 +22,7 @@ class NetworkConfig:
         self.height = height
         self.num_sink = num_sink
         self.nodes = nodes
+        self.tsch = tsch
 
     @classmethod
     def from_json(cls, json_object=None):
@@ -34,4 +37,5 @@ class NetworkConfig:
                        "transmission_range", TRANSMISSION_RANGE),
             width=json_object.get("width", WIDTH),
             height=json_object.get("height", HEIGHT),
-            num_sink=json_object.get("num_sink", NUM_SINK))
+            num_sink=json_object.get("num_sink", NUM_SINK),
+            tsch=TSCHConfig.from_json(json_object.get("tsch")))
