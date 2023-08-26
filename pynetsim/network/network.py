@@ -28,7 +28,7 @@ class Network:
         self.config = config
         self.nodes = {}
         # LEACH keep track of the energy of the network
-        self.energy = 0
+        self.remaining_energy = 0
 
     # -----------------LEACH-----------------
     def get_node_with_cluster_id(self, cluster_id):
@@ -40,6 +40,9 @@ class Network:
     def alive_nodes(self):
         alive_nodes = 0
         for node in self.nodes.values():
+            # exclude the sink node
+            if node.node_id == 1:
+                continue
             if node.energy > 0:
                 alive_nodes += 1
         return alive_nodes
@@ -106,9 +109,14 @@ class Network:
             print("Creating nodes randomly...")
             # every node has a path to the sink node.
             for i in range(1, self.num_nodes + 1):
+                if i == 1:
+                    # Create the sink node
+                    node = Node(i, 50, 200, energy=2)
+                    self.nodes[i] = node
+                    continue
                 x = random.uniform(0, self.width)
                 y = random.uniform(0, self.height)
-                node = Node(i, x, y, energy=0.5)
+                node = Node(i, x, y, energy=2)
                 self.nodes[i] = node  # node_id: node
             # Set the sink node
             self.nodes[1].set_sink()

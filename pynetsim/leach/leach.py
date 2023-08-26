@@ -108,7 +108,7 @@ class LEACH:
         print(f"Node {node.node_id} distance to sink: {distance}")
         ETx = self.elect * self.packet_size + self.eamp * self.packet_size * distance**2
         node.energy -= ETx
-        self.network.energy += ETx
+        self.network.remaining_energy -= ETx
         if node.energy <= 0:
             self.mark_node_as_dead(node, round)
 
@@ -117,14 +117,18 @@ class LEACH:
         print(f"Node {node.node_id} distance to cluster head: {distance}")
         ETx = self.calculate_tx_energy_dissipation(distance)
         node.energy -= ETx
-        self.network.energy += ETx
+        self.network.remaining_energy -= ETx
         ERx = (self.elect + self.eda) * self.packet_size
         cluster_head.energy -= ERx
-        self.network.energy += ERx
+        self.network.remaining_energy -= ERx
         if cluster_head.energy <= 0:
+            print(f"Cluster head {cluster_head.node_id} is dead.")
             self.mark_node_as_dead(cluster_head, round)
             self.remove_cluster_head(cluster_head)
+            self.remove_node_from_cluster(cluster_head)
+            self.remove_cluster_head_from_cluster(cluster_head)
         if node.energy <= 0:
+            print(f"Node {node.node_id} is dead.")
             self.mark_node_as_dead(node, round)
             self.remove_node_from_cluster(node)
 
@@ -146,7 +150,10 @@ class LEACH:
 
     def remove_node_from_cluster(self, node):
         for neighbor in node.neighbors.values():
-            neighbor.neighbors.pop(node.node_id)
+            print(f"Removing node {node.node_id} from node {neighbor.node_id}")
+            # if the node is not dead, remove it from the neighbor's neighbors
+            if neighbor.energy > 0:
+                neighbor.neighbors.pop(node.node_id)
         node.neighbors = {}
 
     def energy_dissipation_cluster_heads(self, round):
@@ -159,7 +166,7 @@ class LEACH:
             ETx = (self.elect + self.eda) * self.packet_size + \
                 self.eamp * self.packet_size * distance**2
             node.energy -= ETx
-            self.network.energy += ETx
+            self.network.remaining_energy -= ETx
             if node.energy <= 0:
                 self.mark_node_as_dead(node, round)
                 self.remove_cluster_head_from_cluster(node)
@@ -169,6 +176,8 @@ class LEACH:
         for child in cluster_head.neighbors.values():
             if child.cluster_id == cluster_id:
                 child.cluster_id = 0
+                # Find the new cluster head for the child
+                self.add_node_to_cluster(child)
         cluster_head.neighbors = {}
 
     def plot_clusters(self, round):
@@ -219,6 +228,31 @@ class LEACH:
                 plt.plot([node.x, self.network.nodes[1].x], [
                          node.y, self.network.nodes[1].y], 'k-', linewidth=1)
 
+    def plot_metrics(self, network_energy, network_energy_label, network_energy_unit,
+                     network_energy_title, num_dead_nodes, num_dead_nodes_label,
+                     num_dead_nodes_title,
+                        num_alive_nodes, num_alive_nodes_label, num_alive_nodes_title):
+        plt.figure()
+        plt.plot(network_energy.keys(), network_energy.values())
+        plt.xlabel("Round")
+        plt.ylabel(f"{network_energy_label} ({network_energy_unit})")
+        plt.title(network_energy_title)
+        plt.show()
+
+        plt.figure()
+        plt.plot(num_dead_nodes.keys(), num_dead_nodes.values())
+        plt.xlabel("Round")
+        plt.ylabel(num_dead_nodes_label)
+        plt.title(num_dead_nodes_title)
+        plt.show()
+
+        plt.figure()
+        plt.plot(num_alive_nodes.keys(), num_alive_nodes.values())
+        plt.xlabel("Round")
+        plt.ylabel(num_alive_nodes_label)
+        plt.title(num_alive_nodes_title)
+        plt.show()
+
     def run(self):
         print("Running LEACH protocol...")
         num_nodes = self.config.network.num_sensor
@@ -227,9 +261,21 @@ class LEACH:
         for node in self.network.nodes.values():
             node.is_cluster_head = False
 
+        # Dictionary to store the network energy vs rounds
+        network_energy = {}
+        # Dictionary to store the number of dead nodes vs rounds
+        num_dead_nodes = {}
+        # Dicitonary to store the number of alive nodes vs rounds
+        num_alive_nodes = {}
+
+        # print network initial energy
+        energy = 0
+        for node in self.network.nodes.values():
+            energy += node.energy
+        self.network.remaining_energy = energy
+
         round = 0
         while self.network.alive_nodes() > 0:
-            self.network.energy = 0
             round += 1
             print(f"Round {round}")
             num_cluster_heads = 0
@@ -237,10 +283,21 @@ class LEACH:
             print(f"Threshold: {th}")
             tleft = round % (1 / p)
             self.select_cluster_heads(th, tleft, num_cluster_heads)
-            input("Press enter to continue...")
+            # input("Press enter to continue...")
             chs_bool = self.create_clusters()
             self.energy_dissipation_non_cluster_heads(round)
             self.energy_dissipation_cluster_heads(round)
-            self.plot_clusters(round)
-
-# Rest of the code...
+            # self.plot_clusters(round)
+            # Store network energy vs rounds in a dictionary
+            network_energy[round] = self.network.remaining_energy
+            # Store number of dead nodes vs rounds in a dictionary
+            num_dead_nodes[round] = num_nodes - self.network.alive_nodes()
+            # Store number of alive nodes vs rounds in a dictionary
+            num_alive_nodes[round] = self.network.alive_nodes()
+        # Plot the network energy vs rounds
+        self.plot_metrics(network_energy, "Network Energy", "J",
+                          "Network Energy vs Rounds",
+                          num_dead_nodes, "Number of Dead Nodes",
+                          "Number of Dead Nodes vs Rounds",
+                          num_alive_nodes, "Number of Alive Nodes",
+                            "Number of Alive Nodes vs Rounds")
