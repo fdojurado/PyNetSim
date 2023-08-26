@@ -1,3 +1,4 @@
+from pynetsim.config import PROTOCOLS
 from pynetsim.node.node import Node
 
 import networkx as nx
@@ -26,6 +27,29 @@ class Network:
         self.height = config.network.height
         self.config = config
         self.nodes = {}
+        # LEACH keep track of the energy of the network
+        self.energy = 0
+
+    # -----------------LEACH-----------------
+    def get_node_with_cluster_id(self, cluster_id):
+        for node in self.nodes.values():
+            if node.cluster_id == cluster_id and node.is_cluster_head:
+                return node
+        return None
+
+    def alive_nodes(self):
+        alive_nodes = 0
+        for node in self.nodes.values():
+            if node.energy > 0:
+                alive_nodes += 1
+        return alive_nodes
+
+    def dead_nodes(self):
+        dead_nodes = 0
+        for node in self.nodes.values():
+            if node.energy <= 0:
+                dead_nodes += 1
+        return dead_nodes
 
     # -----------------Network creation-----------------
 
@@ -84,7 +108,7 @@ class Network:
             for i in range(1, self.num_nodes + 1):
                 x = random.uniform(0, self.width)
                 y = random.uniform(0, self.height)
-                node = Node(i, x, y)
+                node = Node(i, x, y, energy=0.5)
                 self.nodes[i] = node  # node_id: node
             # Set the sink node
             self.nodes[1].set_sink()
@@ -92,19 +116,27 @@ class Network:
             # Calculate the neighbors for each node
             for node in self.nodes.values():
                 for other_node in self.nodes.values():
-                    if node.node_id != other_node.node_id and node.is_within_range(other_node, self.transmission_range):
-                        node.add_neighbor(other_node)
+                    if node.node_id != other_node.node_id:
+                        if not self.config.network.protocol.name == 'LEACH':
+                            if node.is_within_range(other_node, self.transmission_range):
+                                node.add_neighbor(other_node)
+                        else:
+                            node.add_neighbor(other_node)
         else:
             # If there are nodes in the config file, then create the nodes from the config file
             for node in self.config.network.nodes:
                 self.nodes[node.node_id] = Node(
-                    node.node_id, node.x, node.y, node.type_node)
+                    node.node_id, node.x, node.y, node.type_node, node.energy)
 
             # Calculate the neighbors for each node
             for node in self.nodes.values():
                 for other_node in self.nodes.values():
-                    if node.node_id != other_node.node_id and node.is_within_range(other_node, self.transmission_range):
-                        node.add_neighbor(other_node)
+                    if node.node_id != other_node.node_id:
+                        if not self.config.network.protocol.name == 'LEACH':
+                            if node.is_within_range(other_node, self.transmission_range):
+                                node.add_neighbor(other_node)
+                        else:
+                            node.add_neighbor(other_node)
 
         return self
 
@@ -190,3 +222,19 @@ class Network:
 
         # Plot the network
         self.plot_network()
+
+        # Run the protocol
+        self.run_protocol()
+
+    # -----------------Protocol-----------------
+
+    def run_protocol(self):
+        # Run the protocol
+        # Get the protocol from the config file
+        protocol = self.config.network.protocol.name
+        # Get the protocol class from the protocol name
+        protocol_class = PROTOCOLS[protocol]
+        # Create an instance of the protocol class
+        protocol_instance = protocol_class(self)
+        # Run the protocol
+        protocol_instance.run()

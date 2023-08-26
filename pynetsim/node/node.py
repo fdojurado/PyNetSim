@@ -2,7 +2,8 @@ from pynetsim.tsch.schedule import TSCHSchedule
 
 
 class Node:
-    def __init__(self, node_id: int, x: float, y: float, type_node: str = "Sensor"):
+    def __init__(self, node_id: int, x: float, y: float, type_node: str = "Sensor",
+                 energy: float = 0):
         self.node_id = node_id
         self.x = x
         self.y = y
@@ -11,6 +12,35 @@ class Node:
         self.neighbors = {}
         self.routing_table = {}
         self.tsch_schedule = {}
+        # LEACH
+        self.__is_cluster_head = False
+        self.cluster_id = 0
+        self.rounds_to_become_cluster_head = 0
+        self.energy = energy
+        self.__dst_to_sink = 0
+        self.dst_to_cluster_head = 0
+        self.round_dead = 0
+
+    @property
+    def is_cluster_head(self):
+        return self.__is_cluster_head
+
+    @is_cluster_head.setter
+    def is_cluster_head(self, value: bool):
+        assert isinstance(value, bool)
+        self.__is_cluster_head = value
+
+    @property
+    def dst_to_sink(self):
+        if self.__dst_to_sink == 0:
+            self.__dst_to_sink = ((self.x - self.neighbors[1].x)**2 +
+                                  (self.y - self.neighbors[1].y)**2)**0.5
+        return self.__dst_to_sink
+
+    @dst_to_sink.setter
+    def dst_to_sink(self, value: float):
+        assert isinstance(value, float)
+        self.__dst_to_sink = value
 
     def set_sink(self):
         self.type = "Sink"

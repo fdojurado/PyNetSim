@@ -11,7 +11,6 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
 
 
-
 def main():
     # Load config
     config = PyNetSimConfig.from_json(CONFIG_FILE)

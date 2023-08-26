@@ -2,11 +2,12 @@
 
 class NodesConfig:
 
-    def __init__(self, node_id=None, x=None, y=None, type_node=None):
+    def __init__(self, node_id=None, x=None, y=None, type_node=None, energy=None):
         self.node_id = node_id
         self.x = x
         self.y = y
         self.type_node = type_node
+        self.energy = energy
         self.neighbors = {}
 
     @classmethod
@@ -21,5 +22,6 @@ class NodesConfig:
                 nodes.append(cls(node_id=node.get("node_id"),
                                  x=node.get("x"),
                                  y=node.get("y"),
+                                 energy=node.get("energy"),
                                  type_node=node.get("type_node")))
             return nodes

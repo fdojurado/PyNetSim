@@ -3,6 +3,17 @@
     "network": {
         "num_sensor": 21,
         "transmission_range": 60,
+        "protocol": {
+            "name": "LEACH",
+            "rounds": 1000,
+            "cluster_head_percentage": 0.05,
+            "eelect_nano": 50,
+            "etx_nano": 50,
+            "erx_nano": 50,
+            "eamp_pico": 100,
+            "eda_nano": 5,
+            "packet_size": 4000
+        },
         "width": 200,
         "height": 200,
         "num_sink": 1,
@@ -16,121 +27,141 @@
                 "node_id": 1,
                 "x": 150,
                 "y": 60,
-                "type_node": "Sink"
+                "type_node": "Sink",
+                "energy": 2
             },
             {
                 "node_id": 2,
                 "x": 100,
                 "y": 100,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 3,
                 "x": 150,
                 "y": 120,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 4,
                 "x": 80,
                 "y": 60,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 5,
                 "x": 180,
                 "y": 90,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 6,
                 "x": 40,
                 "y": 150,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 7,
                 "x": 130,
                 "y": 170,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 8,
                 "x": 70,
                 "y": 20,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 9,
                 "x": 190,
                 "y": 40,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 10,
                 "x": 30,
                 "y": 180,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 11,
                 "x": 160,
                 "y": 160,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 12,
                 "x": 80,
                 "y": 150,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 13,
                 "x": 180,
                 "y": 120,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 14,
                 "x": 40,
                 "y": 70,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 15,
                 "x": 130,
                 "y": 40,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 16,
                 "x": 70,
                 "y": 170,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 17,
                 "x": 190,
                 "y": 20,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 18,
                 "x": 30,
                 "y": 160,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 19,
                 "x": 160,
                 "y": 180,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             },
             {
                 "node_id": 20,
                 "x": 100,
                 "y": 20,
-                "type_node": "Sensor"
+                "type_node": "Sensor",
+                "energy": 2
             }
         ]
     }
