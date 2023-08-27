@@ -263,7 +263,7 @@ class LEACH:
         print("Running LEACH protocol...")
         p = self.config.network.protocol.cluster_head_percentage
         num_rounds = 5000  # Update this with the desired number of rounds
-        plot_clusters_flag = True  # Set this to False to not plot clusters
+        plot_clusters_flag = False  # Set this to False to not plot clusters
 
         for node in self.network.nodes.values():
             node.is_cluster_head = False
@@ -271,6 +271,9 @@ class LEACH:
         network_energy = {}
         num_dead_nodes = {}
         num_alive_nodes = {}
+
+        energy = sum(node.energy for node in self.network.nodes.values())
+        self.network.remaining_energy = energy
 
         if not plot_clusters_flag:
             self.run_without_plotting(

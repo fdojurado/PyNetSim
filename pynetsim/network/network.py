@@ -111,7 +111,10 @@ class Network:
             for i in range(1, self.num_nodes + 1):
                 if i == 1:
                     # Create the sink node
-                    node = Node(i, 50, 200, energy=2)
+                    # x,y locations are fixed at the middle of the network
+                    x = self.config.network.width / 2
+                    y = self.config.network.height / 2
+                    node = Node(i, x, y, energy=2)
                     self.nodes[i] = node
                     continue
                 x = random.uniform(0, self.width)
@@ -229,7 +232,7 @@ class Network:
             node.print_routing_table()
 
         # Plot the network
-        self.plot_network()
+        # self.plot_network()
 
         # Run the protocol
         self.run_protocol()
