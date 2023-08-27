@@ -1,5 +1,6 @@
 import random
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 
 class LEACH:
@@ -180,16 +181,15 @@ class LEACH:
                 self.add_node_to_cluster(child)
         cluster_head.neighbors = {}
 
-    def plot_clusters(self, round):
-        plt.figure()
-        self.plot_nodes()
-        self.plot_cluster_connections()
-        self.annotate_node_ids()
-        self.plot_sink_connections()
-        plt.title(f"Round {round}")
-        plt.show()
+    def plot_clusters(self, round, ax):
+        ax.clear()
+        self.plot_nodes(ax)
+        self.plot_cluster_connections(ax)
+        self.annotate_node_ids(ax)
+        self.plot_sink_connections(ax)
+        ax.set_title(f"Round {round}")
 
-    def plot_nodes(self):
+    def plot_nodes(self, ax):
         for node in self.network.nodes.values():
             if node.node_id == 1:
                 node.color = "black"
@@ -197,9 +197,9 @@ class LEACH:
                 node.color = "red"
             else:
                 node.color = "blue"
-            plt.plot(node.x, node.y, 'o', color=node.color)
+            ax.plot(node.x, node.y, 'o', color=node.color)
 
-    def plot_cluster_connections(self):
+    def plot_cluster_connections(self, ax):
         cluster_heads_exist = any(
             node.is_cluster_head for node in self.network.nodes.values())
         if not cluster_heads_exist:
@@ -210,28 +210,28 @@ class LEACH:
             if node.is_cluster_head or node.node_id == 1:
                 continue
             cluster_head = self.get_cluster_head(node)
-            plt.plot([node.x, cluster_head.x], [
-                     node.y, cluster_head.y], 'k--', linewidth=0.5)
+            ax.plot([node.x, cluster_head.x], [
+                    node.y, cluster_head.y], 'k--', linewidth=0.5)
 
         for node in self.network.nodes.values():
             if node.is_cluster_head:
-                plt.plot([node.x, self.network.nodes[1].x], [
-                         node.y, self.network.nodes[1].y], 'k-', linewidth=1)
+                ax.plot([node.x, self.network.nodes[1].x], [
+                        node.y, self.network.nodes[1].y], 'k-', linewidth=1)
 
-    def annotate_node_ids(self):
+    def annotate_node_ids(self, ax):
         for node in self.network.nodes.values():
-            plt.annotate(node.node_id, (node.x, node.y))
+            ax.annotate(node.node_id, (node.x, node.y))
 
-    def plot_sink_connections(self):
+    def plot_sink_connections(self, ax):
         for node in self.network.nodes.values():
             if node.node_id == 1:
-                plt.plot([node.x, self.network.nodes[1].x], [
-                         node.y, self.network.nodes[1].y], 'k-', linewidth=1)
+                ax.plot([node.x, self.network.nodes[1].x], [
+                        node.y, self.network.nodes[1].y], 'k-', linewidth=1)
 
     def plot_metrics(self, network_energy, network_energy_label, network_energy_unit,
                      network_energy_title, num_dead_nodes, num_dead_nodes_label,
                      num_dead_nodes_title,
-                        num_alive_nodes, num_alive_nodes_label, num_alive_nodes_title):
+                     num_alive_nodes, num_alive_nodes_label, num_alive_nodes_title):
         plt.figure()
         plt.plot(network_energy.keys(), network_energy.values())
         plt.xlabel("Round")
@@ -253,51 +253,90 @@ class LEACH:
         plt.title(num_alive_nodes_title)
         plt.show()
 
+    def store_metrics(self, round, network_energy, num_dead_nodes, num_alive_nodes):
+        num_nodes = self.config.network.num_sensor
+        network_energy[round] = self.network.remaining_energy
+        num_dead_nodes[round] = num_nodes - self.network.alive_nodes()
+        num_alive_nodes[round] = self.network.alive_nodes()
+
     def run(self):
         print("Running LEACH protocol...")
-        num_nodes = self.config.network.num_sensor
         p = self.config.network.protocol.cluster_head_percentage
+        num_rounds = 5000  # Update this with the desired number of rounds
+        plot_clusters_flag = True  # Set this to False to not plot clusters
 
         for node in self.network.nodes.values():
             node.is_cluster_head = False
 
-        # Dictionary to store the network energy vs rounds
         network_energy = {}
-        # Dictionary to store the number of dead nodes vs rounds
         num_dead_nodes = {}
-        # Dicitonary to store the number of alive nodes vs rounds
         num_alive_nodes = {}
 
-        # print network initial energy
-        energy = 0
-        for node in self.network.nodes.values():
-            energy += node.energy
-        self.network.remaining_energy = energy
+        if not plot_clusters_flag:
+            self.run_without_plotting(
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes)
+        else:
+            self.run_with_plotting(
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes)
 
-        round = 0
-        while self.network.alive_nodes() > 0:
-            round += 1
-            print(f"Round {round}")
-            num_cluster_heads = 0
-            th = p / (1 - p * (round % (1 / p)))
-            print(f"Threshold: {th}")
-            tleft = round % (1 / p)
-            self.select_cluster_heads(th, tleft, num_cluster_heads)
-            # input("Press enter to continue...")
-            chs_bool = self.create_clusters()
-            self.energy_dissipation_non_cluster_heads(round)
-            self.energy_dissipation_cluster_heads(round)
-            # self.plot_clusters(round)
-            # Store network energy vs rounds in a dictionary
-            network_energy[round] = self.network.remaining_energy
-            # Store number of dead nodes vs rounds in a dictionary
-            num_dead_nodes[round] = num_nodes - self.network.alive_nodes()
-            # Store number of alive nodes vs rounds in a dictionary
-            num_alive_nodes[round] = self.network.alive_nodes()
-        # Plot the network energy vs rounds
         self.plot_metrics(network_energy, "Network Energy", "J",
                           "Network Energy vs Rounds",
                           num_dead_nodes, "Number of Dead Nodes",
                           "Number of Dead Nodes vs Rounds",
                           num_alive_nodes, "Number of Alive Nodes",
-                            "Number of Alive Nodes vs Rounds")
+                          "Number of Alive Nodes vs Rounds")
+
+    def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
+        round = 0
+        while self.network.alive_nodes() > 0 and round < num_rounds:
+            round += 1
+            print(f"Round {round}")
+
+            num_cluster_heads = 0
+            th = p / (1 - p * (round % (1 / p)))
+            print(f"Threshold: {th}")
+            tleft = round % (1 / p)
+
+            self.select_cluster_heads(th, tleft, num_cluster_heads)
+            chs_bool = self.create_clusters()
+            self.energy_dissipation_non_cluster_heads(round)
+            self.energy_dissipation_cluster_heads(round)
+
+            self.store_metrics(round, network_energy,
+                               num_dead_nodes, num_alive_nodes)
+
+    def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
+        fig, ax = plt.subplots()
+        self.plot_clusters(0, ax)
+
+        energy = sum(node.energy for node in self.network.nodes.values())
+        self.network.remaining_energy = energy
+
+        def animate(round):
+            print(f"Round {round}")
+
+            num_cluster_heads = 0
+            th = p / (1 - p * (round % (1 / p)))
+            print(f"Threshold: {th}")
+            tleft = round % (1 / p)
+
+            self.select_cluster_heads(th, tleft, num_cluster_heads)
+            chs_bool = self.create_clusters()
+            self.energy_dissipation_non_cluster_heads(round)
+            self.energy_dissipation_cluster_heads(round)
+
+            ax.clear()
+            self.plot_clusters(round, ax)
+
+            self.store_metrics(round, network_energy,
+                               num_dead_nodes, num_alive_nodes)
+
+            if self.network.alive_nodes() <= 0:
+                ani.event_source.stop()
+
+            plt.pause(0.1)
+
+        ani = animation.FuncAnimation(
+            fig, animate, frames=range(1, num_rounds + 1), repeat=False)
+
+        plt.show()
