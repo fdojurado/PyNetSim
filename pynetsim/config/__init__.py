@@ -1,6 +1,7 @@
 import json
 import os
 from pynetsim.config.network import NetworkConfig
+from pynetsim.leach.leach_c import LEACH_C
 from pynetsim.leach.leach import LEACH
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -8,7 +9,8 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(SELF_PATH, "default.json")
 
 PROTOCOLS = {
-    "LEACH": LEACH
+    "LEACH": LEACH,
+    "LEACH_C": LEACH_C
 }
 
 
