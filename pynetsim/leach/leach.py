@@ -1,6 +1,7 @@
 import random
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import pynetsim.leach as leach
 
 
 class LEACH:
@@ -288,6 +289,13 @@ class LEACH:
                           "Number of Dead Nodes vs Rounds",
                           num_alive_nodes, "Number of Alive Nodes",
                           "Number of Alive Nodes vs Rounds")
+        leach.save_metrics(
+            config=self.config,
+            name=self.name,
+            network_energy=network_energy,
+            num_dead_nodes=num_dead_nodes,
+            num_alive_nodes=num_alive_nodes
+        )
 
     def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
         round = 0

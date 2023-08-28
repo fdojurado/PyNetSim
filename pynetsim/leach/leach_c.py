@@ -7,7 +7,7 @@ import pynetsim.leach as leach
 class LEACH_C:
 
     def __init__(self, network):
-        self.name = "LEACH_C"
+        self.name = "LEACH-C"
         self.config = network.config
         self.network = network
         self.elect = self.config.network.protocol.eelect_nano * 10**-9
@@ -157,6 +157,13 @@ class LEACH_C:
                            "Number of Dead Nodes vs Rounds",
                            num_alive_nodes, "Number of Alive Nodes",
                            "Number of Alive Nodes vs Rounds")
+
+        # Save the metrics dictionary to a file
+        leach.save_metrics(config=self.config,
+                           name=self.name,
+                           network_energy=network_energy,
+                           num_dead_nodes=num_dead_nodes,
+                           num_alive_nodes=num_alive_nodes)
 
     def run_without_plotting(self, num_rounds, network_energy, num_dead_nodes,
                              num_alive_nodes):

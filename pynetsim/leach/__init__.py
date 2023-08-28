@@ -249,3 +249,14 @@ def remove_cluster_head_from_cluster(network, cluster_head):
 def mark_node_as_dead(node, round):
     print(f"Node {node.node_id} is dead.")
     node.round_dead = round
+
+
+def save_metrics(config, name,
+                 network_energy, num_dead_nodes, num_alive_nodes):
+    num_nodes = config.network.num_sensor
+    with open(name+".txt", "w") as f:
+        f.write(f"Number of nodes: {num_nodes}\n")
+        f.write(f"Number of rounds: {config.network.protocol.rounds}\n")
+        f.write(f"Number of dead nodes: {num_dead_nodes}\n")
+        f.write(f"Number of alive nodes: {num_alive_nodes}\n")
+        f.write(f"Network energy: {network_energy}\n")
