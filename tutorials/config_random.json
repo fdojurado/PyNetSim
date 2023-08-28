@@ -4,8 +4,8 @@
         "num_sensor": 100,
         "transmission_range": 60,
         "protocol": {
-            "name": "LEACH-C",
-            "rounds": 1000,
+            "name": "LEACH",
+            "rounds": 5000,
             "cluster_head_percentage": 0.05,
             "eelect_nano": 50,
             "etx_nano": 50,
