@@ -10,7 +10,7 @@ DEFAULT_CONFIG = os.path.join(SELF_PATH, "default.json")
 
 PROTOCOLS = {
     "LEACH": LEACH,
-    "LEACH_C": LEACH_C
+    "LEACH-C": LEACH_C
 }
 
 

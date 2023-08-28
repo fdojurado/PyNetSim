@@ -262,7 +262,7 @@ class LEACH:
     def run(self):
         print("Running LEACH protocol...")
         p = self.config.network.protocol.cluster_head_percentage
-        num_rounds = 5000  # Update this with the desired number of rounds
+        num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False  # Set this to False to not plot clusters
 
         for node in self.network.nodes.values():
@@ -336,6 +336,9 @@ class LEACH:
 
             if self.network.alive_nodes() <= 0:
                 ani.event_source.stop()
+
+            # Update round number
+            round += 1
 
             plt.pause(0.1)
 
