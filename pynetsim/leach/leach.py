@@ -52,8 +52,6 @@ class LEACH:
         node.is_cluster_head = True
         node.rounds_to_become_cluster_head = 1 / \
             self.config.network.protocol.cluster_head_percentage - tleft
-        node.dst_to_sink = (
-            (node.x - self.network.nodes[1].x)**2 + (node.y - self.network.nodes[1].y)**2)**0.5
         node.cluster_id = num_cluster_heads
         print(f"Node {node.node_id} is a cluster head.")
         return num_cluster_heads
@@ -110,7 +108,6 @@ class LEACH:
         print(f"Node {node.node_id} distance to sink: {distance}")
         ETx = self.elect * self.packet_size + self.eamp * self.packet_size * distance**2
         node.energy -= ETx
-        self.network.remaining_energy -= ETx
         if node.energy <= 0:
             self.mark_node_as_dead(node, round)
 
@@ -119,10 +116,8 @@ class LEACH:
         print(f"Node {node.node_id} distance to cluster head: {distance}")
         ETx = self.calculate_tx_energy_dissipation(distance)
         node.energy -= ETx
-        self.network.remaining_energy -= ETx
         ERx = (self.elect + self.eda) * self.packet_size
         cluster_head.energy -= ERx
-        self.network.remaining_energy -= ERx
         if cluster_head.energy <= 0:
             print(f"Cluster head {cluster_head.node_id} is dead.")
             self.mark_node_as_dead(cluster_head, round)
@@ -168,7 +163,6 @@ class LEACH:
             ETx = (self.elect + self.eda) * self.packet_size + \
                 self.eamp * self.packet_size * distance**2
             node.energy -= ETx
-            self.network.remaining_energy -= ETx
             if node.energy <= 0:
                 self.mark_node_as_dead(node, round)
                 self.remove_cluster_head_from_cluster(node)
@@ -256,7 +250,7 @@ class LEACH:
 
     def store_metrics(self, round, network_energy, num_dead_nodes, num_alive_nodes):
         num_nodes = self.config.network.num_sensor
-        network_energy[round] = self.network.remaining_energy
+        network_energy[round] = self.network.remaining_energy()
         num_dead_nodes[round] = num_nodes - self.network.alive_nodes()
         num_alive_nodes[round] = self.network.alive_nodes()
 
@@ -273,8 +267,9 @@ class LEACH:
         num_dead_nodes = {}
         num_alive_nodes = {}
 
-        energy = sum(node.energy for node in self.network.nodes.values())
-        self.network.remaining_energy = energy
+        # Set all dst_to_sink for all nodes
+        for node in self.network.nodes.values():
+            node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
             self.run_without_plotting(
@@ -319,9 +314,6 @@ class LEACH:
     def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
         fig, ax = plt.subplots()
         self.plot_clusters(0, ax)
-
-        energy = sum(node.energy for node in self.network.nodes.values())
-        self.network.remaining_energy = energy
 
         def animate(round):
             print(f"Round {round}")

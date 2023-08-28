@@ -27,8 +27,6 @@ class Network:
         self.height = config.network.height
         self.config = config
         self.nodes = {}
-        # LEACH keep track of the energy of the network
-        self.remaining_energy = 0
 
     # -----------------LEACH-----------------
     def get_node_with_cluster_id(self, cluster_id):
@@ -53,6 +51,16 @@ class Network:
             if node.energy <= 0:
                 dead_nodes += 1
         return dead_nodes
+
+    def remaining_energy(self):
+        remaining_energy = 0
+        for node in self.nodes.values():
+            if node.energy > 0 and node.node_id != 1:
+                remaining_energy += node.energy
+        return remaining_energy
+
+    def distance_to_sink(self, node):
+        return ((node.x - self.nodes[1].x)**2 + (node.y - self.nodes[1].y)**2)**0.5
 
     # -----------------Network creation-----------------
 

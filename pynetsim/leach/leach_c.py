@@ -27,7 +27,7 @@ class LEACH_C:
             node.is_cluster_head = False
             node.cluster_id = 0
 
-            if leach.should_select_cluster_head(node, network_avg_energy):
+            if node.energy >= network_avg_energy:
                 potential_cluster_heads.append(node.node_id)
 
         # print(f"Cluster heads candidates: {potential_cluster_heads}")
@@ -36,6 +36,9 @@ class LEACH_C:
 
     def node_distance_to_cluster_candidate(self, node,
                                            cluster_head_assignments):
+        # if cluster_head_assignments is empty, then return the distance to the sink
+        if len(cluster_head_assignments) == 0:
+            return node.dst_to_sink
         cluster_heads = [
             self.network.get_node(cluster_head_id)
             for cluster_head_id in cluster_head_assignments
@@ -141,8 +144,9 @@ class LEACH_C:
         num_dead_nodes = {}
         num_alive_nodes = {}
 
-        energy = sum(node.energy for node in self.network.nodes.values())
-        self.network.remaining_energy = energy
+        # Set all dst_to_sink for all nodes
+        for node in self.network.nodes.values():
+            node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
             self.run_without_plotting(
@@ -180,7 +184,7 @@ class LEACH_C:
             self.num_cluster_heads = 0
 
             # Compute the network average energy
-            network_avg_energy = self.network.remaining_energy / self.network.num_nodes
+            network_avg_energy = self.network.remaining_energy() / self.network.alive_nodes()
 
             # Select cluster heads
             chs = self.select_cluster_heads(network_avg_energy)
@@ -204,6 +208,11 @@ class LEACH_C:
             leach.store_metrics(self.config, self.network,
                                 round, network_energy,
                                 num_dead_nodes, num_alive_nodes)
+            leach.save_metrics(config=self.config,
+                               name=self.name,
+                               network_energy=network_energy,
+                               num_dead_nodes=num_dead_nodes,
+                               num_alive_nodes=num_alive_nodes)
 
     def run_with_plotting(self, num_rounds, network_energy, num_dead_nodes,
                           num_alive_nodes):
@@ -211,7 +220,7 @@ class LEACH_C:
         leach.plot_clusters(network=self.network, round=0, ax=ax)
 
         def animate(round):
-            # print(f"Round {round}")
+            print(f"Round {round}")
 
             # Clear all CHs from the previous round
             for node in self.network.nodes.values():
@@ -221,7 +230,7 @@ class LEACH_C:
             self.num_cluster_heads = 0
 
             # Compute the network average energy
-            network_avg_energy = self.network.remaining_energy / self.network.num_nodes
+            network_avg_energy = self.network.remaining_energy() / self.network.alive_nodes()
 
             # Select cluster heads
             chs = self.select_cluster_heads(network_avg_energy)

@@ -17,7 +17,7 @@ class Node:
         self.cluster_id = 0
         self.rounds_to_become_cluster_head = 0
         self.energy = energy
-        self.__dst_to_sink = 0
+        self.dst_to_sink = 0
         self.dst_to_cluster_head = 0
         self.round_dead = 0
 
@@ -30,17 +30,17 @@ class Node:
         assert isinstance(value, bool)
         self.__is_cluster_head = value
 
-    @property
-    def dst_to_sink(self):
-        if self.__dst_to_sink == 0:
-            self.__dst_to_sink = ((self.x - self.neighbors[1].x)**2 +
-                                  (self.y - self.neighbors[1].y)**2)**0.5
-        return self.__dst_to_sink
+    # @property
+    # def dst_to_sink(self):
+    #     if self.__dst_to_sink == 0:
+    #         self.__dst_to_sink = ((self.x - self.neighbors[1].x)**2 +
+    #                               (self.y - self.neighbors[1].y)**2)**0.5
+    #     return self.__dst_to_sink
 
-    @dst_to_sink.setter
-    def dst_to_sink(self, value: float):
-        assert isinstance(value, float)
-        self.__dst_to_sink = value
+    # @dst_to_sink.setter
+    # def dst_to_sink(self, value: float):
+    #     assert isinstance(value, float)
+    #     self.__dst_to_sink = value
 
     def set_sink(self):
         self.type = "Sink"

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import json
 
 
 def energy_dissipation_non_cluster_heads(round, network,
@@ -31,7 +32,7 @@ def energy_dissipation_cluster_heads(round, network,
         ETx = (elect + eda) * packet_size + \
             eamp * packet_size * distance**2
         node.energy -= ETx
-        network.remaining_energy -= ETx
+        # network.remaining_energy -= ETx
         if node.energy <= 0:
             mark_node_as_dead(node, round)
             remove_cluster_head_from_cluster(
@@ -44,7 +45,7 @@ def transfer_data_to_sink(network, node, elect, packet_size, eamp, round):
     # print(f"Node {node.node_id} distance to sink: {distance}")
     ETx = elect * packet_size + eamp * packet_size * distance**2
     node.energy -= ETx
-    network.remaining_energy -= ETx
+    # network.remaining_energy -= ETx
     if node.energy <= 0:
         mark_node_as_dead(node, round)
 
@@ -56,14 +57,14 @@ def process_non_cluster_head(network, node, cluster_head, round,
     ETx = calculate_tx_energy_dissipation(distance=distance, elect=elect,
                                           packet_size=packet_size, eamp=eamp)
     node.energy -= ETx
-    network.remaining_energy -= ETx
+    # network.remaining_energy -= ETx
     ERx = (elect + eda) * packet_size
     cluster_head.energy -= ERx
-    network.remaining_energy -= ERx
+    # network.remaining_energy -= ERx
     if cluster_head.energy <= 0:
         # print(f"Cluster head {cluster_head.node_id} is dead.")
         mark_node_as_dead(cluster_head, round)
-        remove_cluster_head(cluster_head)
+        remove_cluster_head(network=network, cluster_head=cluster_head)
         remove_node_from_cluster(cluster_head)
         remove_cluster_head_from_cluster(network=network,
                                          cluster_head=cluster_head)
@@ -78,7 +79,7 @@ def create_clusters(network):
         node.is_cluster_head for node in network.nodes.values())
     if not cluster_heads_exist:
         print("There are no cluster heads.")
-        input("Press Enter to continue...")
+        # input("Press Enter to continue...")
         clear_clusters(network)
         return False
 
@@ -105,15 +106,13 @@ def mark_as_cluster_head(network, node, num_cluster_heads):
     num_cluster_heads += 1
     node.is_cluster_head = True
     node.cluster_id = num_cluster_heads
-    node.dst_to_sink = (
-        (node.x - network.nodes[1].x)**2 + (node.y - network.nodes[1].y)**2)**0.5
     # print(f"Node {node.node_id} is cluster head")
     return num_cluster_heads
 
 
 def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes):
     num_nodes = config.network.num_sensor
-    network_energy[round] = network.remaining_energy
+    network_energy[round] = network.remaining_energy()
     num_dead_nodes[round] = num_nodes - network.alive_nodes()
     num_alive_nodes[round] = network.alive_nodes()
 
@@ -199,10 +198,6 @@ def should_skip_node(node):
     return node.node_id == 1 or node.energy <= 0
 
 
-def should_select_cluster_head(node, network_avg_energy):
-    return node.energy >= network_avg_energy
-
-
 def get_cluster_head(network, node):
     return network.get_node_with_cluster_id(node.cluster_id)
 
@@ -254,9 +249,14 @@ def mark_node_as_dead(node, round):
 def save_metrics(config, name,
                  network_energy, num_dead_nodes, num_alive_nodes):
     num_nodes = config.network.num_sensor
-    with open(name+".txt", "w") as f:
-        f.write(f"Number of nodes: {num_nodes}\n")
-        f.write(f"Number of rounds: {config.network.protocol.rounds}\n")
-        f.write(f"Number of dead nodes: {num_dead_nodes}\n")
-        f.write(f"Number of alive nodes: {num_alive_nodes}\n")
-        f.write(f"Network energy: {network_energy}\n")
+    # Build a json object
+    metrics = {
+        "num_nodes": num_nodes,
+        "num_rounds": config.network.protocol.rounds,
+        "num_dead_nodes": num_dead_nodes,
+        "num_alive_nodes": num_alive_nodes,
+        "network_energy": network_energy
+    }
+    # Save the file as a json file
+    with open(name+".json", "w") as f:
+        json.dump(metrics, f)
