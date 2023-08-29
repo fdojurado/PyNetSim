@@ -84,16 +84,16 @@ class Network:
             if node.node_id != 1:
                 not_visited.add(node)
         # Print the visted and not_visited sets
-        print("Visited: ", [node.node_id for node in visited])
-        print("Not visited: ", [node.node_id for node in not_visited])
+        # print("Visited: ", [node.node_id for node in visited])
+        # print("Not visited: ", [node.node_id for node in not_visited])
         # Start the BFS
         while len(queue) > 0:
             # Get the first node in the queue
             node = queue.pop(0)
-            print("Node: ", node.node_id)
+            # print("Node: ", node.node_id)
             # Get the neighbors of the node
             neighbors = node.get_neighbors()
-            print("Neighbors: ", [neighbor.node_id for neighbor in neighbors])
+            # print("Neighbors: ", [neighbor.node_id for neighbor in neighbors])
             # For each neighbor, if it is not visited
             # then add it to the queue and the visited set
             for neighbor in neighbors:
@@ -102,8 +102,8 @@ class Network:
                     visited.add(neighbor)
                     not_visited.remove(neighbor)
         # Print the visted and not_visited sets
-        print("BFS Visited: ", [node.node_id for node in visited])
-        print("BFS Not visited: ", [node.node_id for node in not_visited])
+        # print("BFS Visited: ", [node.node_id for node in visited])
+        # print("BFS Not visited: ", [node.node_id for node in not_visited])
         # If the not_visited set is empty, then the network is connected
         return len(not_visited) == 0
 
@@ -182,6 +182,9 @@ class Network:
             print("Error: The network is not connected!")
             self.plot_network()
             return False
+        # Set all nodes to not be cluster heads
+        for node in self.nodes.values():
+            node.is_cluster_head = False
         return True
 
     def plot_network(self):

@@ -11,6 +11,7 @@ def energy_dissipation_non_cluster_heads(round, network,
 
         cluster_head = get_cluster_head(network=network, node=node)
         if cluster_head is None:
+            # print("No cluster heads. Node {node.node_id} is tx to sink.")
             transfer_data_to_sink(network=network, node=node,
                                   elect=elect, packet_size=packet_size,
                                   eamp=eamp, round=round)
@@ -31,6 +32,7 @@ def energy_dissipation_cluster_heads(round, network,
         #     f"Cluster head {node.node_id} with cluster id {node.cluster_id} distance to sink: {distance}")
         ETx = (elect + eda) * packet_size + \
             eamp * packet_size * distance**2
+        # print(f"Cluster head {node.node_id} is tx to sink with distance {distance}. Energy: {ETx}")
         node.energy -= ETx
         # network.remaining_energy -= ETx
         if node.energy <= 0:
@@ -56,6 +58,9 @@ def process_non_cluster_head(network, node, cluster_head, round,
     # print(f"Node {node.node_id} distance to cluster head: {distance}")
     ETx = calculate_tx_energy_dissipation(distance=distance, elect=elect,
                                           packet_size=packet_size, eamp=eamp)
+    # print(
+    #     f"Node {node.node_id} is tx to cluster head {cluster_head.node_id}. Energy: {ETx}"
+    # )
     node.energy -= ETx
     # network.remaining_energy -= ETx
     ERx = (elect + eda) * packet_size

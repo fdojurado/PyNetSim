@@ -3,10 +3,12 @@
 class ProtocolConfig():
     """Protocol configuration class."""
 
-    def __init__(self, name=None, rounds=None, cluster_head_percentage=None,
+    def __init__(self, name=None, init_energy=None,
+                 rounds=None, cluster_head_percentage=None,
                  eelect_nano=None, etx_nano=None, erx_nano=None,
                  eamp_pico=None, eda_nano=None, packet_size=None):
         self.name = name
+        self.init_energy = init_energy
         self.rounds = rounds
         self.cluster_head_percentage = cluster_head_percentage
         self.eelect_nano = eelect_nano
@@ -22,6 +24,7 @@ class ProtocolConfig():
             json_object = {}
 
         return cls(name=json_object.get("name", None),
+                   init_energy=json_object.get("init_energy", None),
                    rounds=json_object.get("rounds", None),
                    cluster_head_percentage=json_object.get(
             "cluster_head_percentage", None),
