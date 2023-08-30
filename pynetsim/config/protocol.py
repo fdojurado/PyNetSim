@@ -6,7 +6,8 @@ class ProtocolConfig():
     def __init__(self, name=None, init_energy=None,
                  rounds=None, cluster_head_percentage=None,
                  eelect_nano=None, etx_nano=None, erx_nano=None,
-                 eamp_pico=None, eda_nano=None, packet_size=None):
+                 eamp_pico=None, eda_nano=None, packet_size=None,
+                 max_episodes=None):
         self.name = name
         self.init_energy = init_energy
         self.rounds = rounds
@@ -17,6 +18,7 @@ class ProtocolConfig():
         self.eamp_pico = eamp_pico
         self.eda_nano = eda_nano
         self.packet_size = packet_size
+        self.max_episodes = max_episodes
 
     @classmethod
     def from_json(cls, json_object=None):
@@ -33,4 +35,5 @@ class ProtocolConfig():
             erx_nano=json_object.get("erx_nano", None),
             eamp_pico=json_object.get("eamp_pico", None),
             eda_nano=json_object.get("eda_nano", None),
-            packet_size=json_object.get("packet_size", None))
+            packet_size=json_object.get("packet_size", None),
+            max_episodes=json_object.get("max_episodes", None))

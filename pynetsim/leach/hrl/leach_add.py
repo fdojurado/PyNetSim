@@ -94,7 +94,8 @@ class LEACH_ADD(gym.Env):
         for node in self.network.nodes.values():
             node.is_cluster_head = False
             node.cluster_id = 0
-            node.energy = self.np_random.uniform(
+            # use np random to set the energy
+            node.energy = np.random.uniform(
                 low=0.5, high=self.config.network.protocol.init_energy)
 
         # Create 0 to 5 cluster heads randomly
@@ -104,7 +105,7 @@ class LEACH_ADD(gym.Env):
         # print(f"Num cluster heads: {num_cluster_heads}")
 
         # Choose any num_cluster_heads nodes as cluster heads from the network
-        cluster_heads = self.np_random.choice(
+        cluster_heads = np.random.choice(
             list(self.network.nodes.values()), size=num_cluster_heads, replace=False)
 
         # print node ids of cluster heads

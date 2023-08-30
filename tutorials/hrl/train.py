@@ -8,6 +8,7 @@ from pynetsim.network.network import Network
 from pynetsim.config import PyNetSimConfig
 from stable_baselines3 import DQN
 from pynetsim.config import PROTOCOLS
+import gymnasium as gym
 
 import numpy as np
 import argparse
@@ -81,6 +82,10 @@ def main(args):
     # -----------Lets train the DQN network
     env_name = config.network.protocol.name
     env = PROTOCOLS[env_name](network)
+    env = gym.wrappers.TimeLimit(
+        env,
+        max_episode_steps=config.network.protocol.max_episodes
+    )
     env = Monitor(env, args.logdir)
     tensorboard_log = args.tensorboard
     best_model = SaveOnBestTrainingRewardCallback(
@@ -89,12 +94,12 @@ def main(args):
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=0.1e-3,
+        learning_rate=1e-4,
         # buffer_size=50000,
         learning_starts=5e3,
         batch_size=512,
         # tau=1.0,
-        gamma=0.95,
+        gamma=0.8,
         # train_freq=4,
         target_update_interval=100,
         exploration_fraction=0.6,

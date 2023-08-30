@@ -5,6 +5,7 @@
         "transmission_range": 60,
         "protocol": {
             "name": "LEACH-ADD",
+            "max_episodes": 10,
             "init_energy": 2,
             "rounds": 5000,
             "cluster_head_percentage": 0.05,
