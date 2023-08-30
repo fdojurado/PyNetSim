@@ -1,4 +1,3 @@
-from pynetsim.network.network import Network
 import matplotlib.pyplot as plt
 import numpy as np
 import gymnasium as gym
@@ -10,7 +9,7 @@ from pynetsim.node.node import Node
 
 class LEACH_ADD(gym.Env):
     def __init__(self, network):
-        self.name = "SelectCH"
+        self.name = "LEACH_ADD"
         self.config = network.config
         self.network = network
 
@@ -23,6 +22,12 @@ class LEACH_ADD(gym.Env):
 
         self.packet_size = self.config.network.protocol.packet_size
         self.round = 0
+
+        # Set all dst_to_sink for all nodes
+        for node in self.network.nodes.values():
+            if node.node_id == 1:
+                continue
+            node.dst_to_sink = self.network.distance_to_sink(node)
 
         # Create the action space. It ranges from NODEID 2 to num_nodes
         # The sink is not a cluster head
@@ -85,34 +90,12 @@ class LEACH_ADD(gym.Env):
         return observation, info
 
     def _create_network(self):
-        for i in range(1, self.config.network.num_sensor+1):
-            if i == 1:
-                # Create the sink
-                x = self.config.network.width / 2
-                y = self.config.network.height / 2
-                node = Node(
-                    i, x, y, energy=self.config.network.protocol.init_energy)
-                self.network.add_node(node)
-            else:
-                x = self.np_random.uniform(
-                    low=0, high=self.config.network.width)
-                y = self.np_random.uniform(
-                    low=0, high=self.config.network.height)
-                energy = self.np_random.uniform(
-                    low=0.5, high=self.config.network.protocol.init_energy)
-                node = Node(i, x, y, energy=energy)
-                self.network.add_node(node)
 
-        # Set node with ID 1 as the sink
-        node = self.network.get_node(1)
-        node.set_sink()
-
-        # Calculate the neighbors for each node
         for node in self.network.nodes.values():
-            for other_node in self.network.nodes.values():
-                if node.node_id == other_node.node_id:
-                    continue
-                node.add_neighbor(other_node)
+            node.is_cluster_head = False
+            node.cluster_id = 0
+            node.energy = self.np_random.uniform(
+                low=0.5, high=self.config.network.protocol.init_energy)
 
         # Create 0 to 5 cluster heads randomly
         num_cluster_heads = np.random.randint(
@@ -133,37 +116,29 @@ class LEACH_ADD(gym.Env):
             cluster_head.is_cluster_head = True
             cluster_head.cluster_id = cluster_head.node_id
 
-        # Set all dst_to_sink for all nodes
-        for node in self.network.nodes.values():
-            if node.node_id == 1:
-                continue
-            node.dst_to_sink = self.network.distance_to_sink(node)
-
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.acc_reward = 0
         self.round = 0
-
-        self.network = Network(config=self.config)
 
         # Create a random network of num_nodes nodes and random positions and
         # random energy levels
         self._create_network()
 
         # print all cluster heads
-        chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        ) if cluster_head.is_cluster_head]
+        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+        # ) if cluster_head.is_cluster_head]
         # print(f"Cluster heads: {chs}")
 
         leach.create_clusters(self.network)
 
-        self.dissipate_energy()
+        self._dissipate_energy()
 
         observation, info = self._get_obs()
 
         return observation, info
 
-    def dissipate_energy(self):
+    def _dissipate_energy(self):
         leach.energy_dissipation_non_cluster_heads(round=self.round, network=self.network,
                                                    elect=self.elect, eda=self.eda,
                                                    packet_size=self.packet_size, eamp=self.eamp)
@@ -181,13 +156,13 @@ class LEACH_ADD(gym.Env):
         #     f"Selected cluster head: {cluster_head.node_id} in round {self.round}")
 
         if cluster_head.energy <= 0:
-            self.dissipate_energy()
+            self._dissipate_energy()
             obs, info = self._get_obs()
             # print(f"Cluster head {cluster_head.node_id} is dead.")
             return obs, 0, True, False, info
 
         if cluster_head.is_cluster_head:
-            self.dissipate_energy()
+            self._dissipate_energy()
             obs, info = self._get_obs()
             # print(
             #     f"Node {cluster_head.node_id} is already a cluster head in round {self.round}.")
@@ -201,7 +176,7 @@ class LEACH_ADD(gym.Env):
         # Save current energy
         current_energy = self.network.remaining_energy()
 
-        self.dissipate_energy()
+        self._dissipate_energy()
 
         # latest energy
         latest_energy = self.network.remaining_energy()

@@ -1,4 +1,4 @@
-# from pynetsim.config import PROTOCOLS
+from pynetsim.config import PROTOCOLS
 from pynetsim.node.node import Node
 
 import networkx as nx
@@ -249,17 +249,17 @@ class Network:
         # self.plot_network()
 
         # Run the protocol
-    #     self.run_protocol()
+        self.run_protocol()
 
-    # # -----------------Protocol-----------------
+    # -----------------Protocol-----------------
 
-    # def run_protocol(self):
-    #     # Run the protocol
-    #     # Get the protocol from the config file
-    #     protocol = self.config.network.protocol.name
-    #     # Get the protocol class from the protocol name
-    #     protocol_class = PROTOCOLS[protocol]
-    #     # Create an instance of the protocol class
-    #     protocol_instance = protocol_class(self)
-    #     # Run the protocol
-    #     protocol_instance.run()
+    def run_protocol(self):
+        # Run the protocol
+        # Get the protocol from the config file
+        protocol = self.config.network.protocol.name
+        # Get the protocol class from the protocol name
+        protocol_class = PROTOCOLS[protocol]
+        # Create an instance of the protocol class
+        protocol_instance = protocol_class(self)
+        # Run the protocol
+        protocol_instance.run()
