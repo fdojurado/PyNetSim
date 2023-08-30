@@ -89,7 +89,7 @@ def main(args):
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=3e-3,
+        learning_rate=0.1e-3,
         # buffer_size=50000,
         learning_starts=5e3,
         batch_size=512,

@@ -76,7 +76,7 @@ class LEACH_ADD(gym.Env):
 
         cluster_head_id = self.np_random.choice(
             list(self.actions_dict.values()))
-        print("Resetting environment with cluster head: ", cluster_head_id)
+        # print("Resetting environment with cluster head: ", cluster_head_id)
         cluster_head = self.network.get_node(cluster_head_id)
 
         # Set all dst_to_sink for all nodes
@@ -96,7 +96,7 @@ class LEACH_ADD(gym.Env):
         # print all cluster heads
         chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
         ) if cluster_head.is_cluster_head]
-        print(f"Cluster heads: {chs}")
+        # print(f"Cluster heads: {chs}")
 
         leach.create_clusters(self.network)
 
@@ -126,14 +126,14 @@ class LEACH_ADD(gym.Env):
         if cluster_head.energy <= 0:
             self.dissipate_energy()
             obs, info = self._get_obs()
-            print(f"Cluster head {cluster_head.node_id} is dead.")
+            # print(f"Cluster head {cluster_head.node_id} is dead.")
             return obs, 0, True, False, info
 
         if cluster_head.is_cluster_head:
             self.dissipate_energy()
             obs, info = self._get_obs()
-            print(
-                f"Node {cluster_head.node_id} is already a cluster head in round {self.round}.")
+            # print(
+            #     f"Node {cluster_head.node_id} is already a cluster head in round {self.round}.")
             return obs, 0, True, False, info
 
         cluster_head.is_cluster_head = True
@@ -166,7 +166,7 @@ class LEACH_ADD(gym.Env):
             not node.is_cluster_head for node in self.network.nodes.values() if node.node_id != 1)
         if not nodes_available:
             print("No nodes available. Well done! Round: ", self.round)
-            input("Press Enter to continue...")
+            # input("Press Enter to continue...")
             done = True
 
         # print(f"NODE ID {cluster_head.node_id} is the cluster head")
