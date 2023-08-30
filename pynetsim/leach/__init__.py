@@ -74,7 +74,7 @@ def process_non_cluster_head(network, node, cluster_head, round,
         remove_cluster_head_from_cluster(network=network,
                                          cluster_head=cluster_head)
     if node.energy <= 0:
-        print(f"Node {node.node_id} is dead.")
+        # print(f"Node {node.node_id} is dead.")
         mark_node_as_dead(node, round)
         remove_node_from_cluster(node)
 

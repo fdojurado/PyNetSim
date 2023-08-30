@@ -1,8 +1,11 @@
+from pynetsim.network.network import Network
 import matplotlib.pyplot as plt
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pynetsim.leach as leach
+from pynetsim.node.node import Node
+# from pynetsim.config import PyNetSimConfig
 
 
 class LEACH_ADD(gym.Env):
@@ -35,7 +38,7 @@ class LEACH_ADD(gym.Env):
         print(f"Action space: {n_actions}")
 
         # Observation space: energy consumption + cluster head indicators
-        n_observation = 2 * (self.config.network.num_sensor+1)
+        n_observation = 4 * (self.config.network.num_sensor+1)
         print(f"Observation space: {n_observation}")
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(n_observation,), dtype=np.float32)
@@ -63,21 +66,72 @@ class LEACH_ADD(gym.Env):
         # print(f"Size of cluster heads: {len(cluster_heads)}")
 
         observation = np.append(energy_consumption, cluster_heads)
+        # Append the sensor nodes location
+        x_locations = np.zeros(self.config.network.num_sensor+1)
+        y_locations = np.zeros(self.config.network.num_sensor+1)
+        for node in self.network.nodes.values():
+            if node.node_id == 1:
+                continue
+            x_locations[node.node_id] = node.x
+            y_locations[node.node_id] = node.y
+
+        observation = np.append(observation, x_locations)
+        observation = np.append(observation, y_locations)
+
         # append rounds
         # observation = np.append(observation, self.round)
         info = {}
 
         return observation, info
 
-    def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
-        self.acc_reward = 0
-        self.round = 0
+    def _create_network(self):
+        for i in range(1, self.config.network.num_sensor+1):
+            if i == 1:
+                # Create the sink
+                x = self.config.network.width / 2
+                y = self.config.network.height / 2
+                node = Node(
+                    i, x, y, energy=self.config.network.protocol.init_energy)
+                self.network.add_node(node)
+            else:
+                x = self.np_random.uniform(
+                    low=0, high=self.config.network.width)
+                y = self.np_random.uniform(
+                    low=0, high=self.config.network.height)
+                energy = self.np_random.uniform(
+                    low=0.5, high=self.config.network.protocol.init_energy)
+                node = Node(i, x, y, energy=energy)
+                self.network.add_node(node)
 
-        cluster_head_id = self.np_random.choice(
-            list(self.actions_dict.values()))
-        # print("Resetting environment with cluster head: ", cluster_head_id)
-        cluster_head = self.network.get_node(cluster_head_id)
+        # Set node with ID 1 as the sink
+        node = self.network.get_node(1)
+        node.set_sink()
+
+        # Calculate the neighbors for each node
+        for node in self.network.nodes.values():
+            for other_node in self.network.nodes.values():
+                if node.node_id == other_node.node_id:
+                    continue
+                node.add_neighbor(other_node)
+
+        # Create 0 to 5 cluster heads randomly
+        num_cluster_heads = np.random.randint(
+            low=1, high=5, size=1)[0]
+
+        # print(f"Num cluster heads: {num_cluster_heads}")
+
+        # Choose any num_cluster_heads nodes as cluster heads from the network
+        cluster_heads = self.np_random.choice(
+            list(self.network.nodes.values()), size=num_cluster_heads, replace=False)
+
+        # print node ids of cluster heads
+        # print(
+        #     f"Cluster heads: {[cluster_head.node_id for cluster_head in cluster_heads]}")
+
+        # Set the cluster heads
+        for cluster_head in cluster_heads:
+            cluster_head.is_cluster_head = True
+            cluster_head.cluster_id = cluster_head.node_id
 
         # Set all dst_to_sink for all nodes
         for node in self.network.nodes.values():
@@ -85,13 +139,16 @@ class LEACH_ADD(gym.Env):
                 continue
             node.dst_to_sink = self.network.distance_to_sink(node)
 
-        for node in self.network.nodes.values():
-            node.is_cluster_head = False
-            node.cluster_id = 0
-            node.energy = self.config.network.protocol.init_energy
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        self.acc_reward = 0
+        self.round = 0
 
-        cluster_head.is_cluster_head = True
-        cluster_head.cluster_id = cluster_head.node_id
+        self.network = Network(config=self.config)
+
+        # Create a random network of num_nodes nodes and random positions and
+        # random energy levels
+        self._create_network()
 
         # print all cluster heads
         chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
