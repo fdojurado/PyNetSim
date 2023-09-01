@@ -72,3 +72,21 @@ def dissipate_energy(round: int, network: object,
     leach.energy_dissipation_cluster_heads(round=round, network=network,
                                            elect=elect, eda=eda,
                                            packet_size=packet_size, eamp=eamp)
+
+
+def create_clusters(network: object):
+    leach.create_clusters(network=network)
+
+
+def mark_as_cluster_head(node):
+    node.is_cluster_head = True
+    node.cluster_id = node.node_id
+
+
+def mark_as_non_cluster_head(node):
+    node.is_cluster_head = False
+    node.cluster_id = 0
+
+
+def get_energy_conversion_factors(config):
+    leach.get_energy_conversion_factors(config)

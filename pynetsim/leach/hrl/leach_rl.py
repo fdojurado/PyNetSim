@@ -2,22 +2,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import pynetsim.leach as leach
-from pynetsim.node.node import Node
 import pynetsim.leach.hrl as hrl
 # from pynetsim.config import PyNetSimConfig
 
 
 class LEACH_RL(gym.Env):
     def __init__(self, network):
-        self.name = "LEACH_RM"
+        self.name = "LEACH_RL"
         self.config = network.config
         self.network = network
         self.max_steps = self.config.network.protocol.max_steps
         self.action = 0
 
         # Energy conversion factors
-        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = leach.get_energy_conversion_factors(
+        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = hrl.get_energy_conversion_factors(
             self.config)
 
         self.round = 0
@@ -86,11 +84,17 @@ class LEACH_RL(gym.Env):
 
         return observations, info
 
+    def _calculate_reward(self):
+        current_energy = self.network.remaining_energy()
+        self._dissipate_energy()
+        latest_energy = self.network.remaining_energy()
+        reward = 2 - 1 * (current_energy - latest_energy)
+        return reward
+
     def _create_network(self):
 
         for node in self.network.nodes.values():
-            node.is_cluster_head = False
-            node.cluster_id = 0
+            hrl.mark_as_non_cluster_head(node)
             # use np random to set the energy
             node.energy = np.random.uniform(
                 low=0.5, high=self.config.network.protocol.init_energy)
@@ -108,12 +112,10 @@ class LEACH_RL(gym.Env):
 
         # Set the cluster heads
         for cluster_head in cluster_heads:
-            cluster_head.is_cluster_head = True
-            cluster_head.cluster_id = cluster_head.node_id
+            hrl.mark_as_cluster_head(cluster_head)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.acc_reward = 0
         self.round = 0
 
         # Create a random network of num_nodes nodes and random positions and
@@ -125,7 +127,7 @@ class LEACH_RL(gym.Env):
         # ) if cluster_head.is_cluster_head]
         # print(f"Cluster heads: {chs}")
 
-        leach.create_clusters(self.network)
+        hrl.create_clusters(self.network)
 
         self._dissipate_energy()
 
@@ -146,35 +148,17 @@ class LEACH_RL(gym.Env):
         done = False
 
         if node.energy < self.network.average_energy():
-            # print(f"Node {node.node_id} is not a cluster head")
             obs, info = self._get_obs()
             return obs, 0, True, False, info
 
         if node.is_cluster_head:
-            # remove the cluster head from the network
-            node.is_cluster_head = False
-            node.cluster_id = 0
-            # print(f"Cluster head {node.node_id} removed")
+            hrl.mark_as_non_cluster_head(node)
         else:
-            # add the cluster head to the network
-            node.is_cluster_head = True
-            node.cluster_id = node.node_id
-            # print(f"Cluster head {node.node_id} added")
+            hrl.mark_as_cluster_head(node)
 
-        leach.create_clusters(self.network)
-
-        # Save the current energy
-        current_energy = self.network.remaining_energy()
-
-        self._dissipate_energy()
-
-        # Latest energy
-        latest_energy = self.network.remaining_energy()
-
-        reward = 2-1*(current_energy-latest_energy)
-
+        hrl.create_clusters(self.network)
+        reward = self._calculate_reward()
         observation, info = self._get_obs()
-
         return observation, reward, done, False, info
 
     def render(self, mode='human'):
