@@ -13,8 +13,9 @@ import os
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
 from pynetsim.config import PyNetSimConfig
-from stable_baselines3 import DQN
 from pynetsim.config import PROTOCOLS
+from rich.progress import Progress
+from stable_baselines3 import DQN
 
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +23,8 @@ CONFIG_FILE = os.path.join(SELF_PATH, "config_leach_rm.json")
 
 
 def run_with_plotting(config, network, model, rounds,
-                      network_energy, num_dead_nodes, num_alive_nodes):
+                      network_energy, num_dead_nodes, num_alive_nodes,
+                      num_cluster_heads):
     fig, ax = plt.subplots()
     hrl.plot_clusters(network=network, round=0, ax=ax)
 
@@ -37,10 +39,10 @@ def run_with_plotting(config, network, model, rounds,
 
         hrl.plot_clusters(network=network, round=round, ax=ax)
         hrl.store_metrics(config, network, round, network_energy,
-                          num_dead_nodes, num_alive_nodes)
+                          num_dead_nodes, num_alive_nodes, num_cluster_heads)
 
         hrl.save_metrics(config, "LEACH-RL", network_energy,
-                         num_dead_nodes, num_alive_nodes)
+                         num_dead_nodes, num_alive_nodes, num_cluster_heads)
 
         plt.pause(2)
 
@@ -51,14 +53,21 @@ def run_with_plotting(config, network, model, rounds,
 
 
 def run_without_plotting(config, network, model, rounds,
-                         network_energy, num_dead_nodes, num_alive_nodes):
+                         network_energy, num_dead_nodes, num_alive_nodes,
+                         run_without_plotting):
     round = 0
-    while network.alive_nodes() > 0 and round < rounds:
-        round = evaluate_round(round, config, network, model, rounds)
-        hrl.store_metrics(config, network, round, network_energy,
-                          num_dead_nodes, num_alive_nodes)
-        hrl.save_metrics(config, "LEACH-RL", network_energy,
-                         num_dead_nodes, num_alive_nodes)
+    with Progress() as progress:
+        task = progress.add_task("[cyan]Simulation Progress", total=rounds)
+
+        while network.alive_nodes() > 0 and round < rounds:
+            # Start the progress bar
+            round = evaluate_round(round, config, network, model, rounds)
+            hrl.store_metrics(config, network, round, network_energy,
+                              num_dead_nodes, num_alive_nodes, run_without_plotting)
+            hrl.save_metrics(config, "LEACH-RL", network_energy,
+                             num_dead_nodes, num_alive_nodes, run_without_plotting)
+            # Update the progress bar
+            progress.update(task, completed=round)
 
 
 def create_env(config, network):
@@ -122,14 +131,17 @@ def evaluate(config, network, model, rounds, plot):
     network_energy = {}
     num_dead_nodes = {}
     num_alive_nodes = {}
+    num_cluster_heads = {}
     # Load the model
     model = DQN.load(model)
     if plot:
         run_with_plotting(config, network, model, rounds,
-                          network_energy, num_dead_nodes, num_alive_nodes)
+                          network_energy, num_dead_nodes, num_alive_nodes,
+                          num_cluster_heads)
         return
     run_without_plotting(config, network, model, rounds,
-                         network_energy, num_dead_nodes, num_alive_nodes)
+                         network_energy, num_dead_nodes, num_alive_nodes,
+                         num_cluster_heads)
 
 
 def main(args):

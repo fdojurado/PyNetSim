@@ -62,6 +62,15 @@ class Network:
     def average_energy(self):
         return self.remaining_energy() / self.alive_nodes()
 
+    def num_cluster_heads(self):
+        num_cluster_heads = 0
+        for node in self.nodes.values():
+            if node.node_id == 1:
+                continue
+            if node.is_cluster_head:
+                num_cluster_heads += 1
+        return num_cluster_heads
+
     def distance_to_sink(self, node):
         return ((node.x - self.nodes[1].x)**2 + (node.y - self.nodes[1].y)**2)**0.5
 

@@ -129,11 +129,13 @@ def mark_as_cluster_head(network, node, num_cluster_heads):
     return num_cluster_heads
 
 
-def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes):
+def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes,
+                  num_cluster_heads):
     num_nodes = config.network.num_sensor
     network_energy[round] = network.remaining_energy()
     num_dead_nodes[round] = num_nodes - network.alive_nodes()
     num_alive_nodes[round] = network.alive_nodes()
+    num_cluster_heads[round] = network.num_cluster_heads()
 
 
 def plot_clusters(network, round, ax):
@@ -266,7 +268,8 @@ def mark_node_as_dead(node, round):
 
 
 def save_metrics(config, name,
-                 network_energy, num_dead_nodes, num_alive_nodes):
+                 network_energy, num_dead_nodes, num_alive_nodes,
+                 num_cluster_heads):
     num_nodes = config.network.num_sensor
     # Build a json object
     metrics = {
@@ -274,7 +277,8 @@ def save_metrics(config, name,
         "num_rounds": config.network.protocol.rounds,
         "num_dead_nodes": num_dead_nodes,
         "num_alive_nodes": num_alive_nodes,
-        "network_energy": network_energy
+        "network_energy": network_energy,
+        "num_cluster_heads": num_cluster_heads
     }
     # Save the file as a json file
     with open(name+".json", "w") as f:
