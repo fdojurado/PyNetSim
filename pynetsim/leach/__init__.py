@@ -121,7 +121,7 @@ def add_node_to_cluster(network, node):
     #     f"Node {node.node_id} is in the cluster of node {cluster_head_id}.")
 
 
-def mark_as_cluster_head(network, node, num_cluster_heads):
+def mark_as_cluster_head(node, num_cluster_heads):
     num_cluster_heads += 1
     node.is_cluster_head = True
     node.cluster_id = num_cluster_heads

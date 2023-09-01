@@ -10,20 +10,12 @@ class LEACH:
         self.name = "LEACH"
         self.config = network.config
         self.network = network
-        self.initialize_energy_parameters()
-
-    def initialize_energy_parameters(self):
-        protocol = self.config.network.protocol
-        self.elect = protocol.eelect_nano * 10**-9
-        self.etx = protocol.etx_nano * 10**-9
-        self.erx = protocol.erx_nano * 10**-9
-        self.eamp = protocol.eamp_pico * 10**-12
-        self.eda = protocol.eda_nano * 10**-9
-        self.packet_size = protocol.packet_size
+        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = self.get_energy_conversion_factors(
+            self.config)
 
     def select_cluster_heads(self, probability, tleft, num_cluster_heads):
         for node in self.network.nodes.values():
-            if self.should_skip_node(node):
+            if leach.should_skip_node(node):
                 continue
 
             if node.rounds_to_become_cluster_head > 0:
@@ -40,35 +32,17 @@ class LEACH:
             node.node_id for node in self.network.nodes.values() if node.is_cluster_head]
         print(f"Cluster heads: {cluster_heads}")
 
-    def should_skip_node(self, node):
-        return node.node_id == 1 or node.energy <= 0
-
     def should_select_cluster_head(self, node, probability):
         return (not node.is_cluster_head and node.rounds_to_become_cluster_head == 0
                 and random.random() < probability)
 
     def mark_as_cluster_head(self, node, num_cluster_heads, tleft):
-        num_cluster_heads += 1
-        node.is_cluster_head = True
+        num_cluster_heads = leach.mark_as_cluster_head(
+            node, num_cluster_heads)
         node.rounds_to_become_cluster_head = 1 / \
             self.config.network.protocol.cluster_head_percentage - tleft
-        node.cluster_id = num_cluster_heads
         print(f"Node {node.node_id} is a cluster head.")
         return num_cluster_heads
-
-    def create_clusters(self):
-        cluster_heads_exist = any(
-            node.is_cluster_head for node in self.network.nodes.values())
-        if not cluster_heads_exist:
-            print("There are no cluster heads.")
-            self.clear_clusters()
-            return False
-
-        for node in self.network.nodes.values():
-            if not node.is_cluster_head and node.node_id != 1:
-                self.add_node_to_cluster(node)
-
-        return True
 
     def clear_clusters(self):
         for node in self.network.nodes.values():
@@ -248,12 +222,6 @@ class LEACH:
         plt.title(num_alive_nodes_title)
         plt.show()
 
-    def store_metrics(self, round, network_energy, num_dead_nodes, num_alive_nodes):
-        num_nodes = self.config.network.num_sensor
-        network_energy[round] = self.network.remaining_energy()
-        num_dead_nodes[round] = num_nodes - self.network.alive_nodes()
-        num_alive_nodes[round] = self.network.alive_nodes()
-
     def run(self):
         print("Running LEACH protocol...")
         p = self.config.network.protocol.cluster_head_percentage
@@ -266,6 +234,7 @@ class LEACH:
         network_energy = {}
         num_dead_nodes = {}
         num_alive_nodes = {}
+        num_cluster_heads = {}
 
         # Set all dst_to_sink for all nodes
         for node in self.network.nodes.values():
@@ -273,10 +242,10 @@ class LEACH:
 
         if not plot_clusters_flag:
             self.run_without_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes)
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads)
         else:
             self.run_with_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes)
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads)
 
         self.plot_metrics(network_energy, "Network Energy", "J",
                           "Network Energy vs Rounds",
@@ -289,10 +258,12 @@ class LEACH:
             name=self.name,
             network_energy=network_energy,
             num_dead_nodes=num_dead_nodes,
-            num_alive_nodes=num_alive_nodes
+            num_alive_nodes=num_alive_nodes,
+            num_cluster_heads=num_cluster_heads
         )
 
-    def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
+    def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
+                             num_cluster_heads_metric):
         round = 0
         while self.network.alive_nodes() > 0 and round < num_rounds:
             round += 1
@@ -304,14 +275,18 @@ class LEACH:
             tleft = round % (1 / p)
 
             self.select_cluster_heads(th, tleft, num_cluster_heads)
-            chs_bool = self.create_clusters()
+            chs_bool = leach.create_clusters()
             self.energy_dissipation_non_cluster_heads(round)
             self.energy_dissipation_cluster_heads(round)
 
-            self.store_metrics(round, network_energy,
-                               num_dead_nodes, num_alive_nodes)
+            leach.store_metrics(config=self.config, network=self.network, round=round,
+                                network_energy=network_energy,
+                                num_dead_nodes=num_dead_nodes,
+                                num_alive_nodes=num_alive_nodes,
+                                num_cluster_heads=num_cluster_heads_metric)
 
-    def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes):
+    def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
+                          num_cluster_heads_metric):
         fig, ax = plt.subplots()
         self.plot_clusters(0, ax)
 
@@ -324,15 +299,18 @@ class LEACH:
             tleft = round % (1 / p)
 
             self.select_cluster_heads(th, tleft, num_cluster_heads)
-            chs_bool = self.create_clusters()
+            chs_bool = leach.create_clusters()
             self.energy_dissipation_non_cluster_heads(round)
             self.energy_dissipation_cluster_heads(round)
 
             ax.clear()
             self.plot_clusters(round, ax)
 
-            self.store_metrics(round, network_energy,
-                               num_dead_nodes, num_alive_nodes)
+            leach.store_metrics(config=self.config, network=self.network, round=round,
+                                network_energy=network_energy,
+                                num_dead_nodes=num_dead_nodes,
+                                num_alive_nodes=num_alive_nodes,
+                                num_cluster_heads=num_cluster_heads_metric)
 
             if self.network.alive_nodes() <= 0:
                 ani.event_source.stop()
