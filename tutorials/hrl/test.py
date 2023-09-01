@@ -68,6 +68,7 @@ def run_without_plotting(config, network, model, rounds,
                              num_dead_nodes, num_alive_nodes, run_without_plotting)
             # Update the progress bar
             progress.update(task, completed=round)
+        progress.update(task, completed=rounds)
 
 
 def create_env(config, network):
