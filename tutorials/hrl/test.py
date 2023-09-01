@@ -27,51 +27,7 @@ def run_with_plotting(config, network, model, rounds,
     hrl.plot_clusters(network=network, round=0, ax=ax)
 
     def animate(round, network=network):
-        round += 1
-        print(f"Round: {round}")
-        done = False
-        network_copy = copy.deepcopy(network)
-        env = create_env(config, network_copy)
-        obs, _ = env.reset()
-        while not done:
-            action, _ = model.predict(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            if done:
-                break
-
-        # Compare the energy consumption of the original network and the copy
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            # print original and copy energy
-            print(
-                f"Node {node.node_id}: {node.energy}, {network_copy.nodes[node.node_id].energy}")
-
-        # Copy the cluster heads selection into the original network
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            node.is_cluster_head = network_copy.nodes[node.node_id].is_cluster_head
-            node.cluster_id = network_copy.nodes[node.node_id].cluster_id
-
-        # print all cluster heads
-        chs = [cluster_head.node_id for cluster_head in network.nodes.values(
-        ) if cluster_head.is_cluster_head]
-        print(f"Cluster heads: {chs}")
-
-        hrl.create_clusters(network)
-        hrl.dissipate_energy(round=round, network=network,
-                             elect=config.network.protocol.eelect_nano*1e-9,
-                             eda=config.network.protocol.eda_nano*1e-9,
-                             packet_size=config.network.protocol.packet_size,
-                             eamp=config.network.protocol.eamp_pico*1e-12)
-
-        # print energy levels
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            print(f"Node {node.node_id}: {node.energy}")
+        round = evaluate_round(round, config, network, model, rounds)
 
         if round >= rounds or network.alive_nodes() <= 0:
             print("Done!")
@@ -98,55 +54,9 @@ def run_without_plotting(config, network, model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes):
     round = 0
     while network.alive_nodes() > 0 and round < rounds:
-        round += 1
-        print(f"Round: {round}")
-        done = False
-        network_copy = copy.deepcopy(network)
-        env = create_env(config, network_copy)
-        obs, _ = env.reset()
-        while not done:
-            action, _ = model.predict(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            if done:
-                break
-
-        # Compare the energy consumption of the original network and the copy
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            # print original and copy energy
-            print(
-                f"Node {node.node_id}: {node.energy}, {network_copy.nodes[node.node_id].energy}")
-
-        # Copy the cluster heads selection into the original network
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            node.is_cluster_head = network_copy.nodes[node.node_id].is_cluster_head
-            node.cluster_id = network_copy.nodes[node.node_id].cluster_id
-
-        # print all cluster heads
-        chs = [cluster_head.node_id for cluster_head in network.nodes.values(
-        ) if cluster_head.is_cluster_head]
-        print(f"Cluster heads: {chs}")
-
-        hrl.create_clusters(network)
-        hrl.dissipate_energy(round=round, network=network,
-                             elect=config.network.protocol.eelect_nano*1e-9,
-                             eda=config.network.protocol.eda_nano*1e-9,
-                             packet_size=config.network.protocol.packet_size,
-                             eamp=config.network.protocol.eamp_pico*1e-12)
-
-        # print energy levels
-        for node in network.nodes.values():
-            if node.node_id == 1:
-                continue
-            print(f"Node {node.node_id}: {node.energy}")
-
+        round = evaluate_round(round, config, network, model, rounds)
         hrl.store_metrics(config, network, round, network_energy,
                           num_dead_nodes, num_alive_nodes)
-
         hrl.save_metrics(config, "LEACH-RL", network_energy,
                          num_dead_nodes, num_alive_nodes)
 
@@ -159,6 +69,52 @@ def create_env(config, network):
         env, max_episode_steps=config.network.protocol.max_steps)
     env = Monitor(env, args.log)
     return env
+
+
+def print_energy_consumption_difference(network, network_copy):
+    for node in network.nodes.values():
+        if node.node_id == 1:
+            continue
+        print(
+            f"Node {node.node_id}: {node.energy}, {network_copy.nodes[node.node_id].energy}")
+
+
+def update_cluster_heads(network, network_copy):
+    for node in network.nodes.values():
+        if node.node_id == 1:
+            continue
+        node.is_cluster_head = network_copy.nodes[node.node_id].is_cluster_head
+        node.cluster_id = network_copy.nodes[node.node_id].cluster_id
+    chs = [cluster_head.node_id for cluster_head in network.nodes.values()
+           if cluster_head.is_cluster_head]
+    # print(f"Cluster heads: {chs}")
+
+
+def evaluate_round(round, config, network, model, rounds):
+    round += 1
+    # print(f"Round: {round}")
+    done = False
+    network_copy = copy.deepcopy(network)
+    env = create_env(config, network_copy)
+    obs, _ = env.reset()
+    while not done:
+        action, _ = model.predict(obs)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        if done:
+            break
+
+    # print_energy_consumption_difference(network, network_copy)
+    update_cluster_heads(network, network_copy)
+
+    hrl.create_clusters(network)
+    hrl.dissipate_energy(round=round, network=network,
+                         elect=config.network.protocol.eelect_nano*1e-9,
+                         eda=config.network.protocol.eda_nano*1e-9,
+                         packet_size=config.network.protocol.packet_size,
+                         eamp=config.network.protocol.eamp_pico*1e-12)
+
+    return round
 
 
 def evaluate(config, network, model, rounds, plot):
