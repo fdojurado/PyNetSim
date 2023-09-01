@@ -48,13 +48,13 @@ class LEACH_RL(gym.Env):
                 continue
             self.actions_dict[count] = node.node_id
             count += 1
-        print(f"Actions: {self.actions_dict}")
+        # print(f"Actions: {self.actions_dict}")
         n_actions = len(self.actions_dict)
-        print(f"Action space: {n_actions}")
+        # print(f"Action space: {n_actions}")
 
         # Observation space: energy consumption + cluster head indicators
         n_observation = (6 * (self.config.network.num_sensor+1) + 3)*2
-        print(f"Observation space: {n_observation}")
+        # print(f"Observation space: {n_observation}")
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(n_observation,), dtype=np.float32)
         self.prev_obs = np.zeros(int(n_observation/2))
