@@ -74,6 +74,20 @@ def dissipate_energy(round: int, network: object,
                                            packet_size=packet_size, eamp=eamp)
 
 
+def plot_clusters(network: object, round: int, ax: object):
+    leach.plot_clusters(network=network, round=round, ax=ax)
+
+
+def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes):
+    leach.store_metrics(config, network, round, network_energy,
+                        num_dead_nodes, num_alive_nodes)
+
+
+def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes):
+    leach.save_metrics(config, name, network_energy,
+                       num_dead_nodes, num_alive_nodes)
+
+
 def create_clusters(network: object):
     leach.create_clusters(network=network)
 
@@ -89,4 +103,4 @@ def mark_as_non_cluster_head(node):
 
 
 def get_energy_conversion_factors(config):
-    leach.get_energy_conversion_factors(config)
+    return leach.get_energy_conversion_factors(config)

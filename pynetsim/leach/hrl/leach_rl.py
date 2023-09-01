@@ -142,8 +142,8 @@ class LEACH_RL(gym.Env):
 
     def step(self, action):
         self.round += 1
-        self.action = action
-        action = self.actions_dict[action]
+        self.action = int(action)
+        action = self.actions_dict[int(action)]
         node = self.network.nodes[action]
         done = False
 
