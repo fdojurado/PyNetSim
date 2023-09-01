@@ -59,6 +59,9 @@ class Network:
                 remaining_energy += node.energy
         return remaining_energy
 
+    def average_energy(self):
+        return self.remaining_energy() / self.alive_nodes()
+
     def distance_to_sink(self, node):
         return ((node.x - self.nodes[1].x)**2 + (node.y - self.nodes[1].y)**2)**0.5
 

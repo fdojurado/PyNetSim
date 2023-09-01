@@ -1,6 +1,7 @@
 import json
 import os
 from pynetsim.config.network import NetworkConfig
+from pynetsim.leach.hrl.leach_rl import LEACH_RL
 from pynetsim.leach.hrl.leach_rm import LEACH_RM
 from pynetsim.leach.hrl.leach_hrl import LEACH_HRL
 from pynetsim.leach.hrl.leach_add import LEACH_ADD
@@ -16,7 +17,8 @@ PROTOCOLS = {
     "LEACH-C": LEACH_C,
     "LEACH-HRL": LEACH_HRL,
     "LEACH-ADD": LEACH_ADD,
-    "LEACH-RM": LEACH_RM
+    "LEACH-RM": LEACH_RM,
+    "LEACH-RL": LEACH_RL
 }
 
 

@@ -1,6 +1,20 @@
 import matplotlib.pyplot as plt
 import json
 
+NANO = 1e-9
+PICO = 1e-12
+
+
+def get_energy_conversion_factors(config):
+    elect = config.network.protocol.eelect_nano * NANO
+    etx = config.network.protocol.etx_nano * NANO
+    erx = config.network.protocol.erx_nano * NANO
+    eamp = config.network.protocol.eamp_pico * PICO
+    eda = config.network.protocol.eda_nano * NANO
+    packet_size = config.network.protocol.packet_size
+
+    return elect, etx, erx, eamp, eda, packet_size
+
 
 def energy_dissipation_non_cluster_heads(round, network,
                                          elect, eda, packet_size, eamp):

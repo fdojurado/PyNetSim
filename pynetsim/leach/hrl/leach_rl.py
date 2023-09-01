@@ -8,12 +8,13 @@ import pynetsim.leach.hrl as hrl
 # from pynetsim.config import PyNetSimConfig
 
 
-class LEACH_RM(gym.Env):
+class LEACH_RL(gym.Env):
     def __init__(self, network):
         self.name = "LEACH_RM"
         self.config = network.config
         self.network = network
         self.max_steps = self.config.network.protocol.max_steps
+        self.action = 0
 
         # Energy conversion factors
         self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = leach.get_energy_conversion_factors(
@@ -22,7 +23,7 @@ class LEACH_RM(gym.Env):
         self.round = 0
 
         # Calculate the maximum distance to the sink
-        max_distance = np.sqrt(
+        self.max_distance = np.sqrt(
             self.config.network.width**2 + self.config.network.height**2)
 
         self.dst_to_sink = np.zeros(self.config.network.num_sensor+1)
@@ -31,7 +32,7 @@ class LEACH_RM(gym.Env):
             if node.node_id == 1:
                 continue
             node.dst_to_sink = self.network.distance_to_sink(node)
-            self.dst_to_sink[node.node_id] = node.dst_to_sink/max_distance
+            self.dst_to_sink[node.node_id] = node.dst_to_sink/self.max_distance
 
         # Initialize array of nodes' positions
         self.x_locations = np.zeros(self.config.network.num_sensor+1)
@@ -42,8 +43,6 @@ class LEACH_RM(gym.Env):
             self.x_locations[node.node_id] = node.x/self.config.network.width
             self.y_locations[node.node_id] = node.y/self.config.network.height
 
-        # Create the action space. It ranges from NODEID 2 to num_nodes
-        # The sink is not a cluster head
         self.actions_dict = {}
         count = 0
         for node in self.network.nodes.values():
@@ -56,11 +55,11 @@ class LEACH_RM(gym.Env):
         print(f"Action space: {n_actions}")
 
         # Observation space: energy consumption + cluster head indicators
-        n_observation = 6 * (self.config.network.num_sensor+1) + 1
+        n_observation = (6 * (self.config.network.num_sensor+1) + 3)*2
         print(f"Observation space: {n_observation}")
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(n_observation,), dtype=np.float32)
-
+        self.prev_obs = np.zeros(int(n_observation/2))
         self.action_space = spaces.Discrete(n_actions)
 
     def _get_obs(self):
@@ -71,9 +70,21 @@ class LEACH_RM(gym.Env):
                              dst_to_sink=self.dst_to_sink,
                              init_energy=self.config.network.protocol.init_energy,
                              round=self.round,
-                             max_steps=self.max_steps)
+                             max_steps=self.max_steps,
+                             max_distance=self.max_distance,
+                             action_taken=self.action/len(self.actions_dict))
 
-        return obs
+        # Append the previous observation
+        observations = np.append(obs, self.prev_obs)
+
+        # print(f"obs len: {len(obs)}")
+        # print(f"Observations len: {len(observations)}")
+        # print(f"prev obs len: {len(self.prev_obs)}")
+
+        self.prev_obs = obs
+        info = {}
+
+        return observations, info
 
     def _create_network(self):
 
@@ -84,17 +95,16 @@ class LEACH_RM(gym.Env):
             node.energy = np.random.uniform(
                 low=0.5, high=self.config.network.protocol.init_energy)
 
-        num_cluster_heads = 10
+        # Choose 5% of the number of nodes as cluster heads
+        num_cluster_heads = int(
+            self.config.network.num_sensor * self.config.network.protocol.cluster_head_percentage)
 
-        # print(f"Num cluster heads: {num_cluster_heads}")
-
-        # Choose any num_cluster_heads nodes as cluster heads from the network
+        # Choose num_cluster_heads nodes as cluster heads from the set of nodes
+        # whose energy is greater or equal to the current network's average energy
+        avg_energy = self.network.average_energy()
+        # Also avoid choosing the sink as a cluster head
         cluster_heads = np.random.choice(
-            list(self.network.nodes.values()), size=num_cluster_heads, replace=False)
-
-        # print node ids of cluster heads
-        # print(
-        #     f"Cluster heads: {[cluster_head.node_id for cluster_head in cluster_heads]}")
+            [node for node in self.network.nodes.values() if node.energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
 
         # Set the cluster heads
         for cluster_head in cluster_heads:
@@ -130,77 +140,40 @@ class LEACH_RM(gym.Env):
 
     def step(self, action):
         self.round += 1
+        self.action = action
         action = self.actions_dict[action]
-        cluster_head = self.network.get_node(action)
+        node = self.network.nodes[action]
         done = False
 
-        # print(
-        #     f"Removing cluster head {cluster_head.node_id} in round {self.round}")
-
-        if cluster_head.energy <= 0:
-            self._dissipate_energy()
+        if node.energy < self.network.average_energy():
+            # print(f"Node {node.node_id} is not a cluster head")
             obs, info = self._get_obs()
-            # print(f"Cluster head {cluster_head.node_id} is dead.")
             return obs, 0, True, False, info
 
-        if not cluster_head.is_cluster_head:
-            self._dissipate_energy()
-            obs, info = self._get_obs()
-            # print(
-            #     f"Node {cluster_head.node_id} is not a cluster head. No reward.")
-            return obs, 0, True, False, info
-
-        cluster_head.is_cluster_head = False
-        cluster_head.cluster_id = 0
+        if node.is_cluster_head:
+            # remove the cluster head from the network
+            node.is_cluster_head = False
+            node.cluster_id = 0
+            # print(f"Cluster head {node.node_id} removed")
+        else:
+            # add the cluster head to the network
+            node.is_cluster_head = True
+            node.cluster_id = node.node_id
+            # print(f"Cluster head {node.node_id} added")
 
         leach.create_clusters(self.network)
 
-        # Save current energy
+        # Save the current energy
         current_energy = self.network.remaining_energy()
 
         self._dissipate_energy()
 
-        # latest energy
+        # Latest energy
         latest_energy = self.network.remaining_energy()
 
-        # The reward is the difference between the latest energy and the current energy
-        # but we want to get better rewards for lower differences
-        reward = 2-1*(current_energy - latest_energy)
-        # reward = 1
-
-        self.acc_reward += reward
-
-        # print(
-        #     f"Curr energy: {current_energy}, latest energy: {latest_energy}, diff: {current_energy - latest_energy}, reward: {reward}, acc_reward: {self.acc_reward}")
-        # input("Press Enter to continue...")
+        reward = 2-1*(current_energy-latest_energy)
 
         observation, info = self._get_obs()
-
-        nodes_available = any(
-            node.is_cluster_head for node in self.network.nodes.values() if node.node_id != 1)
-        if not nodes_available:
-            # print(f"Nodes available: {nodes_available}")
-            # print("No more cluster heads available. Well done! Round: ", self.round)
-            # input("Press Enter to continue...")
-            done = True
-
-        # print(f"NODE ID {cluster_head.node_id} is the cluster head")
-
-        # print all cluster heads
-        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        # ) if cluster_head.is_cluster_head]
-        # print(f"Cluster heads: {chs}")
-
-        # print(f"observation: {observation}")
-        # input("Press Enter to continue...")
-
-        # plot
-        # fig, ax = plt.subplots()
-        # leach.plot_clusters(network=self.network, round=self.round, ax=ax)
-
-        # plt.show()
-
-        # input("Press Enter to continue...")
 
         return observation, reward, done, False, info
 

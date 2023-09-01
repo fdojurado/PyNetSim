@@ -4,7 +4,7 @@
         "num_sensor": 100,
         "transmission_range": 60,
         "protocol": {
-            "name": "LEACH-ADD",
+            "name": "LEACH-RL",
             "max_steps": 10,
             "init_energy": 2,
             "rounds": 5000,

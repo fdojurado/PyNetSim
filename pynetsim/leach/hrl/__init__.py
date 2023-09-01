@@ -2,13 +2,20 @@ import pynetsim.leach as leach
 import numpy as np
 
 
-def add_rm_obs(num_sensors: int, network: object):
+def add_rm_obs(num_sensors: int, network: object,
+               x_pos: np.ndarray, y_pos: np.ndarray,
+               dst_to_sink: np.ndarray,
+               init_energy: float,
+               round: int,
+               max_steps: int,
+               max_distance: float,
+               action_taken: int = 0):
     # Put the energy consumption in a numpy array
     energy_consumption = np.zeros(num_sensors+1)
     for node in network.nodes.values():
         if node.node_id == 1:
             continue
-        energy = max(node.energy, 0)/2
+        energy = max(node.energy, 0)/init_energy
         energy_consumption[node.node_id] = energy
 
     # print(f"sizes: {len(energy_consumption)}, {len(network.nodes)}")
@@ -24,22 +31,37 @@ def add_rm_obs(num_sensors: int, network: object):
 
     observation = np.append(energy_consumption, cluster_heads)
     # Append the sensor nodes location
-    x_locations = np.zeros(num_sensors+1)
-    y_locations = np.zeros(num_sensors+1)
+    observation = np.append(observation, x_pos)
+    observation = np.append(observation, y_pos)
+
+    # append distance to sink
+    observation = np.append(observation, dst_to_sink)
+
+    # append rounds
+    observation = np.append(observation, round/max_steps)
+
+    # Append all sensor nodes' distance to cluster head. In the case,
+    # of cluster heads, append distance to sink
+    dst_to_cluster_head = np.zeros(num_sensors+1)
     for node in network.nodes.values():
         if node.node_id == 1:
             continue
-        x_locations[node.node_id] = node.x
-        y_locations[node.node_id] = node.y
+        if node.is_cluster_head:
+            dst_to_cluster_head[node.node_id] = node.dst_to_sink/max_distance
+        else:
+            dst_to_cluster_head[node.node_id] = node.dst_to_cluster_head/max_distance
 
-    observation = np.append(observation, x_locations)
-    observation = np.append(observation, y_locations)
+    observation = np.append(observation, dst_to_cluster_head)
 
-    # append rounds
-    # observation = np.append(observation, self.round)
-    info = {}
+    # Append average energy of the network
+    avg_energy = network.average_energy()
 
-    return observation, info
+    observation = np.append(observation, avg_energy)
+
+    # Append action taken
+    observation = np.append(observation, action_taken)
+
+    return observation
 
 
 def dissipate_energy(round: int, network: object,
