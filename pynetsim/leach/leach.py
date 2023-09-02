@@ -23,15 +23,14 @@ class LEACH:
             if node.rounds_to_become_cluster_head > 0:
                 node.rounds_to_become_cluster_head -= 1
 
-            node.is_cluster_head = False
-            node.cluster_id = 0
+            leach.mark_as_non_cluster_head(node)
 
             if self.should_select_cluster_head(node, probability):
                 num_cluster_heads = self.mark_as_cluster_head(
                     node, num_cluster_heads, tleft)
 
-        cluster_heads = [
-            node.node_id for node in self.network.nodes.values() if node.is_cluster_head]
+        # cluster_heads = [
+        #     node.node_id for node in self.network.nodes.values() if node.is_cluster_head]
         # print(f"Cluster heads: {cluster_heads}")
 
     def should_select_cluster_head(self, node, probability):

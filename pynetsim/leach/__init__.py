@@ -36,7 +36,7 @@ def energy_dissipation_non_cluster_heads(round, network,
         cluster_head = get_cluster_head(network=network, node=node)
         if cluster_head is None:
             # print("No cluster heads. Node {node.node_id} is tx to sink.")
-            transfer_data_to_sink(network=network, node=node,
+            transfer_data_to_sink(node=node,
                                   elect=elect, packet_size=packet_size,
                                   eamp=eamp, round=round)
         else:
@@ -49,7 +49,7 @@ def energy_dissipation_non_cluster_heads(round, network,
 def energy_dissipation_cluster_heads(round, network,
                                      elect, eda, packet_size, eamp):
     for node in network.nodes.values():
-        if not node.is_cluster_head or node.energy <= 0:
+        if not node.is_cluster_head or not alive(node):
             continue
         distance = node.dst_to_sink
         # print(
@@ -59,25 +59,29 @@ def energy_dissipation_cluster_heads(round, network,
         # print(f"Cluster head {node.node_id} is tx to sink with distance {distance}. Energy: {ETx}")
         node.energy -= ETx
         # network.remaining_energy -= ETx
-        if node.energy <= 0:
+        if not alive(node):
             mark_node_as_dead(node, round)
             remove_cluster_head_from_cluster(
                 network=network, cluster_head=node)
 
 
-def transfer_data_to_sink(network, node, elect, packet_size, eamp, round):
+def transfer_data_to_sink(node, elect, packet_size, eamp, round):
+    if not alive(node):
+        return
     distance = node.dst_to_sink
     # print("No cluster heads, transferring data to the sink.")
     # print(f"Node {node.node_id} distance to sink: {distance}")
     ETx = elect * packet_size + eamp * packet_size * distance**2
     node.energy -= ETx
     # network.remaining_energy -= ETx
-    if node.energy <= 0:
+    if not alive(node):
         mark_node_as_dead(node, round)
 
 
 def process_non_cluster_head(network, node, cluster_head, round,
                              elect, eda, packet_size, eamp):
+    if not alive(node):
+        return
     distance = get_node_distance(node, cluster_head)
     # print(f"Node {node.node_id} distance to cluster head: {distance}")
     ETx = calculate_tx_energy_dissipation(distance=distance, elect=elect,
@@ -90,14 +94,14 @@ def process_non_cluster_head(network, node, cluster_head, round,
     ERx = (elect + eda) * packet_size
     cluster_head.energy -= ERx
     # network.remaining_energy -= ERx
-    if cluster_head.energy <= 0:
+    if not alive(cluster_head):
         # print(f"Cluster head {cluster_head.node_id} is dead.")
         mark_node_as_dead(cluster_head, round)
         remove_cluster_head(network=network, cluster_head=cluster_head)
         remove_node_from_cluster(cluster_head)
         remove_cluster_head_from_cluster(network=network,
                                          cluster_head=cluster_head)
-    if node.energy <= 0:
+    if not alive(node):
         # print(f"Node {node.node_id} is dead.")
         mark_node_as_dead(node, round)
         remove_node_from_cluster(node)
@@ -231,7 +235,7 @@ def plot_metrics(network_energy, network_energy_label, network_energy_unit,
 
 
 def should_skip_node(node):
-    return node.node_id == 1 or node.energy <= 0
+    return node.node_id == 1 or not alive(node)
 
 
 def get_cluster_head(network, node):
@@ -275,6 +279,10 @@ def remove_cluster_head_from_cluster(network, cluster_head):
             # Find the new cluster head for the child
             add_node_to_cluster(network=network, node=child)
     cluster_head.neighbors = {}
+
+
+def alive(node):
+    return node.energy > 0
 
 
 def mark_node_as_dead(node, round):
