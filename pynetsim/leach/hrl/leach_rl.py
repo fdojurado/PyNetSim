@@ -61,16 +61,16 @@ class LEACH_RL(gym.Env):
         self.action_space = spaces.Discrete(n_actions)
 
     def _get_obs(self):
-        obs = hrl.add_rm_obs(num_sensors=self.config.network.num_sensor,
-                             network=self.network,
-                             x_pos=self.x_locations,
-                             y_pos=self.y_locations,
-                             dst_to_sink=self.dst_to_sink,
-                             init_energy=self.config.network.protocol.init_energy,
-                             round=self.round,
-                             max_steps=self.max_steps,
-                             max_distance=self.max_distance,
-                             action_taken=self.action/len(self.actions_dict))
+        obs = hrl.obs(num_sensors=self.config.network.num_sensor,
+                      network=self.network,
+                      x_pos=self.x_locations,
+                      y_pos=self.y_locations,
+                      dst_to_sink=self.dst_to_sink,
+                      init_energy=self.config.network.protocol.init_energy,
+                      round=self.round,
+                      max_steps=self.max_steps,
+                      max_distance=self.max_distance,
+                      action_taken=self.action/len(self.actions_dict))
 
         # Append the previous observation
         observations = np.append(obs, self.prev_obs)

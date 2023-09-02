@@ -2,14 +2,14 @@ import pynetsim.leach as leach
 import numpy as np
 
 
-def add_rm_obs(num_sensors: int, network: object,
-               x_pos: np.ndarray, y_pos: np.ndarray,
-               dst_to_sink: np.ndarray,
-               init_energy: float,
-               round: int,
-               max_steps: int,
-               max_distance: float,
-               action_taken: int = 0):
+def obs(num_sensors: int, network: object,
+        x_pos: np.ndarray, y_pos: np.ndarray,
+        dst_to_sink: np.ndarray,
+        init_energy: float,
+        round: int,
+        max_steps: int,
+        max_distance: float,
+        action_taken: int = 0):
     # Put the energy consumption in a numpy array
     energy_consumption = np.zeros(num_sensors+1)
     for node in network.nodes.values():
@@ -74,22 +74,12 @@ def dissipate_energy(round: int, network: object,
                                            packet_size=packet_size, eamp=eamp)
 
 
-def plot_clusters(network: object, round: int, ax: object):
-    leach.plot_clusters(network=network, round=round, ax=ax)
-
-
-def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
-    leach.store_metrics(config, network, round, network_energy,
-                        num_dead_nodes, num_alive_nodes, num_cluster_heads)
-
-
-def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
-    leach.save_metrics(config, name, network_energy,
-                       num_dead_nodes, num_alive_nodes, num_cluster_heads)
-
-
 def create_clusters(network: object):
-    leach.create_clusters(network=network)
+    leach.create_clusters(network)
+
+
+def get_energy_conversion_factors(config):
+    return leach.get_energy_conversion_factors(config)
 
 
 def mark_as_cluster_head(node):
@@ -98,9 +88,18 @@ def mark_as_cluster_head(node):
 
 
 def mark_as_non_cluster_head(node):
-    node.is_cluster_head = False
-    node.cluster_id = 0
+    leach.mark_as_non_cluster_head(node)
 
 
-def get_energy_conversion_factors(config):
-    return leach.get_energy_conversion_factors(config)
+def plot_clusters(network: object, round: int, ax: object):
+    leach.plot_clusters(network, round, ax)
+
+
+def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
+    leach.store_metrics(config, network, round, network_energy,
+                        num_dead_nodes, num_alive_nodes, num_cluster_heads)
+
+
+def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
+    leach.save_metrics(config, name, network_energy, num_dead_nodes,
+                       num_alive_nodes, num_cluster_heads)

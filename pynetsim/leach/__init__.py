@@ -16,6 +16,16 @@ def get_energy_conversion_factors(config):
     return elect, etx, erx, eamp, eda, packet_size
 
 
+def dissipate_energy(round: int, network: object,
+                     elect: float, eda: float, packet_size: int, eamp: float):
+    energy_dissipation_non_cluster_heads(round=round, network=network,
+                                         elect=elect, eda=eda,
+                                         packet_size=packet_size, eamp=eamp)
+    energy_dissipation_cluster_heads(round=round, network=network,
+                                     elect=elect, eda=eda,
+                                     packet_size=packet_size, eamp=eamp)
+
+
 def energy_dissipation_non_cluster_heads(round, network,
                                          elect, eda, packet_size, eamp):
     # print("Energy dissipation for non-cluster heads")
@@ -97,7 +107,7 @@ def create_clusters(network):
     cluster_heads_exist = any(
         node.is_cluster_head for node in network.nodes.values())
     if not cluster_heads_exist:
-        print("There are no cluster heads.")
+        # print("There are no cluster heads.")
         # input("Press Enter to continue...")
         clear_clusters(network)
         return False
@@ -127,6 +137,11 @@ def mark_as_cluster_head(node, num_cluster_heads):
     node.cluster_id = num_cluster_heads
     # print(f"Node {node.node_id} is cluster head")
     return num_cluster_heads
+
+
+def mark_as_non_cluster_head(node):
+    node.is_cluster_head = False
+    node.cluster_id = 0
 
 
 def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes,
@@ -162,7 +177,7 @@ def plot_cluster_connections(network, ax):
     cluster_heads_exist = any(
         node.is_cluster_head for node in network.nodes.values())
     if not cluster_heads_exist:
-        print("There are no cluster heads.")
+        # print("There are no cluster heads.")
         return
     for node in network.nodes.values():
         if node.is_cluster_head or node.node_id == 1:
