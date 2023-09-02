@@ -2,7 +2,7 @@
 # The network is plotted using matplotlib.
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-import pynetsim.leach.hrl as hrl
+import pynetsim.leach.rl as rl
 import gymnasium as gym
 import numpy as np
 import argparse
@@ -26,7 +26,7 @@ def run_with_plotting(config, network, model, rounds,
                       network_energy, num_dead_nodes, num_alive_nodes,
                       num_cluster_heads):
     fig, ax = plt.subplots()
-    hrl.plot_clusters(network=network, round=0, ax=ax)
+    rl.plot_clusters(network=network, round=0, ax=ax)
 
     def animate(round, network=network):
         round = evaluate_round(round, config, network, model, rounds)
@@ -37,11 +37,11 @@ def run_with_plotting(config, network, model, rounds,
 
         ax.clear()
 
-        hrl.plot_clusters(network=network, round=round, ax=ax)
-        hrl.store_metrics(config, network, round, network_energy,
+        rl.plot_clusters(network=network, round=round, ax=ax)
+        rl.store_metrics(config, network, round, network_energy,
                           num_dead_nodes, num_alive_nodes, num_cluster_heads)
 
-        hrl.save_metrics(config, "LEACH-RL", network_energy,
+        rl.save_metrics(config, "LEACH-RL", network_energy,
                          num_dead_nodes, num_alive_nodes, num_cluster_heads)
 
         plt.pause(2)
@@ -62,9 +62,9 @@ def run_without_plotting(config, network, model, rounds,
         while network.alive_nodes() > 0 and round < rounds:
             # Start the progress bar
             round = evaluate_round(round, config, network, model, rounds)
-            hrl.store_metrics(config, network, round, network_energy,
+            rl.store_metrics(config, network, round, network_energy,
                               num_dead_nodes, num_alive_nodes, run_without_plotting)
-            hrl.save_metrics(config, "LEACH-RL", network_energy,
+            rl.save_metrics(config, "LEACH-RL", network_energy,
                              num_dead_nodes, num_alive_nodes, run_without_plotting)
             # Update the progress bar
             progress.update(task, completed=round)
@@ -117,8 +117,8 @@ def evaluate_round(round, config, network, model, rounds):
     # print_energy_consumption_difference(network, network_copy)
     update_cluster_heads(network, network_copy)
 
-    hrl.create_clusters(network)
-    hrl.dissipate_energy(round=round, network=network,
+    rl.create_clusters(network)
+    rl.dissipate_energy(round=round, network=network,
                          elect=config.network.protocol.eelect_nano*1e-9,
                          eda=config.network.protocol.eda_nano*1e-9,
                          packet_size=config.network.protocol.packet_size,

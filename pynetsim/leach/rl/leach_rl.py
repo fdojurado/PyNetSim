@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import pynetsim.leach.hrl as hrl
+import pynetsim.leach.rl as rl
 # from pynetsim.config import PyNetSimConfig
 
 
@@ -15,7 +15,7 @@ class LEACH_RL(gym.Env):
         self.action = 0
 
         # Energy conversion factors
-        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = hrl.get_energy_conversion_factors(
+        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = rl.get_energy_conversion_factors(
             self.config)
 
         self.round = 0
@@ -61,7 +61,7 @@ class LEACH_RL(gym.Env):
         self.action_space = spaces.Discrete(n_actions)
 
     def _get_obs(self):
-        obs = hrl.obs(num_sensors=self.config.network.num_sensor,
+        obs = rl.obs(num_sensors=self.config.network.num_sensor,
                       network=self.network,
                       x_pos=self.x_locations,
                       y_pos=self.y_locations,
@@ -94,7 +94,7 @@ class LEACH_RL(gym.Env):
     def _create_network(self):
 
         for node in self.network.nodes.values():
-            hrl.mark_as_non_cluster_head(node)
+            rl.mark_as_non_cluster_head(node)
             # use np random to set the energy
             node.energy = np.random.uniform(
                 low=0.5, high=self.config.network.protocol.init_energy)
@@ -112,7 +112,7 @@ class LEACH_RL(gym.Env):
 
         # Set the cluster heads
         for cluster_head in cluster_heads:
-            hrl.mark_as_cluster_head(cluster_head)
+            rl.mark_as_cluster_head(cluster_head)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -127,7 +127,7 @@ class LEACH_RL(gym.Env):
         # ) if cluster_head.is_cluster_head]
         # print(f"Cluster heads: {chs}")
 
-        hrl.create_clusters(self.network)
+        rl.create_clusters(self.network)
 
         self._dissipate_energy()
 
@@ -136,7 +136,7 @@ class LEACH_RL(gym.Env):
         return observation, info
 
     def _dissipate_energy(self):
-        hrl.dissipate_energy(round=self.round, network=self.network,
+        rl.dissipate_energy(round=self.round, network=self.network,
                              elect=self.elect, eda=self.eda,
                              packet_size=self.packet_size, eamp=self.eamp)
 
@@ -152,11 +152,11 @@ class LEACH_RL(gym.Env):
             return obs, 0, True, False, info
 
         if node.is_cluster_head:
-            hrl.mark_as_non_cluster_head(node)
+            rl.mark_as_non_cluster_head(node)
         else:
-            hrl.mark_as_cluster_head(node)
+            rl.mark_as_cluster_head(node)
 
-        hrl.create_clusters(self.network)
+        rl.create_clusters(self.network)
         reward = self._calculate_reward()
         observation, info = self._get_obs()
         return observation, reward, done, False, info
