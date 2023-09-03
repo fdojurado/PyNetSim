@@ -62,6 +62,30 @@ class Network:
     def average_energy(self):
         return self.remaining_energy() / self.alive_nodes()
 
+    def packet_delivery_ratio(self):
+        pdr = 0
+        # CHeck if there are alive nodes
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        for node in self.nodes.values():
+            if node.node_id == 1 or node.energy <= 0:
+                continue
+            pdr += node.packet_delivery_ratio()
+        return pdr / alive_nodes
+
+    def packet_loss_ratio(self):
+        plr = 0
+        # CHeck if there are alive nodes
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        for node in self.nodes.values():
+            if node.node_id == 1 or node.energy <= 0:
+                continue
+            plr += node.packet_loss_ratio()
+        return plr / alive_nodes
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self.nodes.values():

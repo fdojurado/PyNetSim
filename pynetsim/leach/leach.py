@@ -58,6 +58,8 @@ class LEACH:
         num_dead_nodes = {}
         num_alive_nodes = {}
         num_cluster_heads = {}
+        pkt_delivery_ratio = {}
+        pkt_loss_ratio = {}
 
         # Set all dst_to_sink for all nodes
         for node in self.network.nodes.values():
@@ -65,10 +67,12 @@ class LEACH:
 
         if not plot_clusters_flag:
             self.run_without_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads)
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
+                num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
         else:
             self.run_with_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads)
+                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
+                num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
 
         leach.plot_metrics(network_energy, "Network Energy", "J",
                            "Network Energy vs Rounds",
@@ -82,7 +86,9 @@ class LEACH:
             network_energy=network_energy,
             num_dead_nodes=num_dead_nodes,
             num_alive_nodes=num_alive_nodes,
-            num_cluster_heads=num_cluster_heads
+            num_cluster_heads=num_cluster_heads,
+            pkt_delivery_ratio=pkt_delivery_ratio,
+            pkt_loss_ratio=pkt_loss_ratio
         )
 
     def evaluate_round(self, p, round):
@@ -103,7 +109,7 @@ class LEACH:
         return round
 
     def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                             num_cluster_heads_metric):
+                             num_cluster_heads_metric, pkt_delivery_ratio, pkt_loss_ratio):
         round = 0
         with Progress() as progress:
             task = progress.add_task(
@@ -116,20 +122,24 @@ class LEACH:
                                     network_energy=network_energy,
                                     num_dead_nodes=num_dead_nodes,
                                     num_alive_nodes=num_alive_nodes,
-                                    num_cluster_heads=num_cluster_heads_metric)
+                                    num_cluster_heads=num_cluster_heads_metric,
+                                    pkt_delivery_ratio=pkt_delivery_ratio,
+                                    pkt_loss_ratio=pkt_loss_ratio)
                 leach.save_metrics(
                     config=self.config,
                     name=self.name,
                     network_energy=network_energy,
                     num_dead_nodes=num_dead_nodes,
                     num_alive_nodes=num_alive_nodes,
-                    num_cluster_heads=num_cluster_heads_metric
+                    num_cluster_heads=num_cluster_heads_metric,
+                    pkt_delivery_ratio=pkt_delivery_ratio,
+                    pkt_loss_ratio=pkt_loss_ratio
                 )
                 progress.update(task, completed=round)
             progress.update(task, completed=num_rounds)
 
     def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                          num_cluster_heads_metric):
+                          num_cluster_heads_metric, pkt_delivery_ratio, pkt_loss_ratio):
         fig, ax = plt.subplots()
         leach.plot_clusters(network=self.network, round=0, ax=ax)
 
@@ -147,14 +157,18 @@ class LEACH:
                                 network_energy=network_energy,
                                 num_dead_nodes=num_dead_nodes,
                                 num_alive_nodes=num_alive_nodes,
-                                num_cluster_heads=num_cluster_heads_metric)
+                                num_cluster_heads=num_cluster_heads_metric,
+                                pkt_delivery_ratio=pkt_delivery_ratio,
+                                pkt_loss_ratio=pkt_loss_ratio)
             leach.save_metrics(
                 config=self.config,
                 name=self.name,
                 network_energy=network_energy,
                 num_dead_nodes=num_dead_nodes,
                 num_alive_nodes=num_alive_nodes,
-                num_cluster_heads=num_cluster_heads_metric
+                num_cluster_heads=num_cluster_heads_metric,
+                pkt_delivery_ratio=pkt_delivery_ratio,
+                pkt_loss_ratio=pkt_loss_ratio
             )
 
             plt.pause(0.1)

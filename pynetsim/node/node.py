@@ -20,6 +20,8 @@ class Node:
         self.dst_to_sink = 0
         self.dst_to_cluster_head = 0
         self.round_dead = 0
+        self.packet_sent = 0
+        self.packet_received = 0
 
     @property
     def is_cluster_head(self):
@@ -29,6 +31,22 @@ class Node:
     def is_cluster_head(self, value: bool):
         assert isinstance(value, bool)
         self.__is_cluster_head = value
+
+    def increase_packet_sent(self):
+        self.packet_sent += 1
+
+    def increase_packet_received(self):
+        self.packet_received += 1
+
+    def packet_delivery_ratio(self):
+        if self.packet_sent == 0:
+            return 0
+        return self.packet_received / self.packet_sent
+
+    def packet_loss_ratio(self):
+        if self.packet_sent == 0:
+            return 0
+        return 1 - self.packet_delivery_ratio()
 
     # @property
     # def dst_to_sink(self):

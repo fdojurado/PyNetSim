@@ -58,6 +58,8 @@ def energy_dissipation_cluster_heads(round, network,
             eamp * packet_size * distance**2
         # print(f"Cluster head {node.node_id} is tx to sink with distance {distance}. Energy: {ETx}")
         node.energy -= ETx
+        node.increase_packet_sent()
+        node.increase_packet_received()
         # network.remaining_energy -= ETx
         if not alive(node):
             mark_node_as_dead(node, round)
@@ -82,7 +84,7 @@ def process_non_cluster_head(network, node, cluster_head, round,
                              elect, eda, packet_size, eamp):
     if not alive(node):
         return
-    distance = get_node_distance(node, cluster_head)
+    distance = get_node_distance(node)
     # print(f"Node {node.node_id} distance to cluster head: {distance}")
     ETx = calculate_tx_energy_dissipation(distance=distance, elect=elect,
                                           packet_size=packet_size, eamp=eamp)
@@ -90,6 +92,10 @@ def process_non_cluster_head(network, node, cluster_head, round,
     #     f"Node {node.node_id} is tx to cluster head {cluster_head.node_id}. Energy: {ETx}"
     # )
     node.energy -= ETx
+    node.increase_packet_sent()
+    if not alive(cluster_head):
+        return
+    node.increase_packet_received()
     # network.remaining_energy -= ETx
     ERx = (elect + eda) * packet_size
     cluster_head.energy -= ERx
@@ -149,12 +155,14 @@ def mark_as_non_cluster_head(node):
 
 
 def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes,
-                  num_cluster_heads):
+                  num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     num_nodes = config.network.num_sensor
     network_energy[round] = network.remaining_energy()
     num_dead_nodes[round] = num_nodes - network.alive_nodes()
     num_alive_nodes[round] = network.alive_nodes()
     num_cluster_heads[round] = network.num_cluster_heads()
+    pkt_delivery_ratio[round] = network.packet_delivery_ratio()
+    pkt_loss_ratio[round] = network.packet_loss_ratio()
 
 
 def plot_clusters(network, round, ax):
@@ -242,8 +250,8 @@ def get_cluster_head(network, node):
     return network.get_node_with_cluster_id(node.cluster_id)
 
 
-def get_node_distance(node, cluster_head):
-    return node.dst_to_cluster_head if cluster_head.energy > 0 else node.dst_to_sink
+def get_node_distance(node):
+    return node.dst_to_cluster_head
 
 
 def calculate_tx_energy_dissipation(distance, elect, packet_size, eamp):
@@ -292,7 +300,7 @@ def mark_node_as_dead(node, round):
 
 def save_metrics(config, name,
                  network_energy, num_dead_nodes, num_alive_nodes,
-                 num_cluster_heads):
+                 num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     num_nodes = config.network.num_sensor
     # Build a json object
     metrics = {
@@ -301,7 +309,9 @@ def save_metrics(config, name,
         "num_dead_nodes": num_dead_nodes,
         "num_alive_nodes": num_alive_nodes,
         "network_energy": network_energy,
-        "num_cluster_heads": num_cluster_heads
+        "num_cluster_heads": num_cluster_heads,
+        "pkt_delivery_ratio": pkt_delivery_ratio,
+        "pkt_loss_ratio": pkt_loss_ratio
     }
     # Save the file as a json file
     with open(name+".json", "w") as f:

@@ -95,11 +95,15 @@ def plot_clusters(network: object, round: int, ax: object):
     leach.plot_clusters(network, round, ax)
 
 
-def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
+def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                  pkt_delivery_ratio, pkt_loss_ratio):
     leach.store_metrics(config, network, round, network_energy,
-                        num_dead_nodes, num_alive_nodes, num_cluster_heads)
+                        num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                        pkt_delivery_ratio, pkt_loss_ratio)
 
 
-def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads):
+def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                 pkt_delivery_ratio, pkt_loss_ratio):
     leach.save_metrics(config, name, network_energy, num_dead_nodes,
-                       num_alive_nodes, num_cluster_heads)
+                       num_alive_nodes, num_cluster_heads,
+                       pkt_delivery_ratio, pkt_loss_ratio)

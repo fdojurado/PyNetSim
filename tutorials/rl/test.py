@@ -24,7 +24,7 @@ CONFIG_FILE = os.path.join(SELF_PATH, "config_leach_rm.json")
 
 def run_with_plotting(config, network, model, rounds,
                       network_energy, num_dead_nodes, num_alive_nodes,
-                      num_cluster_heads):
+                      num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     fig, ax = plt.subplots()
     rl.plot_clusters(network=network, round=0, ax=ax)
 
@@ -39,10 +39,12 @@ def run_with_plotting(config, network, model, rounds,
 
         rl.plot_clusters(network=network, round=round, ax=ax)
         rl.store_metrics(config, network, round, network_energy,
-                          num_dead_nodes, num_alive_nodes, num_cluster_heads)
+                         num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                         pkt_delivery_ratio, pkt_loss_ratio)
 
         rl.save_metrics(config, "LEACH-RL", network_energy,
-                         num_dead_nodes, num_alive_nodes, num_cluster_heads)
+                        num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                        pkt_delivery_ratio, pkt_loss_ratio)
 
         plt.pause(2)
 
@@ -54,7 +56,7 @@ def run_with_plotting(config, network, model, rounds,
 
 def run_without_plotting(config, network, model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
-                         run_without_plotting):
+                         num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     round = 0
     with Progress() as progress:
         task = progress.add_task("[cyan]Simulation Progress", total=rounds)
@@ -63,9 +65,11 @@ def run_without_plotting(config, network, model, rounds,
             # Start the progress bar
             round = evaluate_round(round, config, network, model, rounds)
             rl.store_metrics(config, network, round, network_energy,
-                              num_dead_nodes, num_alive_nodes, run_without_plotting)
+                             num_dead_nodes, num_alive_nodes,
+                             num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
             rl.save_metrics(config, "LEACH-RL", network_energy,
-                             num_dead_nodes, num_alive_nodes, run_without_plotting)
+                            num_dead_nodes, num_alive_nodes,
+                            num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
             # Update the progress bar
             progress.update(task, completed=round)
         progress.update(task, completed=rounds)
@@ -119,10 +123,10 @@ def evaluate_round(round, config, network, model, rounds):
 
     rl.create_clusters(network)
     rl.dissipate_energy(round=round, network=network,
-                         elect=config.network.protocol.eelect_nano*1e-9,
-                         eda=config.network.protocol.eda_nano*1e-9,
-                         packet_size=config.network.protocol.packet_size,
-                         eamp=config.network.protocol.eamp_pico*1e-12)
+                        elect=config.network.protocol.eelect_nano*1e-9,
+                        eda=config.network.protocol.eda_nano*1e-9,
+                        packet_size=config.network.protocol.packet_size,
+                        eamp=config.network.protocol.eamp_pico*1e-12)
 
     return round
 
@@ -133,16 +137,18 @@ def evaluate(config, network, model, rounds, plot):
     num_dead_nodes = {}
     num_alive_nodes = {}
     num_cluster_heads = {}
+    pkt_delivery_ratio = {}
+    pkt_loss_ratio = {}
     # Load the model
     model = DQN.load(model)
     if plot:
         run_with_plotting(config, network, model, rounds,
                           network_energy, num_dead_nodes, num_alive_nodes,
-                          num_cluster_heads)
+                          num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
         return
     run_without_plotting(config, network, model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
-                         num_cluster_heads)
+                         num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
 
 
 def main(args):
