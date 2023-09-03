@@ -217,7 +217,7 @@ class LEACH_C:
                                    pkt_delivery_ratio,
                                    pkt_loss_ratio)
                 progress.update(task, completed=round)
-        progress.update(task, completed=num_rounds)
+            progress.update(task, completed=num_rounds)
 
     def run_with_plotting(self, num_rounds, network_energy, num_dead_nodes,
                           num_alive_nodes, num_cluster_heads,
