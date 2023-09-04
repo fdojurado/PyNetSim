@@ -42,7 +42,7 @@ def run_with_plotting(config, network, model, rounds,
                          num_dead_nodes, num_alive_nodes, num_cluster_heads,
                          pkt_delivery_ratio, pkt_loss_ratio)
 
-        rl.save_metrics(config, "LEACH-RL", network_energy,
+        rl.save_metrics(config, config.network.protocol.name, network_energy,
                         num_dead_nodes, num_alive_nodes, num_cluster_heads,
                         pkt_delivery_ratio, pkt_loss_ratio)
 
@@ -67,7 +67,7 @@ def run_without_plotting(config, network, model, rounds,
             rl.store_metrics(config, network, round, network_energy,
                              num_dead_nodes, num_alive_nodes,
                              num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
-            rl.save_metrics(config, "LEACH-RL", network_energy,
+            rl.save_metrics(config, config.network.protocol.name, network_energy,
                             num_dead_nodes, num_alive_nodes,
                             num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
             # Update the progress bar
