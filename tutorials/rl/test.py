@@ -3,6 +3,7 @@
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import pynetsim.leach.rl as rl
+import pynetsim.common as common
 import gymnasium as gym
 import numpy as np
 import argparse
@@ -12,7 +13,7 @@ import os
 
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
-from pynetsim.config import PyNetSimConfig
+from pynetsim.config import PyNetSimConfig, NETWORK_MODELS
 from pynetsim.config import PROTOCOLS
 from rich.progress import Progress
 from stable_baselines3 import DQN
@@ -22,14 +23,15 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
 
 
-def run_with_plotting(config, network, model, rounds,
+def run_with_plotting(config, network, model, network_model, rounds,
                       network_energy, num_dead_nodes, num_alive_nodes,
                       num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     fig, ax = plt.subplots()
-    rl.plot_clusters(network=network, round=0, ax=ax)
+    common.plot_clusters(network=network, round=0, ax=ax)
 
     def animate(round, network=network):
-        round = evaluate_round(round, config, network, model, rounds)
+        round = evaluate_round(round, config, network,
+                               model, network_model, rounds)
 
         if round >= rounds or network.alive_nodes() <= 0:
             print("Done!")
@@ -37,14 +39,14 @@ def run_with_plotting(config, network, model, rounds,
 
         ax.clear()
 
-        rl.plot_clusters(network=network, round=round, ax=ax)
-        rl.store_metrics(config, network, round, network_energy,
-                         num_dead_nodes, num_alive_nodes, num_cluster_heads,
-                         pkt_delivery_ratio, pkt_loss_ratio)
+        common.plot_clusters(network=network, round=round, ax=ax)
+        common.add_to_metrics(config, network, round, network_energy,
+                              num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                              pkt_delivery_ratio, pkt_loss_ratio)
 
-        rl.save_metrics(config, config.network.protocol.name, network_energy,
-                        num_dead_nodes, num_alive_nodes, num_cluster_heads,
-                        pkt_delivery_ratio, pkt_loss_ratio)
+        common.save_metrics(config, config.network.model.name, network_energy,
+                            num_dead_nodes, num_alive_nodes, num_cluster_heads,
+                            pkt_delivery_ratio, pkt_loss_ratio)
 
         plt.pause(2)
 
@@ -54,7 +56,7 @@ def run_with_plotting(config, network, model, rounds,
     plt.show()
 
 
-def run_without_plotting(config, network, model, rounds,
+def run_without_plotting(config, network, model, network_model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
                          num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     round = 0
@@ -63,22 +65,23 @@ def run_without_plotting(config, network, model, rounds,
 
         while network.alive_nodes() > 0 and round < rounds:
             # Start the progress bar
-            round = evaluate_round(round, config, network, model, rounds)
-            rl.store_metrics(config, network, round, network_energy,
-                             num_dead_nodes, num_alive_nodes,
-                             num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
-            rl.save_metrics(config, config.network.protocol.name, network_energy,
-                            num_dead_nodes, num_alive_nodes,
-                            num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
+            round = evaluate_round(
+                round, config, network, model, network_model, rounds)
+            common.add_to_metrics(config, network, round, network_energy,
+                                  num_dead_nodes, num_alive_nodes,
+                                  num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
+            common.save_metrics(config, config.network.model.name, network_energy,
+                                num_dead_nodes, num_alive_nodes,
+                                num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
             # Update the progress bar
             progress.update(task, completed=round)
         progress.update(task, completed=rounds)
 
 
-def create_env(config, network):
+def create_env(config, network, network_model):
     # Create the environment
     env_name = config.network.protocol.name
-    env = PROTOCOLS[env_name](network)
+    env = PROTOCOLS[env_name](network, network_model)
     env = gym.wrappers.TimeLimit(
         env, max_episode_steps=config.network.protocol.max_steps)
     env = Monitor(env, args.log)
@@ -104,12 +107,12 @@ def update_cluster_heads(network, network_copy):
     # print(f"Cluster heads: {chs}")
 
 
-def evaluate_round(round, config, network, model, rounds):
+def evaluate_round(round, config, network, model, network_model, rounds):
     round += 1
     # print(f"Round: {round}")
     done = False
     network_copy = copy.deepcopy(network)
-    env = create_env(config, network_copy)
+    env = create_env(config, network_copy, network_model)
     obs, _ = env.reset()
     while not done:
         action, _ = model.predict(obs)
@@ -121,17 +124,13 @@ def evaluate_round(round, config, network, model, rounds):
     # print_energy_consumption_difference(network, network_copy)
     update_cluster_heads(network, network_copy)
 
-    rl.create_clusters(network)
-    rl.dissipate_energy(round=round, network=network,
-                        elect=config.network.protocol.eelect_nano*1e-9,
-                        eda=config.network.protocol.eda_nano*1e-9,
-                        packet_size=config.network.protocol.packet_size,
-                        eamp=config.network.protocol.eamp_pico*1e-12)
+    network.create_clusters()
+    network_model.dissipate_energy(round=round)
 
     return round
 
 
-def evaluate(config, network, model, rounds, plot):
+def evaluate(config, network, model, network_model, rounds, plot):
 
     network_energy = {}
     num_dead_nodes = {}
@@ -142,11 +141,11 @@ def evaluate(config, network, model, rounds, plot):
     # Load the model
     model = DQN.load(model)
     if plot:
-        run_with_plotting(config, network, model, rounds,
+        run_with_plotting(config, network, model, network_model, rounds,
                           network_energy, num_dead_nodes, num_alive_nodes,
                           num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
         return
-    run_without_plotting(config, network, model, rounds,
+    run_without_plotting(config, network, model, network_model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
                          num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
 
@@ -162,9 +161,12 @@ def main(args):
 
     # Create the network
     network = Network(config)
+    network_model = NETWORK_MODELS[config.network.model](
+        config=config, network=network)
+    network.set_model(network_model)
     network.initialize()
 
-    evaluate(config, network, args.model,
+    evaluate(config, network, args.model, network_model,
              rounds=config.network.protocol.rounds,
              plot=args.plot)
 

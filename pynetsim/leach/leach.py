@@ -1,29 +1,28 @@
 import random
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import pynetsim.leach as leach
+import pynetsim.common as common
 
 from rich.progress import Progress
 
 
 class LEACH:
 
-    def __init__(self, network):
+    def __init__(self, network, net_model: object):
         self.name = "LEACH"
+        self.net_model = net_model
         self.config = network.config
         self.network = network
-        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = leach.get_energy_conversion_factors(
-            self.config)
 
     def select_cluster_heads(self, probability, tleft, num_cluster_heads):
-        for node in self.network.nodes.values():
-            if leach.should_skip_node(node):
+        for node in self.network:
+            if self.network.should_skip_node(node):
                 continue
 
             if node.rounds_to_become_cluster_head > 0:
                 node.rounds_to_become_cluster_head -= 1
 
-            leach.mark_as_non_cluster_head(node)
+            self.network.mark_as_non_cluster_head(node)
 
             if self.should_select_cluster_head(node, probability):
                 num_cluster_heads = self.mark_as_cluster_head(
@@ -38,7 +37,8 @@ class LEACH:
                 and random.random() < probability)
 
     def mark_as_cluster_head(self, node, num_cluster_heads, tleft):
-        num_cluster_heads = leach.mark_as_cluster_head(
+        num_cluster_heads += 1
+        self.network.mark_as_cluster_head(
             node, num_cluster_heads)
         node.rounds_to_become_cluster_head = 1 / \
             self.config.network.protocol.cluster_head_percentage - tleft
@@ -51,7 +51,7 @@ class LEACH:
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False  # Set this to False to not plot clusters
 
-        for node in self.network.nodes.values():
+        for node in self.network:
             node.is_cluster_head = False
 
         network_energy = {}
@@ -62,7 +62,7 @@ class LEACH:
         pkt_loss_ratio = {}
 
         # Set all dst_to_sink for all nodes
-        for node in self.network.nodes.values():
+        for node in self.network:
             node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
@@ -74,15 +74,15 @@ class LEACH:
                 num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
                 num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
 
-        leach.plot_metrics(network_energy, "Network Energy", "J",
-                           "Network Energy vs Rounds",
-                           num_dead_nodes, "Number of Dead Nodes",
-                           "Number of Dead Nodes vs Rounds",
-                           num_alive_nodes, "Number of Alive Nodes",
-                           "Number of Alive Nodes vs Rounds")
-        leach.save_metrics(
+        common.plot_metrics(network_energy, "Network Energy", "J",
+                            "Network Energy vs Rounds",
+                            num_dead_nodes, "Number of Dead Nodes",
+                            "Number of Dead Nodes vs Rounds",
+                            num_alive_nodes, "Number of Alive Nodes",
+                            "Number of Alive Nodes vs Rounds")
+        common.save_metrics(
             config=self.config,
-            name=self.name,
+            name=self.net_model.name,
             network_energy=network_energy,
             num_dead_nodes=num_dead_nodes,
             num_alive_nodes=num_alive_nodes,
@@ -101,10 +101,8 @@ class LEACH:
         tleft = round % (1 / p)
 
         self.select_cluster_heads(th, tleft, num_cluster_heads)
-        chs_bool = leach.create_clusters(network=self.network)
-        leach.dissipate_energy(round=round, network=self.network,
-                               elect=self.elect, eda=self.eda,
-                               packet_size=self.packet_size, eamp=self.eamp)
+        chs_bool = self.network.create_clusters()
+        self.net_model.dissipate_energy(round=round)
 
         return round
 
@@ -118,16 +116,19 @@ class LEACH:
             while self.network.alive_nodes() > 0 and round < num_rounds:
                 round = self.evaluate_round(p, round)
 
-                leach.store_metrics(config=self.config, network=self.network, round=round,
-                                    network_energy=network_energy,
-                                    num_dead_nodes=num_dead_nodes,
-                                    num_alive_nodes=num_alive_nodes,
-                                    num_cluster_heads=num_cluster_heads_metric,
-                                    pkt_delivery_ratio=pkt_delivery_ratio,
-                                    pkt_loss_ratio=pkt_loss_ratio)
-                leach.save_metrics(
+                common.add_to_metrics(
                     config=self.config,
-                    name=self.name,
+                    network=self.network,
+                    round=round,
+                    network_energy=network_energy,
+                    num_dead_nodes=num_dead_nodes,
+                    num_alive_nodes=num_alive_nodes,
+                    num_cluster_heads=num_cluster_heads_metric,
+                    pkt_delivery_ratio=pkt_delivery_ratio,
+                    pkt_loss_ratio=pkt_loss_ratio)
+                common.save_metrics(
+                    config=self.config,
+                    name=self.net_model.name,
                     network_energy=network_energy,
                     num_dead_nodes=num_dead_nodes,
                     num_alive_nodes=num_alive_nodes,
@@ -141,7 +142,8 @@ class LEACH:
     def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
                           num_cluster_heads_metric, pkt_delivery_ratio, pkt_loss_ratio):
         fig, ax = plt.subplots()
-        leach.plot_clusters(network=self.network, round=0, ax=ax)
+        common.plot_clusters(network=self.network,
+                             round=0, ax=ax)
 
         def animate(round):
             round = self.evaluate_round(p, round)
@@ -151,18 +153,21 @@ class LEACH:
                 ani.event_source.stop()
 
             ax.clear()
-            leach.plot_clusters(network=self.network, round=round, ax=ax)
+            common.plot_clusters(network=self.network,
+                                 round=round, ax=ax)
 
-            leach.store_metrics(config=self.config, network=self.network, round=round,
-                                network_energy=network_energy,
-                                num_dead_nodes=num_dead_nodes,
-                                num_alive_nodes=num_alive_nodes,
-                                num_cluster_heads=num_cluster_heads_metric,
-                                pkt_delivery_ratio=pkt_delivery_ratio,
-                                pkt_loss_ratio=pkt_loss_ratio)
-            leach.save_metrics(
+            common.add_to_metrics(config=self.config,
+                                  network=self.network,
+                                  round=round,
+                                  network_energy=network_energy,
+                                  num_dead_nodes=num_dead_nodes,
+                                  num_alive_nodes=num_alive_nodes,
+                                  num_cluster_heads=num_cluster_heads_metric,
+                                  pkt_delivery_ratio=pkt_delivery_ratio,
+                                  pkt_loss_ratio=pkt_loss_ratio)
+            common.save_metrics(
                 config=self.config,
-                name=self.name,
+                name=self.net_model.name,
                 network_energy=network_energy,
                 num_dead_nodes=num_dead_nodes,
                 num_alive_nodes=num_alive_nodes,

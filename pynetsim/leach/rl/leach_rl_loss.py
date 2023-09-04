@@ -7,16 +7,13 @@ import pynetsim.leach.rl as rl
 
 
 class LEACH_RL_LOSS(gym.Env):
-    def __init__(self, network):
+    def __init__(self, network, net_model: object):
         self.name = "LEACH_RL_LOSS"
+        self.net_model = net_model
         self.config = network.config
         self.network = network
         self.max_steps = self.config.network.protocol.max_steps
         self.action = 0
-
-        # Energy conversion factors
-        self.elect, self.etx, self.erx, self.eamp, self.eda, self.packet_size = rl.get_energy_conversion_factors(
-            self.config)
 
         self.round = 0
 
@@ -86,7 +83,7 @@ class LEACH_RL_LOSS(gym.Env):
 
     def _calculate_reward(self):
         current_energy = self.network.remaining_energy()
-        self._dissipate_energy()
+        self.net_model.dissipate_energy(round=self.round)
         latest_energy = self.network.remaining_energy()
         pkt_loss = self.network.packet_loss_ratio()
         reward = 2 - 1 * (current_energy - latest_energy+pkt_loss)
@@ -105,18 +102,13 @@ class LEACH_RL_LOSS(gym.Env):
         # ) if cluster_head.is_cluster_head]
         # print(f"Cluster heads: {chs}")
 
-        rl.create_clusters(self.network)
+        self.network.create_clusters()
 
-        self._dissipate_energy()
+        self.net_model.dissipate_energy(round=self.round)
 
         observation, info = self._get_obs()
 
         return observation, info
-
-    def _dissipate_energy(self):
-        rl.dissipate_energy(round=self.round, network=self.network,
-                            elect=self.elect, eda=self.eda,
-                            packet_size=self.packet_size, eamp=self.eamp)
 
     def step(self, action):
         self.round += 1
@@ -130,11 +122,11 @@ class LEACH_RL_LOSS(gym.Env):
             return obs, 0, True, False, info
 
         if node.is_cluster_head:
-            rl.mark_as_non_cluster_head(node)
+            self.network.mark_as_non_cluster_head(node)
         else:
-            rl.mark_as_cluster_head(node)
+            self.network.mark_as_cluster_head(node, node.node_id)
 
-        rl.create_clusters(self.network)
+        self.network.create_clusters()
         reward = self._calculate_reward()
         observation, info = self._get_obs()
         return observation, reward, done, False, info

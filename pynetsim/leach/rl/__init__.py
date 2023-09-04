@@ -12,7 +12,7 @@ def obs(num_sensors: int, network: object,
         action_taken: int = 0):
     # Put the energy consumption in a numpy array
     energy_consumption = np.zeros(num_sensors+1)
-    for node in network.nodes.values():
+    for node in network:
         if node.node_id == 1:
             continue
         energy = max(node.energy, 0)/init_energy
@@ -21,7 +21,7 @@ def obs(num_sensors: int, network: object,
     # print(f"sizes: {len(energy_consumption)}, {len(network.nodes)}")
 
     cluster_heads = np.zeros(num_sensors+1)
-    for node in network.nodes.values():
+    for node in network:
         if node.node_id == 1:
             continue
         if node.is_cluster_head:
@@ -43,7 +43,7 @@ def obs(num_sensors: int, network: object,
     # Append all sensor nodes' distance to cluster head. In the case,
     # of cluster heads, append distance to sink
     dst_to_cluster_head = np.zeros(num_sensors+1)
-    for node in network.nodes.values():
+    for node in network:
         if node.node_id == 1:
             continue
         if node.is_cluster_head:
@@ -77,7 +77,7 @@ def obs_packet_loss(num_sensors: int, network: object,
              init_energy, round, max_steps, max_distance, action_taken)
     # Append the PDR for each node
     pdr = np.zeros(num_sensors+1)
-    for node in network.nodes.values():
+    for node in network:
         if node.node_id == 1:
             continue
         pdr[node.node_id] = node.packet_delivery_ratio()
@@ -89,8 +89,8 @@ def obs_packet_loss(num_sensors: int, network: object,
 
 
 def create_network(network: object, config: object):
-    for node in network.nodes.values():
-        mark_as_non_cluster_head(node)
+    for node in network:
+        network.mark_as_non_cluster_head(node)
         # use np random to set the energy
         node.energy = np.random.uniform(
             low=0.5, high=config.network.protocol.init_energy)
@@ -104,53 +104,8 @@ def create_network(network: object, config: object):
     avg_energy = network.average_energy()
     # Also avoid choosing the sink as a cluster head
     cluster_heads = np.random.choice(
-        [node for node in network.nodes.values() if node.energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
+        [node for node in network if node.energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
 
     # Set the cluster heads
     for cluster_head in cluster_heads:
-        mark_as_cluster_head(cluster_head)
-
-
-def dissipate_energy(round: int, network: object,
-                     elect: float, eda: float, packet_size: int, eamp: float):
-    leach.energy_dissipation_non_cluster_heads(round=round, network=network,
-                                               elect=elect, eda=eda,
-                                               packet_size=packet_size, eamp=eamp)
-    leach.energy_dissipation_cluster_heads(round=round, network=network,
-                                           elect=elect, eda=eda,
-                                           packet_size=packet_size, eamp=eamp)
-
-
-def create_clusters(network: object):
-    leach.create_clusters(network)
-
-
-def get_energy_conversion_factors(config):
-    return leach.get_energy_conversion_factors(config)
-
-
-def mark_as_cluster_head(node):
-    node.is_cluster_head = True
-    node.cluster_id = node.node_id
-
-
-def mark_as_non_cluster_head(node):
-    leach.mark_as_non_cluster_head(node)
-
-
-def plot_clusters(network: object, round: int, ax: object):
-    leach.plot_clusters(network, round, ax)
-
-
-def store_metrics(config, network, round, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads,
-                  pkt_delivery_ratio, pkt_loss_ratio):
-    leach.store_metrics(config, network, round, network_energy,
-                        num_dead_nodes, num_alive_nodes, num_cluster_heads,
-                        pkt_delivery_ratio, pkt_loss_ratio)
-
-
-def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes, num_cluster_heads,
-                 pkt_delivery_ratio, pkt_loss_ratio):
-    leach.save_metrics(config, name, network_energy, num_dead_nodes,
-                       num_alive_nodes, num_cluster_heads,
-                       pkt_delivery_ratio, pkt_loss_ratio)
+        network.mark_as_cluster_head(cluster_head, cluster_head.node_id)

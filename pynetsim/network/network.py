@@ -28,12 +28,79 @@ class Network:
         self.config = config
         self.nodes = {}
 
+    def set_model(self, model):
+        self.model = model
+
     # -----------------LEACH-----------------
+
+    def mark_as_cluster_head(self, node, cluster_id):
+        node.is_cluster_head = True
+        node.cluster_id = cluster_id
+
+    def mark_as_non_cluster_head(self, node):
+        node.is_cluster_head = False
+        node.cluster_id = None
+
+    def create_clusters(self):
+        cluster_heads_exist = any(
+            node.is_cluster_head for node in self)
+        if not cluster_heads_exist:
+            # print("There are no cluster heads.")
+            # input("Press Enter to continue...")
+            self.clear_clusters()
+            return False
+
+        for node in self:
+            if not node.is_cluster_head and node.node_id != 1:
+                self.add_node_to_cluster(node=node)
+
+    def add_node_to_cluster(self, node):
+        distances = {cluster_head.node_id: ((node.x - cluster_head.x)**2 + (node.y - cluster_head.y)**2)**0.5
+                     for cluster_head in self if cluster_head.is_cluster_head}
+        cluster_head_id = min(distances, key=distances.get)
+        min_distance = distances[cluster_head_id]
+        cluster_head = self.get_node(cluster_head_id)
+        cluster_head.add_neighbor(node)
+        node.add_neighbor(cluster_head)
+        node.dst_to_cluster_head = min_distance
+        node.cluster_id = cluster_head.cluster_id
+
+    def remove_cluster_head(self, cluster_head):
+        cluster_id = cluster_head.cluster_id
+        for node in self:
+            if node.cluster_id == cluster_id:
+                node.cluster_id = 0
+
+    def remove_node_from_cluster(self, node):
+        for neighbor in node.neighbors.values():
+            # print(f"Removing node {node.node_id} from node {neighbor.node_id}")
+            # if the node is not dead, remove it from the neighbor's neighbors
+            if neighbor.energy > 0:
+                neighbor.neighbors.pop(node.node_id)
+        node.neighbors = {}
+
+    def get_cluster_head(self, node):
+        return self.get_node_with_cluster_id(node.cluster_id)
+
+    def clear_clusters(self):
+        for node in self:
+            node.cluster_id = 0
+
     def get_node_with_cluster_id(self, cluster_id):
         for node in self.nodes.values():
             if node.cluster_id == cluster_id and node.is_cluster_head:
                 return node
         return None
+
+    def should_skip_node(self, node):
+        return node.node_id == 1 or not self.alive(node)
+
+    def alive(self, node: Node):
+        return node.energy > 0
+
+    def mark_node_as_dead(self, node, round):
+        print(f"Node {node.node_id} is dead.")
+        node.round_dead = round
 
     def alive_nodes(self):
         alive_nodes = 0
@@ -195,7 +262,7 @@ class Network:
 
         return self
 
-    def get_node(self, node_id):
+    def get_node(self, node_id: int):
         return self.nodes[node_id]
 
     def add_node(self, node: Node):
@@ -209,6 +276,15 @@ class Network:
 
     def get_last_node_id(self):
         return self.num_nodes
+
+    def __iter__(self):
+        return iter(self.nodes.values())
+
+    def __next__(self):
+        try:
+            return next(self.node_iterator)
+        except StopIteration:
+            raise StopIteration
 
     # -----------------Network operations-----------------
     def initialize(self):
@@ -296,6 +372,6 @@ class Network:
         # Get the protocol class from the protocol name
         protocol_class = PROTOCOLS[protocol]
         # Create an instance of the protocol class
-        protocol_instance = protocol_class(self)
+        protocol_instance = protocol_class(self, net_model=self.model)
         # Run the protocol
         protocol_instance.run()

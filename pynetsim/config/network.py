@@ -7,12 +7,14 @@ TRANSMISSION_RANGE = 80
 WIDTH = 200
 HEIGHT = 200
 NUM_SINK = 1
+DEFAULT_MODEL = "simple"
 
 
 class NetworkConfig:
 
     def __init__(self, num_sensor=None, nodes=None,
                  transmission_range=None,
+                 model=None,
                  width=None, height=None,
                  num_sink=None,
                  tsch=None,
@@ -20,6 +22,7 @@ class NetworkConfig:
 
         self.num_sensor = num_sensor
         self.transmission_range = transmission_range
+        self.model = model
         self.width = width
         self.height = height
         self.num_sink = num_sink
@@ -38,6 +41,7 @@ class NetworkConfig:
             json_object.get("nodes")),
             transmission_range=json_object.get(
                        "transmission_range", TRANSMISSION_RANGE),
+            model=json_object.get("model", DEFAULT_MODEL),
             width=json_object.get("width", WIDTH),
             height=json_object.get("height", HEIGHT),
             num_sink=json_object.get("num_sink", NUM_SINK),

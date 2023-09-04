@@ -2,7 +2,7 @@
 # The network is plotted using matplotlib.
 
 from pynetsim.network.network import Network
-from pynetsim.config import PyNetSimConfig
+from pynetsim.config import PyNetSimConfig, NETWORK_MODELS
 
 import sys
 import os
@@ -17,6 +17,9 @@ def main():
     print(f"config: {config}")
 
     network = Network(config=config)
+    network_model = NETWORK_MODELS[config.network.model](
+        config=config, network=network)
+    network.set_model(network_model)
     network.initialize()
     network.start()
 

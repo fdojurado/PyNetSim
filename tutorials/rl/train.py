@@ -5,7 +5,7 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
-from pynetsim.config import PyNetSimConfig
+from pynetsim.config import PyNetSimConfig, NETWORK_MODELS
 from stable_baselines3 import DQN, PPO
 from pynetsim.config import PROTOCOLS
 import gymnasium as gym
@@ -78,10 +78,13 @@ def main(args):
     print(f"config: {config}")
 
     network = Network(config=config)
+    network_model = NETWORK_MODELS[config.network.model](
+        config=config, network=network)
+    network.set_model(network_model)
     network.initialize()
     # -----------Lets train the DQN network
     env_name = config.network.protocol.name
-    env = PROTOCOLS[env_name](network)
+    env = PROTOCOLS[env_name](network, network_model)
     env = gym.wrappers.TimeLimit(
         env,
         max_episode_steps=config.network.protocol.max_steps

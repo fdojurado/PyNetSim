@@ -3,6 +3,7 @@ import os
 from pynetsim.config.network import NetworkConfig
 from pynetsim.leach.rl.leach_rl import LEACH_RL
 from pynetsim.leach.rl.leach_rl_loss import LEACH_RL_LOSS
+from pynetsim.network.simple_model import Simple
 from pynetsim.leach.leach_c import LEACH_C
 from pynetsim.leach.leach import LEACH
 
@@ -15,6 +16,10 @@ PROTOCOLS = {
     "LEACH-C": LEACH_C,
     "LEACH-RL": LEACH_RL,
     "LEACH-RL-LOSS": LEACH_RL_LOSS
+}
+
+NETWORK_MODELS = {
+    "simple": Simple
 }
 
 
