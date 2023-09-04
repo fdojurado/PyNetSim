@@ -64,6 +64,53 @@ def obs(num_sensors: int, network: object,
     return observation
 
 
+def obs_packet_loss(num_sensors: int, network: object,
+                    x_pos: np.ndarray, y_pos: np.ndarray,
+                    dst_to_sink: np.ndarray,
+                    init_energy: float,
+                    round: int,
+                    max_steps: int,
+                    max_distance: float,
+                    action_taken: int = 0):
+
+    ob = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
+             init_energy, round, max_steps, max_distance, action_taken)
+    # Append the PDR for each node
+    pdr = np.zeros(num_sensors+1)
+    for node in network.nodes.values():
+        if node.node_id == 1:
+            continue
+        pdr[node.node_id] = node.packet_delivery_ratio()
+    ob = np.append(ob, pdr)
+    # Append the network's PDR
+    network_pdr = network.packet_delivery_ratio()
+    ob = np.append(ob, network_pdr)
+    return ob
+
+
+def create_network(network: object, config: object):
+    for node in network.nodes.values():
+        mark_as_non_cluster_head(node)
+        # use np random to set the energy
+        node.energy = np.random.uniform(
+            low=0.5, high=config.network.protocol.init_energy)
+
+    # Choose 5% of the number of nodes as cluster heads
+    num_cluster_heads = int(config.network.num_sensor *
+                            config.network.protocol.cluster_head_percentage)
+
+    # Choose num_cluster_heads nodes as cluster heads from the set of nodes
+    # whose energy is greater or equal to the current network's average energy
+    avg_energy = network.average_energy()
+    # Also avoid choosing the sink as a cluster head
+    cluster_heads = np.random.choice(
+        [node for node in network.nodes.values() if node.energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
+
+    # Set the cluster heads
+    for cluster_head in cluster_heads:
+        mark_as_cluster_head(cluster_head)
+
+
 def dissipate_energy(round: int, network: object,
                      elect: float, eda: float, packet_size: int, eamp: float):
     leach.energy_dissipation_non_cluster_heads(round=round, network=network,

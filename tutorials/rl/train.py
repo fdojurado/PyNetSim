@@ -16,7 +16,7 @@ import sys
 import os
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SELF_PATH, "config_leach_rm.json")
+CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
