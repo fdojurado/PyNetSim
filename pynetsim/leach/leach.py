@@ -82,7 +82,6 @@ class LEACH:
                             "Number of Alive Nodes vs Rounds")
         common.save_metrics(
             config=self.config,
-            name=self.net_model.name,
             network_energy=network_energy,
             num_dead_nodes=num_dead_nodes,
             num_alive_nodes=num_alive_nodes,
@@ -128,7 +127,6 @@ class LEACH:
                     pkt_loss_ratio=pkt_loss_ratio)
                 common.save_metrics(
                     config=self.config,
-                    name=self.net_model.name,
                     network_energy=network_energy,
                     num_dead_nodes=num_dead_nodes,
                     num_alive_nodes=num_alive_nodes,
@@ -167,7 +165,6 @@ class LEACH:
                                   pkt_loss_ratio=pkt_loss_ratio)
             common.save_metrics(
                 config=self.config,
-                name=self.net_model.name,
                 network_energy=network_energy,
                 num_dead_nodes=num_dead_nodes,
                 num_alive_nodes=num_alive_nodes,

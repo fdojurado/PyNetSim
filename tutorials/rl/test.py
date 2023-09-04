@@ -44,7 +44,7 @@ def run_with_plotting(config, network, model, network_model, rounds,
                               num_dead_nodes, num_alive_nodes, num_cluster_heads,
                               pkt_delivery_ratio, pkt_loss_ratio)
 
-        common.save_metrics(config, config.network.model.name, network_energy,
+        common.save_metrics(config, network_energy,
                             num_dead_nodes, num_alive_nodes, num_cluster_heads,
                             pkt_delivery_ratio, pkt_loss_ratio)
 
@@ -70,7 +70,7 @@ def run_without_plotting(config, network, model, network_model, rounds,
             common.add_to_metrics(config, network, round, network_energy,
                                   num_dead_nodes, num_alive_nodes,
                                   num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
-            common.save_metrics(config, config.network.model.name, network_energy,
+            common.save_metrics(config, network_energy,
                                 num_dead_nodes, num_alive_nodes,
                                 num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio)
             # Update the progress bar
@@ -112,7 +112,8 @@ def evaluate_round(round, config, network, model, network_model, rounds):
     # print(f"Round: {round}")
     done = False
     network_copy = copy.deepcopy(network)
-    env = create_env(config, network_copy, network_model)
+    network_model_copy = copy.deepcopy(network_model)
+    env = create_env(config, network_copy, network_model_copy)
     obs, _ = env.reset()
     while not done:
         action, _ = model.predict(obs)

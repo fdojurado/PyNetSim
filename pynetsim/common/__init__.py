@@ -14,7 +14,7 @@ def add_to_metrics(config, network, round, network_energy, num_dead_nodes,
     pkt_loss_ratio[round] = network.packet_loss_ratio()
 
 
-def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes,
+def save_metrics(config, network_energy, num_dead_nodes, num_alive_nodes,
                  num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio):
     num_nodes = config.network.num_sensor
     # Build a json object
@@ -28,7 +28,7 @@ def save_metrics(config, name, network_energy, num_dead_nodes, num_alive_nodes,
         "pkt_delivery_ratio": pkt_delivery_ratio,
         "pkt_loss_ratio": pkt_loss_ratio
     }
-    name = config.network.protocol.name + "_" + name
+    name = config.network.protocol.name + "_" + config.network.model
     # Save the file as a json file
     with open(name+".json", "w") as f:
         json.dump(metrics, f)
