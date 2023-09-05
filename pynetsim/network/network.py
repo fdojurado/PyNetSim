@@ -87,7 +87,7 @@ class Network:
             node.cluster_id = 0
 
     def get_node_with_cluster_id(self, cluster_id):
-        for node in self.nodes.values():
+        for node in self:
             if node.cluster_id == cluster_id and node.is_cluster_head:
                 return node
         return None
@@ -104,7 +104,7 @@ class Network:
 
     def alive_nodes(self):
         alive_nodes = 0
-        for node in self.nodes.values():
+        for node in self:
             # exclude the sink node
             if node.node_id == 1:
                 continue
@@ -114,14 +114,14 @@ class Network:
 
     def dead_nodes(self):
         dead_nodes = 0
-        for node in self.nodes.values():
+        for node in self:
             if node.energy <= 0:
                 dead_nodes += 1
         return dead_nodes
 
     def remaining_energy(self):
         remaining_energy = 0
-        for node in self.nodes.values():
+        for node in self:
             if node.energy > 0 and node.node_id != 1:
                 remaining_energy += node.energy
         return remaining_energy
@@ -135,7 +135,7 @@ class Network:
         alive_nodes = self.alive_nodes()
         if alive_nodes == 0:
             return 0
-        for node in self.nodes.values():
+        for node in self:
             if node.node_id == 1 or node.energy <= 0:
                 continue
             pdr += node.packet_delivery_ratio()
@@ -147,7 +147,7 @@ class Network:
         alive_nodes = self.alive_nodes()
         if alive_nodes == 0:
             return 0
-        for node in self.nodes.values():
+        for node in self:
             if node.node_id == 1 or node.energy <= 0:
                 continue
             plr += node.packet_loss_ratio()
@@ -155,7 +155,7 @@ class Network:
 
     def num_cluster_heads(self):
         num_cluster_heads = 0
-        for node in self.nodes.values():
+        for node in self:
             if node.node_id == 1:
                 continue
             if node.is_cluster_head:
@@ -183,7 +183,7 @@ class Network:
         queue.append(self.nodes[1])
         visited.add(self.nodes[1])
         # Add all the other nodes to the not_visited set
-        for node in self.nodes.values():
+        for node in self:
             if node.node_id != 1:
                 not_visited.add(node)
         # Print the visted and not_visited sets
@@ -236,8 +236,8 @@ class Network:
             self.nodes[1].set_sink()
 
             # Calculate the neighbors for each node
-            for node in self.nodes.values():
-                for other_node in self.nodes.values():
+            for node in self:
+                for other_node in self:
                     if node.node_id != other_node.node_id:
                         if not self.config.network.protocol.name == 'LEACH':
                             if node.is_within_range(other_node, self.transmission_range):
@@ -251,8 +251,8 @@ class Network:
                     node.node_id, node.x, node.y, node.type_node, node.energy)
 
             # Calculate the neighbors for each node
-            for node in self.nodes.values():
-                for other_node in self.nodes.values():
+            for node in self:
+                for other_node in self:
                     if node.node_id != other_node.node_id:
                         if not self.config.network.protocol.name == 'LEACH':
                             if node.is_within_range(other_node, self.transmission_range):
@@ -298,22 +298,22 @@ class Network:
             self.plot_network()
             return False
         # Set all nodes to not be cluster heads
-        for node in self.nodes.values():
+        for node in self:
             node.is_cluster_head = False
         return True
 
     def plot_network(self):
-        for node in self.nodes.values():
+        for node in self:
             plt.plot(node.x, node.y, 'bo')
             for neighbor in node.neighbors.values():
                 # Create a dashed line between the node and its neighbor, light grey color
                 plt.plot([node.x, neighbor.x], [
                          node.y, neighbor.y], 'k--', linewidth=0.5)
         # Annotate the Node IDs
-        for node in self.nodes.values():
+        for node in self:
             plt.annotate(node.node_id, (node.x, node.y))
         # print the sink node in red
-        for node in self.nodes.values():
+        for node in self:
             if node.type == "Sink":
                 plt.plot(node.x, node.y, 'ro')
                 plt.annotate(node.node_id, (node.x, node.y))
@@ -325,10 +325,10 @@ class Network:
         # Create a graph
         graph = nx.Graph()
         # Add the nodes to the graph
-        for node in self.nodes.values():
+        for node in self:
             graph.add_node(node.node_id)
         # Add the edges to the graph
-        for node in self.nodes.values():
+        for node in self:
             for neighbor in node.neighbors.values():
                 weight = ((node.x - neighbor.x)**2 +
                           (node.y - neighbor.y)**2)**0.5
@@ -341,7 +341,7 @@ class Network:
 
         # Add the routing entries to each node.
         # The entries are of the form (sink, hop_n, hop_n-1, ..., source)
-        for node in self.nodes.values():
+        for node in self:
             # skip the sink node
             if node.node_id == 1:
                 continue
@@ -354,7 +354,7 @@ class Network:
                 node.add_routing_entry(1, next_hop)
 
         # Print the routing table for each node
-        for node in self.nodes.values():
+        for node in self:
             node.print_routing_table()
 
         # Plot the network

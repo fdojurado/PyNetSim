@@ -42,7 +42,11 @@ class NetworkModel(ABC):
                     node=node, cluster_head=cluster_head, round=round)
 
     @abstractmethod
-    def calculate_energy_tx(self, distance: float):
+    def calculate_energy_tx_non_ch(self, distance: float):
+        pass
+
+    @abstractmethod
+    def calculate_energy_tx_ch(self, distance: float):
         pass
 
     @abstractmethod
@@ -56,7 +60,7 @@ class NetworkModel(ABC):
         if not self.network.alive(node):
             return
         distance = node.dst_to_cluster_head
-        ETx = self.calculate_energy_tx(distance=distance)
+        ETx = self.calculate_energy_tx_non_ch(distance=distance)
         self.energy_dissipated(node=node, energy=ETx)
         node.increase_packet_sent()
         if not self.network.alive(cluster_head):
@@ -67,7 +71,7 @@ class NetworkModel(ABC):
         if not self.network.alive(cluster_head):
             # print(f"Cluster head {cluster_head.node_id} is dead.")
             self.network.mark_node_as_dead(cluster_head, round)
-            self.network.remove_cluster_head(cluster_head=cluster_head)
+            # self.network.remove_cluster_head(cluster_head=cluster_head)
             self.network.remove_node_from_cluster(cluster_head)
         if not self.network.alive(node):
             # print(f"Node {node.node_id} is dead.")
@@ -79,7 +83,7 @@ class NetworkModel(ABC):
             if self.network.should_skip_node(node) or not node.is_cluster_head:
                 continue
             distance = node.dst_to_sink
-            ETx = self.calculate_energy_tx(distance=distance)
+            ETx = self.calculate_energy_tx_ch(distance=distance)
             self.energy_dissipated(node=node, energy=ETx)
             node.increase_packet_sent()
             node.increase_packet_received()
