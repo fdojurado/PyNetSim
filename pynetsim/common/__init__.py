@@ -13,7 +13,7 @@ def add_to_metrics(config, network, round, network_energy, num_dead_nodes,
     num_alive_nodes[round] = network.alive_nodes()
     num_cluster_heads[round] = network.num_cluster_heads()
     pkt_delivery_ratio[round] = network.packet_delivery_ratio()
-    pkt_loss_ratio[round] = network.packet_loss_ratio()
+    pkt_loss_ratio[round] = network.average_plr()
     control_packets_energy[round] = network.control_packets_energy()
     control_packet_bits[round] = network.control_packet_bits()
 

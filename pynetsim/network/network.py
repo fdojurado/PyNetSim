@@ -121,8 +121,9 @@ class Network:
     def remaining_energy(self):
         remaining_energy = 0
         for node in self:
-            if node.energy > 0 and node.node_id != 1:
-                remaining_energy += node.energy
+            if self.should_skip_node(node):
+                continue
+            remaining_energy += node.energy
         return remaining_energy
 
     def average_energy(self):
@@ -143,7 +144,7 @@ class Network:
             pdr += node.packet_delivery_ratio()
         return pdr / alive_nodes
 
-    def packet_loss_ratio(self):
+    def average_plr(self):
         plr = 0
         # CHeck if there are alive nodes
         alive_nodes = self.alive_nodes()

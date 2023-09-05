@@ -54,7 +54,7 @@ def obs(num_sensors: int, network: object,
     observation = np.append(observation, dst_to_cluster_head)
 
     # Append average energy of the network
-    avg_energy = network.average_energy()/(init_energy*num_sensors)
+    avg_energy = network.average_energy()/init_energy
 
     observation = np.append(observation, avg_energy)
 
@@ -64,14 +64,14 @@ def obs(num_sensors: int, network: object,
     return observation
 
 
-def obs_packet_loss_overhead(num_sensors: int, network: object,
-                             x_pos: np.ndarray, y_pos: np.ndarray,
-                             dst_to_sink: np.ndarray,
-                             init_energy: float,
-                             round: int,
-                             max_steps: int,
-                             max_distance: float,
-                             action_taken: int = 0):
+def obs_packet_loss(num_sensors: int, network: object,
+                    x_pos: np.ndarray, y_pos: np.ndarray,
+                    dst_to_sink: np.ndarray,
+                    init_energy: float,
+                    round: int,
+                    max_steps: int,
+                    max_distance: float,
+                    action_taken: int = 0):
 
     ob = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
              init_energy, round, max_steps, max_distance, action_taken)
@@ -83,19 +83,19 @@ def obs_packet_loss_overhead(num_sensors: int, network: object,
         plr[node.node_id] = node.packet_loss_ratio()
     ob = np.append(ob, plr)
     # Append the network's PLR
-    network_plr = network.packet_loss_ratio()
+    network_plr = network.average_plr()
     ob = np.append(ob, network_plr)
     # Append the control bits for each node
-    control_packets_energy = np.zeros(num_sensors+1)
-    for node in network:
-        if node.node_id == 1:
-            continue
-        control_packets_energy[node.node_id] = node.get_last_round_control_packet_bits(
-        )/500
-    ob = np.append(ob, control_packets_energy)
+    # control_packets_energy = np.zeros(num_sensors+1)
+    # for node in network:
+    #     if node.node_id == 1:
+    #         continue
+    #     control_packets_energy[node.node_id] = node.get_last_round_control_packet_bits(
+    #     )/500
+    # ob = np.append(ob, control_packets_energy)
     # Append the network's control packets energy
-    network_control_packets_energy = network.control_packet_bits()/500
-    ob = np.append(ob, network_control_packets_energy)
+    # network_control_packets_energy = network.control_packet_bits()/500
+    # ob = np.append(ob, network_control_packets_energy)
     return ob
 
 

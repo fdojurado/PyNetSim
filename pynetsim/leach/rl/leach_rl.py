@@ -82,10 +82,12 @@ class LEACH_RL(gym.Env):
         return observations, info
 
     def _calculate_reward(self):
-        current_energy = self.network.remaining_energy()
+        current_energy = self.network.average_energy()
         self.net_model.dissipate_energy(round=self.round)
-        latest_energy = self.network.remaining_energy()
-        reward = 2 - 1 * (current_energy - latest_energy)
+        latest_energy = self.network.average_energy()
+        energy = (current_energy - latest_energy) / \
+            self.config.network.protocol.init_energy
+        reward = 2 - 1 * energy
         return reward
 
     def reset(self, seed=None, options=None):
@@ -108,11 +110,6 @@ class LEACH_RL(gym.Env):
         observation, info = self._get_obs()
 
         return observation, info
-
-    def _dissipate_energy(self):
-        rl.dissipate_energy(round=self.round, network=self.network,
-                            elect=self.elect, eda=self.eda,
-                            packet_size=self.packet_size, eamp=self.eamp)
 
     def step(self, action):
         self.round += 1
