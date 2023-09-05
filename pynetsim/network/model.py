@@ -22,9 +22,8 @@ class NetworkModel(ABC):
 
     def get_energy_conversion_factors(self):
         self.elect = self.config.network.protocol.eelect_nano * NANO
-        self.etx = self.config.network.protocol.etx_nano * NANO
-        self.erx = self.config.network.protocol.erx_nano * NANO
         self.eamp = self.config.network.protocol.eamp_pico * PICO
+        self.efs = self.config.network.protocol.efs_pico * PICO
         self.eda = self.config.network.protocol.eda_nano * NANO
         self.packet_size = self.config.network.protocol.packet_size
 
@@ -47,6 +46,10 @@ class NetworkModel(ABC):
 
     @abstractmethod
     def calculate_energy_tx_ch(self, distance: float):
+        pass
+
+    @abstractmethod
+    def calculate_energy_control_packets(self):
         pass
 
     @abstractmethod
@@ -87,6 +90,8 @@ class NetworkModel(ABC):
             self.energy_dissipated(node=node, energy=ETx)
             node.increase_packet_sent()
             node.increase_packet_received()
+            ETx = self.calculate_energy_control_packets()
+            self.energy_dissipated(node=node, energy=ETx)
             if not self.network.alive(node):
                 self.network.mark_node_as_dead(node, round)
                 self.network.remove_node_from_cluster(node)

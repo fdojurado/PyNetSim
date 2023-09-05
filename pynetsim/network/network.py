@@ -106,10 +106,9 @@ class Network:
         alive_nodes = 0
         for node in self:
             # exclude the sink node
-            if node.node_id == 1:
+            if self.should_skip_node(node):
                 continue
-            if node.energy > 0:
-                alive_nodes += 1
+            alive_nodes += 1
         return alive_nodes
 
     def dead_nodes(self):
@@ -136,7 +135,7 @@ class Network:
         if alive_nodes == 0:
             return 0
         for node in self:
-            if node.node_id == 1 or node.energy <= 0:
+            if self.should_skip_node(node):
                 continue
             pdr += node.packet_delivery_ratio()
         return pdr / alive_nodes
@@ -148,7 +147,7 @@ class Network:
         if alive_nodes == 0:
             return 0
         for node in self:
-            if node.node_id == 1 or node.energy <= 0:
+            if self.should_skip_node(node):
                 continue
             plr += node.packet_loss_ratio()
         return plr / alive_nodes
@@ -156,7 +155,7 @@ class Network:
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:
-            if node.node_id == 1:
+            if self.should_skip_node(node):
                 continue
             if node.is_cluster_head:
                 num_cluster_heads += 1
