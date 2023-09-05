@@ -57,6 +57,9 @@ class Node:
         return self.__control_packet_bits[round]
 
     def get_last_round_control_packet_bits(self):
+        # if the key is empty, return 0
+        if not self.__control_packet_bits:
+            return 0
         return self.get_control_packet_bits(max(self.__control_packet_bits.keys()))
 
     def clear_control_packet_bits(self):
@@ -69,6 +72,8 @@ class Node:
         return self.__energy_control_packets[round]
 
     def get_last_round_energy_control_packet(self):
+        if not self.__energy_control_packets:
+            return 0
         return self.get_energy_control_packet(max(self.__energy_control_packets.keys()))
 
     def clear_energy_control_packet(self):

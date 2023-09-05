@@ -126,7 +126,10 @@ class Network:
         return remaining_energy
 
     def average_energy(self):
-        return self.remaining_energy() / self.alive_nodes()
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        return self.remaining_energy() / alive_nodes
 
     def packet_delivery_ratio(self):
         pdr = 0
