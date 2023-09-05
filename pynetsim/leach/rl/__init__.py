@@ -54,37 +54,48 @@ def obs(num_sensors: int, network: object,
     observation = np.append(observation, dst_to_cluster_head)
 
     # Append average energy of the network
-    avg_energy = network.average_energy()
+    avg_energy = network.average_energy()/(init_energy*num_sensors)
 
     observation = np.append(observation, avg_energy)
 
     # Append action taken
-    observation = np.append(observation, action_taken)
+    observation = np.append(observation, action_taken/num_sensors)
 
     return observation
 
 
-def obs_packet_loss(num_sensors: int, network: object,
-                    x_pos: np.ndarray, y_pos: np.ndarray,
-                    dst_to_sink: np.ndarray,
-                    init_energy: float,
-                    round: int,
-                    max_steps: int,
-                    max_distance: float,
-                    action_taken: int = 0):
+def obs_packet_loss_overhead(num_sensors: int, network: object,
+                             x_pos: np.ndarray, y_pos: np.ndarray,
+                             dst_to_sink: np.ndarray,
+                             init_energy: float,
+                             round: int,
+                             max_steps: int,
+                             max_distance: float,
+                             action_taken: int = 0):
 
     ob = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
              init_energy, round, max_steps, max_distance, action_taken)
-    # Append the PDR for each node
-    pdr = np.zeros(num_sensors+1)
+    # Append the PLR for each node
+    plr = np.zeros(num_sensors+1)
     for node in network:
         if node.node_id == 1:
             continue
-        pdr[node.node_id] = node.packet_delivery_ratio()
-    ob = np.append(ob, pdr)
-    # Append the network's PDR
-    network_pdr = network.packet_delivery_ratio()
-    ob = np.append(ob, network_pdr)
+        plr[node.node_id] = node.packet_loss_ratio()
+    ob = np.append(ob, plr)
+    # Append the network's PLR
+    network_plr = network.packet_loss_ratio()
+    ob = np.append(ob, network_plr)
+    # Append the control bits for each node
+    control_packets_energy = np.zeros(num_sensors+1)
+    for node in network:
+        if node.node_id == 1:
+            continue
+        control_packets_energy[node.node_id] = node.get_last_round_control_packet_bits(
+        )/500
+    ob = np.append(ob, control_packets_energy)
+    # Append the network's control packets energy
+    network_control_packets_energy = network.control_packet_bits()/500
+    ob = np.append(ob, network_control_packets_energy)
     return ob
 
 
@@ -93,7 +104,14 @@ def create_network(network: object, config: object):
         network.mark_as_non_cluster_head(node)
         # use np random to set the energy
         node.energy = np.random.uniform(
-            low=0.5, high=config.network.protocol.init_energy)
+            low=0.2, high=config.network.protocol.init_energy)
+        # packet sent and received are set to 0 by default
+        node.round_dead = 0
+        node.packet_sent = 0
+        node.packet_received = 0
+        node.clear_control_packet_bits()
+        node.clear_energy_control_packet()
+        # node.energy_control_packets = 0
 
     # Choose 5% of the number of nodes as cluster heads
     num_cluster_heads = int(config.network.num_sensor *

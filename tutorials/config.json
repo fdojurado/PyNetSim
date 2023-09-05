@@ -3,7 +3,7 @@
     "network": {
         "num_sensor": 100,
         "transmission_range": 60,
-        "model": "simple",
+        "model": "extended",
         "protocol": {
             "name": "LEACH-C",
             "max_steps": 10,

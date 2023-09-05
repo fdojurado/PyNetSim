@@ -50,7 +50,7 @@ class LEACH_RL_LOSS(gym.Env):
         # print(f"Action space: {n_actions}")
 
         # Observation space: energy consumption + cluster head indicators
-        n_observation = (7 * (self.config.network.num_sensor+1) + 4)*2
+        n_observation = (8 * (self.config.network.num_sensor+1) + 5)*2
         # print(f"Observation space: {n_observation}")
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(n_observation,), dtype=np.float32)
@@ -58,16 +58,16 @@ class LEACH_RL_LOSS(gym.Env):
         self.action_space = spaces.Discrete(n_actions)
 
     def _get_obs(self):
-        obs = rl.obs_packet_loss(num_sensors=self.config.network.num_sensor,
-                                 network=self.network,
-                                 x_pos=self.x_locations,
-                                 y_pos=self.y_locations,
-                                 dst_to_sink=self.dst_to_sink,
-                                 init_energy=self.config.network.protocol.init_energy,
-                                 round=self.round,
-                                 max_steps=self.max_steps,
-                                 max_distance=self.max_distance,
-                                 action_taken=self.action/len(self.actions_dict))
+        obs = rl.obs_packet_loss_overhead(num_sensors=self.config.network.num_sensor,
+                                          network=self.network,
+                                          x_pos=self.x_locations,
+                                          y_pos=self.y_locations,
+                                          dst_to_sink=self.dst_to_sink,
+                                          init_energy=self.config.network.protocol.init_energy,
+                                          round=self.round,
+                                          max_steps=self.max_steps,
+                                          max_distance=self.max_distance,
+                                          action_taken=self.action/len(self.actions_dict))
 
         # Append the previous observation
         observations = np.append(obs, self.prev_obs)
@@ -85,8 +85,13 @@ class LEACH_RL_LOSS(gym.Env):
         current_energy = self.network.remaining_energy()
         self.net_model.dissipate_energy(round=self.round)
         latest_energy = self.network.remaining_energy()
+        energy = (current_energy - latest_energy) / \
+            (self.config.network.protocol.init_energy *
+             self.config.network.num_sensor)
         pkt_loss = self.network.packet_loss_ratio()
-        reward = 2 - 1 * (current_energy - latest_energy+pkt_loss)
+        control_bits = self.network.control_packet_bits()/500
+        reward = 2 - 1 * (energy +
+                          pkt_loss+control_bits)
         return reward
 
     def reset(self, seed=None, options=None):

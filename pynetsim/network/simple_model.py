@@ -12,8 +12,8 @@ class Simple(NetworkModel):
     def calculate_energy_tx_ch(self, distance: float):
         return (self.elect+self.eda)*self.packet_size + self.eamp * self.packet_size * distance**2
 
-    def calculate_energy_control_packets(self):
-        return 0
+    def energy_dissipation_control_packets(self, round: int):
+        pass
 
     def calculate_energy_rx(self):
         return (self.elect + self.eda) * self.packet_size

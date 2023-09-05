@@ -152,6 +152,30 @@ class Network:
             plr += node.packet_loss_ratio()
         return plr / alive_nodes
 
+    def control_packets_energy(self):
+        energy = 0
+        # CHeck if there are alive nodes
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            energy += node.get_last_round_energy_control_packet()
+        return energy / alive_nodes
+
+    def control_packet_bits(self):
+        bits = 0
+        # CHeck if there are alive nodes
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            bits += node.get_last_round_control_packet_bits()
+        return bits / alive_nodes
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:

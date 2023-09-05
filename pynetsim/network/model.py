@@ -49,7 +49,7 @@ class NetworkModel(ABC):
         pass
 
     @abstractmethod
-    def calculate_energy_control_packets(self):
+    def energy_dissipation_control_packets(self, round: int):
         pass
 
     @abstractmethod
@@ -90,8 +90,6 @@ class NetworkModel(ABC):
             self.energy_dissipated(node=node, energy=ETx)
             node.increase_packet_sent()
             node.increase_packet_received()
-            ETx = self.calculate_energy_control_packets()
-            self.energy_dissipated(node=node, energy=ETx)
             if not self.network.alive(node):
                 self.network.mark_node_as_dead(node, round)
                 self.network.remove_node_from_cluster(node)
@@ -111,3 +109,4 @@ class NetworkModel(ABC):
     def dissipate_energy(self, round: int):
         self.energy_dissipation_non_cluster_heads(round=round)
         self.energy_dissipation_cluster_heads(round=round)
+        self.energy_dissipation_control_packets(round=round)
