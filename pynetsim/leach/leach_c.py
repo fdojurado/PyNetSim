@@ -68,10 +68,7 @@ class LEACH_C:
         # print(f"Cluster heads: {cluster_heads}, length: {len(cluster_heads)}")
         # Select randomly from the cluster heads without repeating
         initial_solution = np.random.choice(
-            cluster_heads,
-            size=int(self.network.alive_nodes() *
-                     self.config.network.protocol.cluster_head_percentage),
-            replace=False)
+            cluster_heads, size=len(cluster_heads), replace=False)
 
         # print(
         #     f"Initial solution: {initial_solution}, length: {len(initial_solution)}")

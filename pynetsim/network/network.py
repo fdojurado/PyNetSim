@@ -257,7 +257,8 @@ class Network:
                     continue
                 x = random.uniform(0, self.width)
                 y = random.uniform(0, self.height)
-                node = Node(i, x, y, energy=2)
+                node = Node(
+                    i, x, y, energy=self.config.network.protocol.init_energy)
                 self.nodes[i] = node  # node_id: node
             # Set the sink node
             self.nodes[1].set_sink()

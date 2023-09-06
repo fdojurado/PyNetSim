@@ -46,9 +46,9 @@ def save_metrics(config, network_energy, num_dead_nodes, num_alive_nodes,
 def plot_clusters(network, round, ax):
     ax.clear()
     plot_nodes(network=network, ax=ax)
-    plot_cluster_connections(ax=ax)
-    annotate_node_ids(ax=ax)
-    plot_sink_connections(ax=ax)
+    plot_cluster_connections(network=network, ax=ax)
+    annotate_node_ids(network=network, ax=ax)
+    plot_sink_connections(network=network, ax=ax)
     ax.set_title(f"Round {round}")
 
 
