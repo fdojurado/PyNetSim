@@ -82,11 +82,12 @@ class LEACH_RL(gym.Env):
         return observations, info
 
     def _calculate_reward(self):
-        current_energy = self.network.average_energy()
+        current_energy = self.network.remaining_energy()
         self.net_model.dissipate_energy(round=self.round)
-        latest_energy = self.network.average_energy()
-        energy = (current_energy - latest_energy) / \
-            self.config.network.protocol.init_energy
+        latest_energy = self.network.remaining_energy()
+        energy = (current_energy - latest_energy)*10
+        # Check that the energy is between 0 and 1
+        assert energy >= 0 and energy <= 1, f"Energy: {energy}"
         reward = 2 - 1 * energy
         return reward
 

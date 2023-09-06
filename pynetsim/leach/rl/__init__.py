@@ -59,7 +59,11 @@ def obs(num_sensors: int, network: object,
     observation = np.append(observation, avg_energy)
 
     # Append action taken
-    observation = np.append(observation, action_taken/num_sensors)
+    observation = np.append(observation, action_taken)
+
+    # Check that all the observations are between 0 and 1
+    for ob in observation:
+        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
 
     return observation
 
@@ -73,30 +77,25 @@ def obs_packet_loss(num_sensors: int, network: object,
                     max_distance: float,
                     action_taken: int = 0):
 
-    ob = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
-             init_energy, round, max_steps, max_distance, action_taken)
+    observation = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
+                      init_energy, round, max_steps, max_distance, action_taken)
     # Append the PLR for each node
     plr = np.zeros(num_sensors+1)
     for node in network:
         if node.node_id == 1:
             continue
         plr[node.node_id] = node.packet_loss_ratio()
-    ob = np.append(ob, plr)
+    observation = np.append(observation, plr)
     # Append the network's PLR
     network_plr = network.average_plr()
-    ob = np.append(ob, network_plr)
-    # Append the control bits for each node
-    # control_packets_energy = np.zeros(num_sensors+1)
-    # for node in network:
-    #     if node.node_id == 1:
-    #         continue
-    #     control_packets_energy[node.node_id] = node.get_last_round_control_packet_bits(
-    #     )/500
-    # ob = np.append(ob, control_packets_energy)
-    # Append the network's control packets energy
-    # network_control_packets_energy = network.control_packet_bits()/500
-    # ob = np.append(ob, network_control_packets_energy)
-    return ob
+    input(f"Network PLR: {network_plr}")
+    observation = np.append(observation, network_plr)
+
+    # Check that all the observations are between 0 and 1
+    for ob in observation:
+        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
+
+    return observation
 
 
 def create_network(network: object, config: object):
