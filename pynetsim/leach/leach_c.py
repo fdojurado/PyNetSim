@@ -14,7 +14,7 @@ class LEACH_C:
         self.config = network.config
         self.network = network
 
-    def select_cluster_heads(self, network_avg_energy):
+    def potential_cluster_heads(self, network_avg_energy):
         potential_cluster_heads = []
         # Elect cluster heads
         for node in self.network:
@@ -51,7 +51,7 @@ class LEACH_C:
         # print(f"Calculating objective function for {cluster_heads}")
         total_sum_square_distance = 0
 
-        for node in self.network.nodes.values():
+        for node in self.network:
             if node.node_id in cluster_heads:
                 # Skip nodes that are not cluster heads
                 continue
@@ -68,7 +68,10 @@ class LEACH_C:
         # print(f"Cluster heads: {cluster_heads}, length: {len(cluster_heads)}")
         # Select randomly from the cluster heads without repeating
         initial_solution = np.random.choice(
-            cluster_heads, size=len(cluster_heads), replace=False)
+            cluster_heads,
+            size=int(self.network.alive_nodes() *
+                     self.config.network.protocol.cluster_head_percentage),
+            replace=False)
 
         # print(
         #     f"Initial solution: {initial_solution}, length: {len(initial_solution)}")
@@ -119,9 +122,10 @@ class LEACH_C:
         #     f"Best solution: {initial_solution}, length: {len(initial_solution)}")
 
         # Assign the cluster heads
-        for node in self.network.nodes.values():
+        for node in self.network:
             if node.node_id in initial_solution:
-                self.num_cluster_heads = self.network.mark_as_cluster_head(
+                self.num_cluster_heads += 1
+                self.network.mark_as_cluster_head(
                     node, self.num_cluster_heads)
 
     def choose_cluster_heads(self, chs):
@@ -133,7 +137,7 @@ class LEACH_C:
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
 
-        for node in self.network.nodes.values():
+        for node in self.network:
             node.is_cluster_head = False
 
         network_energy = {}
@@ -146,7 +150,7 @@ class LEACH_C:
         control_packet_bits = {}
 
         # Set all dst_to_sink for all nodes
-        for node in self.network.nodes.values():
+        for node in self.network:
             node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
@@ -181,16 +185,16 @@ class LEACH_C:
     def evaluate_round(self, round):
         round += 1
 
-        for node in self.network.nodes.values():
+        for node in self.network:
             self.network.mark_as_non_cluster_head(node)
 
         self.num_cluster_heads = 0
 
-        network_avg_energy = self.network.remaining_energy() / self.network.alive_nodes()
+        network_avg_energy = self.network.average_energy()
 
-        chs = self.select_cluster_heads(network_avg_energy)
+        potential_chs = self.potential_cluster_heads(network_avg_energy)
 
-        self.choose_cluster_heads(chs)
+        self.choose_cluster_heads(potential_chs)
         self.network.create_clusters()
         self.net_model.dissipate_energy(round=round)
 
