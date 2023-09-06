@@ -25,6 +25,7 @@ class NetworkModel(ABC):
         self.eamp = self.config.network.protocol.eamp_pico * PICO
         self.efs = self.config.network.protocol.efs_pico * PICO
         self.eda = self.config.network.protocol.eda_nano * NANO
+        self.d_0 = (self.efs/self.eamp)**0.5
         self.packet_size = self.config.network.protocol.packet_size
 
     def energy_dissipation_non_cluster_heads(self, round: int):

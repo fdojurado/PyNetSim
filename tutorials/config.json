@@ -7,10 +7,9 @@
         "protocol": {
             "name": "LEACH-C",
             "max_steps": 10,
-            "init_energy": 2,
-            "rounds": 5000,
+            "init_energy": 1,
+            "rounds": 8000,
             "cluster_head_percentage": 0.05,
-            "dst_threshold": 75,
             "eelect_nano": 50,
             "eamp_pico": 0.0013,
             "efs_pico": 10,
