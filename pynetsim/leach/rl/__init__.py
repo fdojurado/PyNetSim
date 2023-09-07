@@ -88,7 +88,6 @@ def obs_packet_loss(num_sensors: int, network: object,
     observation = np.append(observation, plr)
     # Append the network's PLR
     network_plr = network.average_plr()
-    input(f"Network PLR: {network_plr}")
     observation = np.append(observation, network_plr)
 
     # Check that all the observations are between 0 and 1
