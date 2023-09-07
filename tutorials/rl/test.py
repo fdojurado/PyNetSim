@@ -26,7 +26,8 @@ CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
 def run_with_plotting(config, network, model, network_model, rounds,
                       network_energy, num_dead_nodes, num_alive_nodes,
                       num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                      control_packets_energy, control_packet_bits):
+                      control_packets_energy, control_packet_bits,
+                      pkts_sent_to_bs, energy_dissipated):
     fig, ax = plt.subplots()
     common.plot_clusters(network=network, round=0, ax=ax)
 
@@ -44,12 +45,14 @@ def run_with_plotting(config, network, model, network_model, rounds,
         common.add_to_metrics(config, network, round, network_energy,
                               num_dead_nodes, num_alive_nodes, num_cluster_heads,
                               pkt_delivery_ratio, pkt_loss_ratio,
-                              control_packets_energy, control_packet_bits)
+                              control_packets_energy, control_packet_bits,
+                              pkts_sent_to_bs, energy_dissipated)
 
         common.save_metrics(config, network_energy,
                             num_dead_nodes, num_alive_nodes, num_cluster_heads,
                             pkt_delivery_ratio, pkt_loss_ratio,
-                            control_packets_energy, control_packet_bits)
+                            control_packets_energy, control_packet_bits,
+                            pkts_sent_to_bs, energy_dissipated)
 
         plt.pause(2)
 
@@ -62,7 +65,8 @@ def run_with_plotting(config, network, model, network_model, rounds,
 def run_without_plotting(config, network, model, network_model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
                          num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                         control_packets_energy, control_packet_bits):
+                         control_packets_energy, control_packet_bits,
+                         pkts_sent_to_bs, energy_dissipated):
     round = 0
     with Progress() as progress:
         task = progress.add_task("[cyan]Simulation Progress", total=rounds)
@@ -74,11 +78,13 @@ def run_without_plotting(config, network, model, network_model, rounds,
             common.add_to_metrics(config, network, round, network_energy,
                                   num_dead_nodes, num_alive_nodes,
                                   num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                                  control_packets_energy, control_packet_bits)
+                                  control_packets_energy, control_packet_bits,
+                                  pkts_sent_to_bs, energy_dissipated)
             common.save_metrics(config, network_energy,
                                 num_dead_nodes, num_alive_nodes,
                                 num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                                control_packets_energy, control_packet_bits)
+                                control_packets_energy, control_packet_bits,
+                                pkts_sent_to_bs, energy_dissipated)
             # Update the progress bar
             progress.update(task, completed=round)
         progress.update(task, completed=rounds)
@@ -147,18 +153,22 @@ def evaluate(config, network, model, network_model, rounds, plot):
     pkt_loss_ratio = {}
     control_packets_energy = {}
     control_packet_bits = {}
+    pkts_sent_to_bs = {}
+    energy_dissipated = {}
     # Load the model
     model = DQN.load(model)
     if plot:
         run_with_plotting(config, network, model, network_model, rounds,
                           network_energy, num_dead_nodes, num_alive_nodes,
                           num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                          control_packets_energy, control_packet_bits)
+                          control_packets_energy, control_packet_bits,
+                          pkts_sent_to_bs, energy_dissipated)
         return
     run_without_plotting(config, network, model, network_model, rounds,
                          network_energy, num_dead_nodes, num_alive_nodes,
                          num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                         control_packets_energy, control_packet_bits)
+                         control_packets_energy, control_packet_bits,
+                         pkts_sent_to_bs, energy_dissipated)
 
 
 def main(args):

@@ -191,6 +191,26 @@ class Network:
             bits += node.get_last_round_control_packet_bits()
         return bits / alive_nodes
 
+    def energy_dissipated(self):
+        energy_dissipated = 0
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            energy_dissipated += node.get_last_round_energy_dissipated()
+        return energy_dissipated
+
+    def packets_sent_to_bs(self):
+        pkts = 0
+        # CHeck if there are alive nodes
+        alive_nodes = self.alive_nodes()
+        if alive_nodes == 0:
+            return 0
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            pkts += node.pkts_sent_to_bs
+        return pkts
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:

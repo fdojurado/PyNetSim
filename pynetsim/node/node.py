@@ -17,6 +17,8 @@ class Node:
         self.cluster_id = 0
         self.rounds_to_become_cluster_head = 0
         self.energy = energy
+        self.energy_dissipated = {}
+        self.pkts_sent_to_bs = 0
         self.dst_to_sink = 0
         self.dst_to_cluster_head = 0
         self.round_dead = 0
@@ -33,6 +35,17 @@ class Node:
     def is_cluster_head(self, value: bool):
         assert isinstance(value, bool)
         self.__is_cluster_head = value
+
+    def energy_dissipation(self, energy: float, round: int):
+        self.energy -= energy
+        # if round not in self.energy_dissipated added otherwise sum
+        if round not in self.energy_dissipated:
+            self.energy_dissipated[round] = energy
+        else:
+            self.energy_dissipated[round] += energy
+
+    def increase_packets_sent_to_bs(self):
+        self.pkts_sent_to_bs += 1
 
     def increase_packet_sent(self):
         self.packet_sent += 1
@@ -62,8 +75,17 @@ class Node:
             return 0
         return self.get_control_packet_bits(max(self.__control_packet_bits.keys()))
 
+    def get_last_round_energy_dissipated(self):
+        # if the key is empty, return 0
+        if not self.energy_dissipated:
+            return 0
+        return self.energy_dissipated[max(self.energy_dissipated.keys())]
+
     def clear_control_packet_bits(self):
         self.__control_packet_bits = {}
+
+    def clear_energy_dissipated(self):
+        self.energy_dissipated = {}
 
     def add_energy_control_packet(self, round: int, energy: float):
         self.__energy_control_packets[round] = energy

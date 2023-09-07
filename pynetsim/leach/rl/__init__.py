@@ -106,9 +106,11 @@ def create_network(network: object, config: object):
         # packet sent and received are set to 0 by default
         node.round_dead = 0
         node.packet_sent = 0
+        node.pkts_sent_to_bs = 0
         node.packet_received = 0
         node.clear_control_packet_bits()
         node.clear_energy_control_packet()
+        node.clear_energy_dissipated()
         # node.energy_control_packets = 0
 
     # Choose 5% of the number of nodes as cluster heads

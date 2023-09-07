@@ -6,7 +6,9 @@ def add_to_metrics(config, network, round, network_energy, num_dead_nodes,
                    num_alive_nodes, num_cluster_heads, pkt_delivery_ratio,
                    pkt_loss_ratio,
                    control_packets_energy,
-                   control_packet_bits):
+                   control_packet_bits,
+                   pkts_sent_to_bs,
+                   energy_dissipated):
     num_nodes = config.network.num_sensor
     network_energy[round] = network.remaining_energy()
     num_dead_nodes[round] = num_nodes - network.alive_nodes()
@@ -16,11 +18,15 @@ def add_to_metrics(config, network, round, network_energy, num_dead_nodes,
     pkt_loss_ratio[round] = network.average_plr()
     control_packets_energy[round] = network.control_packets_energy()
     control_packet_bits[round] = network.control_packet_bits()
+    pkts_sent_to_bs[round] = network.pkts_sent_to_bs()
+    energy_dissipated[round] = network.energy_dissipated()
 
 
 def save_metrics(config, network_energy, num_dead_nodes, num_alive_nodes,
                  num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                 control_packets_energy, control_packet_bits):
+                 control_packets_energy, control_packet_bits,
+                 pkts_sent_to_bs,
+                 energy_dissipated):
     num_nodes = config.network.num_sensor
     # Build a json object
     metrics = {
@@ -33,7 +39,9 @@ def save_metrics(config, network_energy, num_dead_nodes, num_alive_nodes,
         "pkt_delivery_ratio": pkt_delivery_ratio,
         "pkt_loss_ratio": pkt_loss_ratio,
         "control_packets_energy": control_packets_energy,
-        "control_packet_bits": control_packet_bits
+        "control_packet_bits": control_packet_bits,
+        "pkts_sent_to_bs": pkts_sent_to_bs,
+        "energy_dissipated": energy_dissipated
     }
     name = config.network.protocol.name + "_" + config.network.model
     # Save the file as a json file

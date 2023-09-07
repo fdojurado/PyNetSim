@@ -36,7 +36,7 @@ class NetworkModel(ABC):
             cluster_head = self.network.get_cluster_head(node)
 
             if cluster_head is None:
-                self.transfer_data_to_sink(node)
+                self.transfer_data_to_sink(node=node, round=round)
             else:
                 self.energy_dissipation_non_cluster_head(
                     node=node, cluster_head=cluster_head, round=round)
@@ -57,21 +57,21 @@ class NetworkModel(ABC):
     def calculate_energy_rx(self):
         pass
 
-    def energy_dissipated(self, node: object, energy: float):
-        node.energy -= energy
+    def energy_dissipated(self, node: object, energy: float, round: int):
+        node.energy_dissipation(energy=energy, round=round)
 
     def energy_dissipation_non_cluster_head(self, node: object, cluster_head: object, round: int):
         if not self.network.alive(node):
             return
         distance = node.dst_to_cluster_head
         ETx = self.calculate_energy_tx_non_ch(distance=distance)
-        self.energy_dissipated(node=node, energy=ETx)
+        self.energy_dissipated(node=node, energy=ETx, round=round)
         node.increase_packet_sent()
         if not self.network.alive(cluster_head):
             return
         node.increase_packet_received()
         ERx = self.calculate_energy_rx()
-        self.energy_dissipated(node=cluster_head, energy=ERx)
+        self.energy_dissipated(node=cluster_head, energy=ERx, round=round)
         if not self.network.alive(cluster_head):
             # print(f"Cluster head {cluster_head.node_id} is dead.")
             self.network.mark_node_as_dead(cluster_head, round)
@@ -88,21 +88,23 @@ class NetworkModel(ABC):
                 continue
             distance = node.dst_to_sink
             ETx = self.calculate_energy_tx_ch(distance=distance)
-            self.energy_dissipated(node=node, energy=ETx)
+            self.energy_dissipated(node=node, energy=ETx, round=round)
+            node.increase_packets_sent_to_bs()
             node.increase_packet_sent()
             node.increase_packet_received()
             if not self.network.alive(node):
                 self.network.mark_node_as_dead(node, round)
                 self.network.remove_node_from_cluster(node)
 
-    def transfer_data_to_sink(self, node):
+    def transfer_data_to_sink(self, node, round: int):
         if not self.network.alive(node):
             return
         distance = node.dst_to_sink
         # print("No cluster heads, transferring data to the sink.")
         # print(f"Node {node.node_id} distance to sink: {distance}")
-        ETx = self.elect * self.packet_size + self.eamp * self.packet_size * distance**2
-        node.energy -= ETx
+        ETx = self.calculate_energy_tx_non_ch(distance=distance)
+        self.energy_dissipated(node=node, energy=ETx, round=round)
+        node.increase_packets_sent_to_bs()
         # network.remaining_energy -= ETx
         if not self.network.alive(node):
             self.network.mark_node_as_dead(node, round)
