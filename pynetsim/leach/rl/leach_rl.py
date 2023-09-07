@@ -17,9 +17,9 @@ class LEACH_RL(gym.Env):
 
         self.round = 0
 
-        # Calculate the maximum distance to the sink
-        self.max_distance = np.sqrt(
-            self.config.network.width**2 + self.config.network.height**2)
+        # Calculate the maximum distance to the sink, which is the distance
+        # between the sink and the farthest node
+        self.max_distance = self.network.max_distance_to_sink()
 
         self.dst_to_sink = np.zeros(self.config.network.num_sensor+1)
         # Set all dst_to_sink for all nodes

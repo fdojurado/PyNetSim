@@ -33,6 +33,16 @@ class Network:
 
     # -----------------LEACH-----------------
 
+    def max_distance_to_sink(self):
+        max_distance = 0
+        for node in self:
+            if node.node_id == 1:
+                continue
+            distance = self.distance_to_sink(node)
+            if distance > max_distance:
+                max_distance = distance
+        return max_distance
+
     def mark_as_cluster_head(self, node, cluster_id):
         node.is_cluster_head = True
         node.cluster_id = cluster_id
@@ -283,7 +293,8 @@ class Network:
             for node in self:
                 for other_node in self:
                     if node.node_id != other_node.node_id:
-                        if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C'):
+                        if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
+                                self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-RL-LOSS'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:
