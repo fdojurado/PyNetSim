@@ -103,7 +103,7 @@ def create_network(network: object, config: object):
         network.mark_as_non_cluster_head(node)
         # use np random to set the energy
         node.energy = np.random.uniform(
-            low=0.2, high=config.network.protocol.init_energy)
+            low=0, high=config.network.protocol.init_energy)
         # packet sent and received are set to 0 by default
         node.round_dead = 0
         node.packet_sent = 0

@@ -76,7 +76,8 @@ class Network:
             # print(f"Removing node {node.node_id} from node {neighbor.node_id}")
             # if the node is not dead, remove it from the neighbor's neighbors
             if neighbor.energy > 0:
-                neighbor.neighbors.pop(node.node_id)
+                if node.node_id in neighbor.neighbors:
+                    neighbor.neighbors.pop(node.node_id)
         node.neighbors = {}
 
     def get_cluster_head(self, node):

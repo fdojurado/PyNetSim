@@ -87,12 +87,8 @@ class LEACH_RL_LOSS(gym.Env):
         latest_energy = self.network.remaining_energy()
         energy = (current_energy - latest_energy)*10
         pkt_loss = self.network.average_plr()
-
-        input(f"Energy: {energy}, Packet loss: {pkt_loss}")
-
         assert energy >= 0 and energy <= 1, f"Energy: {energy}"
         assert pkt_loss >= 0 and pkt_loss <= 1, f"Packet loss: {pkt_loss}"
-
         reward = 2 - 1 * (energy + pkt_loss)
         return reward
 

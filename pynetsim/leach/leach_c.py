@@ -67,17 +67,18 @@ class LEACH_C:
         # Initial solution
         # print(f"Cluster heads: {cluster_heads}, length: {len(cluster_heads)}")
         # Select randomly from the cluster heads without repeating
-        initial_solution = np.random.choice(
-            cluster_heads, size=len(cluster_heads), replace=False)
+        best = np.random.choice(
+            cluster_heads, size=int(len(cluster_heads)/2),
+            replace=False)
 
         # print(
         #     f"Initial solution: {initial_solution}, length: {len(initial_solution)}")
 
         # Evaluate the initial solution
-        initial_solution_value = self.objective_function(initial_solution)
+        best_eval = self.objective_function(best)
 
         # current working solution
-        curr, curr_value = initial_solution, initial_solution_value
+        curr, curr_eval = best, best_eval
 
         initial_temp = 10
 
@@ -92,35 +93,35 @@ class LEACH_C:
 
             # If the cluster head is in the current solution, then remove it
             if cluster_head in curr:
-                curr = np.delete(curr, np.where(curr == cluster_head))
+                candidate = np.delete(curr, np.where(curr == cluster_head))
             else:
                 # If the cluster head is not in the current solution, then add it
-                curr = np.append(curr, cluster_head)
+                candidate = np.append(curr, cluster_head)
 
             # Evaluate the current solution
-            curr_value = self.objective_function(curr)
+            candidate_eval = self.objective_function(candidate)
 
             # If the current solution is better than the initial solution, then
             # accept the current solution
-            if curr_value < initial_solution_value:
-                initial_solution, initial_solution_value = curr, curr_value
+            if candidate_eval < best_eval:
+                best, best_eval = candidate, candidate_eval
             # Report progress
             # print(
             #     f"Best solution: {initial_solution}, length: {len(initial_solution)}")
 
-            diff = initial_solution_value - curr_value
+            diff = candidate_eval - curr_eval
 
             t = initial_temp / (i + 1)
             metropolis = np.exp(-diff / t)
-            if diff > 0 or np.random.rand() < metropolis:
-                initial_solution, initial_solution_value = curr, curr_value
+            if diff < 0 or np.random.rand() < metropolis:
+                curr, curr_eval = candidate, candidate_eval
 
         # print(
         #     f"Best solution: {initial_solution}, length: {len(initial_solution)}")
 
         # Assign the cluster heads
         for node in self.network:
-            if node.node_id in initial_solution:
+            if node.node_id in best:
                 self.num_cluster_heads += 1
                 self.network.mark_as_cluster_head(
                     node, self.num_cluster_heads)

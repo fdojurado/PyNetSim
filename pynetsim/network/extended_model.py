@@ -29,16 +29,16 @@ class Extended(NetworkModel):
         pkt_size = (4*chs+15) * 8
         # Reduce the energy of all nodes by the energy required to transmit the
         # control packet
-        energy = self.elect * pkt_size
+        # energy = self.elect * pkt_size
         for node in self.network:
             if self.network.should_skip_node(node):
                 continue
-            self.energy_dissipated(node=node, energy=energy)
-            node.add_energy_control_packet(round=round, energy=energy)
+            # self.energy_dissipated(node=node, energy=energy)
+            # node.add_energy_control_packet(round=round, energy=energy)
             node.add_control_packet_bits(round=round, bits=pkt_size)
-            if not self.network.alive(node):
-                self.network.mark_node_as_dead(node, round)
-                self.network.remove_node_from_cluster(node)
+            # if not self.network.alive(node):
+            #     self.network.mark_node_as_dead(node, round)
+            #     self.network.remove_node_from_cluster(node)
 
     def calculate_energy_rx(self):
         return self.elect * self.packet_size
