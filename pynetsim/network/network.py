@@ -283,7 +283,7 @@ class Network:
             for node in self:
                 for other_node in self:
                     if node.node_id != other_node.node_id:
-                        if not self.config.network.protocol.name == 'LEACH':
+                        if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:

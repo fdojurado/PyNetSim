@@ -28,7 +28,7 @@
             {
                 "node_id": 1,
                 "x": 50,
-                "y": 50,
+                "y": 175,
                 "type_node": "Sink",
                 "energy": 2
             },
