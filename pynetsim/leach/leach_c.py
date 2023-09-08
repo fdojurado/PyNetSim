@@ -68,7 +68,7 @@ class LEACH_C:
         # print(f"Cluster heads: {cluster_heads}, length: {len(cluster_heads)}")
         # Select randomly from the cluster heads without repeating
         number_of_cluster_heads = int(self.network.alive_nodes(
-        )*self.config.network.protocol.cluster_head_percentage)*2
+        )*self.config.network.protocol.cluster_head_percentage)+1
         if number_of_cluster_heads < 1:
             number_of_cluster_heads = 1
         # print(
