@@ -119,7 +119,7 @@ class LEACH_RL_LOSS(gym.Env):
         node = self.network.nodes[action]
         done = False
 
-        if node.energy < self.network.average_energy():
+        if node.remaining_energy < self.network.average_remaining_energy():
             obs, info = self._get_obs()
             return obs, 0, True, False, info
 

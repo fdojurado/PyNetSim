@@ -1,3 +1,4 @@
+from pynetsim.statistics.stats import Statistics
 from pynetsim.config import PROTOCOLS
 from pynetsim.node.node import Node
 
@@ -26,12 +27,17 @@ class Network:
         self.width = config.network.width
         self.height = config.network.height
         self.config = config
+        self.stats = Statistics(self, config)
         self.nodes = {}
 
     def set_model(self, model):
         self.model = model
 
     # -----------------LEACH-----------------
+
+    def round_callback(self, round: int):
+        self.stats.generate_round_stats(round=round)
+        self.stats.export_json()
 
     def max_distance_to_sink(self):
         max_distance = 0
@@ -85,7 +91,7 @@ class Network:
         for neighbor in node.neighbors.values():
             # print(f"Removing node {node.node_id} from node {neighbor.node_id}")
             # if the node is not dead, remove it from the neighbor's neighbors
-            if neighbor.energy > 0:
+            if neighbor.remaining_energy > 0:
                 if node.node_id in neighbor.neighbors:
                     neighbor.neighbors.pop(node.node_id)
         node.neighbors = {}
@@ -107,7 +113,7 @@ class Network:
         return node.node_id == 1 or not self.alive(node)
 
     def alive(self, node: Node):
-        return node.energy > 0
+        return node.remaining_energy > 0
 
     def mark_node_as_dead(self, node, round):
         print(f"Node {node.node_id} is dead.")
@@ -125,7 +131,7 @@ class Network:
     def dead_nodes(self):
         dead_nodes = 0
         for node in self:
-            if node.energy <= 0:
+            if not self.alive(node):
                 dead_nodes += 1
         return dead_nodes
 
@@ -134,16 +140,16 @@ class Network:
         for node in self:
             if self.should_skip_node(node):
                 continue
-            remaining_energy += node.energy
+            remaining_energy += node.remaining_energy
         return remaining_energy
 
-    def average_energy(self):
+    def average_remaining_energy(self):
         alive_nodes = self.alive_nodes()
         if alive_nodes == 0:
             return 0
         return self.remaining_energy() / alive_nodes
 
-    def packet_delivery_ratio(self):
+    def average_pdr(self):
         pdr = 0
         # CHeck if there are alive nodes
         alive_nodes = self.alive_nodes()
@@ -152,7 +158,7 @@ class Network:
         for node in self:
             if self.should_skip_node(node):
                 continue
-            pdr += node.packet_delivery_ratio()
+            pdr += node.pdr()
         return pdr / alive_nodes
 
     def average_plr(self):
@@ -164,52 +170,44 @@ class Network:
         for node in self:
             if self.should_skip_node(node):
                 continue
-            plr += node.packet_loss_ratio()
+            plr += node.plr()
         return plr / alive_nodes
 
     def control_packets_energy(self):
         energy = 0
-        # CHeck if there are alive nodes
-        alive_nodes = self.alive_nodes()
-        if alive_nodes == 0:
-            return 0
         for node in self:
-            if self.should_skip_node(node):
+            if node.node_id == 1:
                 continue
-            energy += node.get_last_round_energy_control_packet()
-        return energy / alive_nodes
+            energy += node.energy_control_packets
+        return energy
 
-    def control_packet_bits(self):
+    def control_pkt_bits(self):
         bits = 0
-        # CHeck if there are alive nodes
-        alive_nodes = self.alive_nodes()
-        if alive_nodes == 0:
-            return 0
         for node in self:
-            if self.should_skip_node(node):
+            if node.node_id == 1:
                 continue
-            bits += node.get_last_round_control_packet_bits()
-        return bits / alive_nodes
+            bits += node.control_pkt_bits
+        return bits
 
     def energy_dissipated(self):
         energy_dissipated = 0
         for node in self:
-            if self.should_skip_node(node):
+            if node.node_id == 1:
                 continue
-            energy_dissipated += node.get_last_round_energy_dissipated()
+            energy_dissipated += node.energy_dissipated
         return energy_dissipated
 
-    def packets_sent_to_bs(self):
+    def pkts_sent_to_bs(self):
         pkts = 0
-        # CHeck if there are alive nodes
-        alive_nodes = self.alive_nodes()
-        if alive_nodes == 0:
-            return 0
         for node in self:
-            if self.should_skip_node(node):
+            if node.node_id == 1:
                 continue
             pkts += node.pkts_sent_to_bs
         return pkts
+
+    def pkts_recv_by_bs(self):
+        sink = self.get_node(1)
+        return sink.pkt_received
 
     def num_cluster_heads(self):
         num_cluster_heads = 0
@@ -360,6 +358,8 @@ class Network:
         # Set all nodes to not be cluster heads
         for node in self:
             node.is_cluster_head = False
+        # Register callback to the network model
+        self.model.register_callback(self.round_callback)
         return True
 
     def plot_network(self):

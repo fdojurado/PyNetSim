@@ -1,3 +1,4 @@
+from pynetsim.statistics.stats import Statistics
 from pynetsim.tsch.schedule import TSCHSchedule
 
 
@@ -16,16 +17,16 @@ class Node:
         self.__is_cluster_head = False
         self.cluster_id = 0
         self.rounds_to_become_cluster_head = 0
-        self.energy = energy
-        self.energy_dissipated = {}
-        self.pkts_sent_to_bs = 0
+        self.__remaining_energy = energy
+        self.__energy_dissipated = 0
+        self.__pkts_sent_to_bs = 0
         self.dst_to_sink = 0
         self.dst_to_cluster_head = 0
         self.round_dead = 0
-        self.packet_sent = 0
-        self.packet_received = 0
-        self.__energy_control_packets = {}
-        self.__control_packet_bits = {}
+        self.__pkt_sent = 0
+        self.__pkt_received = 0
+        self.__energy_control_packets = 0
+        self.__control_pkt_bits = 0
 
     @property
     def is_cluster_head(self):
@@ -36,81 +37,70 @@ class Node:
         assert isinstance(value, bool)
         self.__is_cluster_head = value
 
+    @property
+    def remaining_energy(self):
+        return self.__remaining_energy
+
+    @property
+    def energy_dissipated(self):
+        return self.__energy_dissipated
+
+    @property
+    def energy_control_packets(self):
+        return self.__energy_control_packets
+
+    @property
+    def control_pkt_bits(self):
+        return self.__control_pkt_bits
+
+    @property
+    def pkts_sent_to_bs(self):
+        return self.__pkts_sent_to_bs
+
+    @property
+    def pkt_sent(self):
+        return self.__pkt_sent
+
+    @property
+    def pkt_received(self):
+        return self.__pkt_received
+
     def energy_dissipation(self, energy: float, round: int):
-        self.energy -= energy
+        # If remaining energy is empty, add the initial energy
+        self.__remaining_energy -= energy
         # if round not in self.energy_dissipated added otherwise sum
-        if round not in self.energy_dissipated:
-            self.energy_dissipated[round] = energy
-        else:
-            self.energy_dissipated[round] += energy
+        self.__energy_dissipated += energy
 
-    def increase_packets_sent_to_bs(self):
-        self.pkts_sent_to_bs += 1
+    def energy_dissipation_control_packets(self, energy: float, bits: float):
+        self.__energy_control_packets += energy
+        self.__control_pkt_bits += bits
 
-    def increase_packet_sent(self):
-        self.packet_sent += 1
+    def inc_pkts_sent_to_bs(self):
+        self.__pkts_sent_to_bs += 1
 
-    def increase_packet_received(self):
-        self.packet_received += 1
+    def inc_pkts_sent(self):
+        self.__pkt_sent += 1
 
-    def packet_delivery_ratio(self):
-        if self.packet_sent == 0:
+    def inc_pkts_received(self):
+        self.__pkt_received += 1
+
+    def pdr(self):
+        if self.pkt_sent == 0:
             return 0
-        return self.packet_received / self.packet_sent
+        return self.pkt_received / self.pkt_sent
 
-    def packet_loss_ratio(self):
-        if self.packet_sent == 0:
+    def plr(self):
+        if self.pkt_sent == 0:
             return 0
-        return 1 - self.packet_delivery_ratio()
+        return 1 - self.pdr()
 
-    def add_control_packet_bits(self, round: int, bits: int):
-        self.__control_packet_bits[round] = bits
-
-    def get_control_packet_bits(self, round: int):
-        return self.__control_packet_bits[round]
-
-    def get_last_round_control_packet_bits(self):
-        # if the key is empty, return 0
-        if not self.__control_packet_bits:
-            return 0
-        return self.get_control_packet_bits(max(self.__control_packet_bits.keys()))
-
-    def get_last_round_energy_dissipated(self):
-        # if the key is empty, return 0
-        if not self.energy_dissipated:
-            return 0
-        return self.energy_dissipated[max(self.energy_dissipated.keys())]
-
-    def clear_control_packet_bits(self):
-        self.__control_packet_bits = {}
-
-    def clear_energy_dissipated(self):
-        self.energy_dissipated = {}
-
-    def add_energy_control_packet(self, round: int, energy: float):
-        self.__energy_control_packets[round] = energy
-
-    def get_energy_control_packet(self, round: int):
-        return self.__energy_control_packets[round]
-
-    def get_last_round_energy_control_packet(self):
-        if not self.__energy_control_packets:
-            return 0
-        return self.get_energy_control_packet(max(self.__energy_control_packets.keys()))
-
-    def clear_energy_control_packet(self):
-        self.__energy_control_packets = {}
-    # @property
-    # def dst_to_sink(self):
-    #     if self.__dst_to_sink == 0:
-    #         self.__dst_to_sink = ((self.x - self.neighbors[1].x)**2 +
-    #                               (self.y - self.neighbors[1].y)**2)**0.5
-    #     return self.__dst_to_sink
-
-    # @dst_to_sink.setter
-    # def dst_to_sink(self, value: float):
-    #     assert isinstance(value, float)
-    #     self.__dst_to_sink = value
+    def clear_stats(self):
+        self.pkt_sent = 0
+        self.pkt_received = 0
+        self.__energy_dissipated = 0
+        self.__energy_control_packets = 0
+        self.__control_pkt_bits = 0
+        self.__pkts_sent_to_bs = 0
 
     def set_sink(self):
         self.type = "Sink"

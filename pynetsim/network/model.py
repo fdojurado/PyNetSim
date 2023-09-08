@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import json
 
 from abc import ABC, abstractmethod
+from typing import Optional, Callable
 
 NANO = 1e-9
 PICO = 1e-12
@@ -13,12 +14,16 @@ class NetworkModel(ABC):
         self.__name = name
         self.config = config
         self.network = network
+        self.round_callback: Optional[Callable] = None
         self.get_energy_conversion_factors()
         pass
 
     @property
     def name(self):
         return self.__name
+
+    def register_callback(self, callback):
+        self.round_callback = callback
 
     def get_energy_conversion_factors(self):
         self.elect = self.config.network.protocol.eelect_nano * NANO
@@ -66,10 +71,10 @@ class NetworkModel(ABC):
         distance = node.dst_to_cluster_head
         ETx = self.calculate_energy_tx_non_ch(distance=distance)
         self.energy_dissipated(node=node, energy=ETx, round=round)
-        node.increase_packet_sent()
+        node.inc_pkts_sent()
         if not self.network.alive(cluster_head):
             return
-        node.increase_packet_received()
+        node.inc_pkts_received()
         ERx = self.calculate_energy_rx()
         self.energy_dissipated(node=cluster_head, energy=ERx, round=round)
         if not self.network.alive(cluster_head):
@@ -89,9 +94,12 @@ class NetworkModel(ABC):
             distance = node.dst_to_sink
             ETx = self.calculate_energy_tx_ch(distance=distance)
             self.energy_dissipated(node=node, energy=ETx, round=round)
-            node.increase_packets_sent_to_bs()
-            node.increase_packet_sent()
-            node.increase_packet_received()
+            node.inc_pkts_sent_to_bs()
+            node.inc_pkts_sent()
+            # Get the sink node
+            sink = self.network.get_node(1)
+            sink.inc_pkts_received()
+            node.inc_pkts_received()
             if not self.network.alive(node):
                 self.network.mark_node_as_dead(node, round)
                 self.network.remove_node_from_cluster(node)
@@ -104,7 +112,8 @@ class NetworkModel(ABC):
         # print(f"Node {node.node_id} distance to sink: {distance}")
         ETx = self.calculate_energy_tx_non_ch(distance=distance)
         self.energy_dissipated(node=node, energy=ETx, round=round)
-        node.increase_packets_sent_to_bs()
+        node.inc_pkts_sent()
+        # node.inc_pkts_sent_to_bs()
         # network.remaining_energy -= ETx
         if not self.network.alive(node):
             self.network.mark_node_as_dead(node, round)
@@ -113,3 +122,6 @@ class NetworkModel(ABC):
         self.energy_dissipation_non_cluster_heads(round=round)
         self.energy_dissipation_cluster_heads(round=round)
         self.energy_dissipation_control_packets(round=round)
+        # Fire the callback if it exists
+        if self.round_callback is not None:
+            self.round_callback(round=round)

@@ -54,53 +54,16 @@ class LEACH:
         for node in self.network:
             node.is_cluster_head = False
 
-        network_energy = {}
-        num_dead_nodes = {}
-        num_alive_nodes = {}
-        num_cluster_heads = {}
-        pkt_delivery_ratio = {}
-        pkt_loss_ratio = {}
-        control_packets_energy = {}
-        control_packet_bits = {}
-        pkts_sent_to_bs = {}
-        energy_dissipated = {}
-
         # Set all dst_to_sink for all nodes
         for node in self.network:
             node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
             self.run_without_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                control_packets_energy, control_packet_bits,
-                pkts_sent_to_bs, energy_dissipated)
+                num_rounds, p)
         else:
             self.run_with_plotting(
-                num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                num_cluster_heads, pkt_delivery_ratio, pkt_loss_ratio,
-                control_packets_energy, control_packet_bits,
-                pkts_sent_to_bs, energy_dissipated)
-
-        common.plot_metrics(network_energy, "Network Energy", "J",
-                            "Network Energy vs Rounds",
-                            num_dead_nodes, "Number of Dead Nodes",
-                            "Number of Dead Nodes vs Rounds",
-                            num_alive_nodes, "Number of Alive Nodes",
-                            "Number of Alive Nodes vs Rounds")
-        common.save_metrics(
-            config=self.config,
-            network_energy=network_energy,
-            num_dead_nodes=num_dead_nodes,
-            num_alive_nodes=num_alive_nodes,
-            num_cluster_heads=num_cluster_heads,
-            pkt_delivery_ratio=pkt_delivery_ratio,
-            pkt_loss_ratio=pkt_loss_ratio,
-            control_packets_energy=control_packets_energy,
-            control_packet_bits=control_packet_bits,
-            pkts_sent_to_bs=pkts_sent_to_bs,
-            energy_dissipated=energy_dissipated
-        )
+                num_rounds, p)
 
     def evaluate_round(self, p, round):
         round += 1
@@ -117,10 +80,7 @@ class LEACH:
 
         return round
 
-    def run_without_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                             num_cluster_heads_metric, pkt_delivery_ratio, pkt_loss_ratio,
-                             control_packets_energy, control_packet_bits,
-                             pkts_sent_to_bs, energy_dissipated):
+    def run_without_plotting(self, num_rounds, p):
         round = 0
         with Progress() as progress:
             task = progress.add_task(
@@ -128,41 +88,10 @@ class LEACH:
 
             while self.network.alive_nodes() > 0 and round < num_rounds:
                 round = self.evaluate_round(p, round)
-
-                common.add_to_metrics(
-                    config=self.config,
-                    network=self.network,
-                    round=round,
-                    network_energy=network_energy,
-                    num_dead_nodes=num_dead_nodes,
-                    num_alive_nodes=num_alive_nodes,
-                    num_cluster_heads=num_cluster_heads_metric,
-                    pkt_delivery_ratio=pkt_delivery_ratio,
-                    pkt_loss_ratio=pkt_loss_ratio,
-                    control_packets_energy=control_packets_energy,
-                    control_packet_bits=control_packet_bits,
-                    pkts_sent_to_bs=pkts_sent_to_bs,
-                    energy_dissipated=energy_dissipated)
-                common.save_metrics(
-                    config=self.config,
-                    network_energy=network_energy,
-                    num_dead_nodes=num_dead_nodes,
-                    num_alive_nodes=num_alive_nodes,
-                    num_cluster_heads=num_cluster_heads_metric,
-                    pkt_delivery_ratio=pkt_delivery_ratio,
-                    pkt_loss_ratio=pkt_loss_ratio,
-                    control_packets_energy=control_packets_energy,
-                    control_packet_bits=control_packet_bits,
-                    pkts_sent_to_bs=pkts_sent_to_bs,
-                    energy_dissipated=energy_dissipated
-                )
                 progress.update(task, completed=round)
             progress.update(task, completed=num_rounds)
 
-    def run_with_plotting(self, num_rounds, p, network_energy, num_dead_nodes, num_alive_nodes,
-                          num_cluster_heads_metric, pkt_delivery_ratio, pkt_loss_ratio,
-                          control_packets_energy, control_packet_bits,
-                          pkts_sent_to_bs, energy_dissipated):
+    def run_with_plotting(self, num_rounds, p):
         fig, ax = plt.subplots()
         common.plot_clusters(network=self.network,
                              round=0, ax=ax)
@@ -177,33 +106,6 @@ class LEACH:
             ax.clear()
             common.plot_clusters(network=self.network,
                                  round=round, ax=ax)
-
-            common.add_to_metrics(config=self.config,
-                                  network=self.network,
-                                  round=round,
-                                  network_energy=network_energy,
-                                  num_dead_nodes=num_dead_nodes,
-                                  num_alive_nodes=num_alive_nodes,
-                                  num_cluster_heads=num_cluster_heads_metric,
-                                  pkt_delivery_ratio=pkt_delivery_ratio,
-                                  pkt_loss_ratio=pkt_loss_ratio,
-                                  control_packets_energy=control_packets_energy,
-                                  control_packet_bits=control_packet_bits,
-                                  pkts_sent_to_bs=pkts_sent_to_bs,
-                                  energy_dissipated=energy_dissipated)
-            common.save_metrics(
-                config=self.config,
-                network_energy=network_energy,
-                num_dead_nodes=num_dead_nodes,
-                num_alive_nodes=num_alive_nodes,
-                num_cluster_heads=num_cluster_heads_metric,
-                pkt_delivery_ratio=pkt_delivery_ratio,
-                pkt_loss_ratio=pkt_loss_ratio,
-                control_packets_energy=control_packets_energy,
-                control_packet_bits=control_packet_bits,
-                pkts_sent_to_bs=pkts_sent_to_bs,
-                energy_dissipated=energy_dissipated
-            )
 
             plt.pause(0.1)
 
