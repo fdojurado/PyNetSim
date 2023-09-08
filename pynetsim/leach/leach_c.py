@@ -67,15 +67,19 @@ class LEACH_C:
         # Initial solution
         # print(f"Cluster heads: {cluster_heads}, length: {len(cluster_heads)}")
         # Select randomly from the cluster heads without repeating
-        best = np.random.choice(
-            cluster_heads, size=1,
-            replace=False)
-
+        number_of_cluster_heads = int(self.network.alive_nodes(
+        )*self.config.network.protocol.cluster_head_percentage)*2
+        if number_of_cluster_heads < 1:
+            number_of_cluster_heads = 1
         # print(
-        #     f"Initial solution: {initial_solution}, length: {len(initial_solution)}")
+        #     f"Potential cluster heads: {cluster_heads}, length: {len(cluster_heads)}, number of cluster heads: {number_of_cluster_heads}")
+        best = np.random.choice(
+            cluster_heads, size=number_of_cluster_heads, replace=False)
 
         # Evaluate the initial solution
         best_eval = self.objective_function(best)
+        # print(
+        #     f"Initial solution: {best}, length: {len(best)}, best eval: {best_eval}")
 
         # current working solution
         curr, curr_eval = best, best_eval
@@ -89,14 +93,18 @@ class LEACH_C:
             # or remove a cluster head from the current solution
 
             # Select a random cluster head
-            cluster_head = np.random.choice(cluster_heads)
+            # cluster_head = np.random.choice(cluster_heads)
 
             # If the cluster head is in the current solution, then remove it
-            if cluster_head in curr:
-                candidate = np.delete(curr, np.where(curr == cluster_head))
-            else:
-                # If the cluster head is not in the current solution, then add it
-                candidate = np.append(curr, cluster_head)
+            # if cluster_head in curr:
+            #     candidate = np.delete(curr, np.where(curr == cluster_head))
+            # else:
+            #     # If the cluster head is not in the current solution, then add it
+            #     candidate = np.append(curr, cluster_head)
+
+            # Select random chunk of cluster heads of size number_of_cluster_heads as potential cluster heads
+            candidate = np.random.choice(
+                cluster_heads, size=number_of_cluster_heads, replace=False)
 
             # Evaluate the current solution
             candidate_eval = self.objective_function(candidate)
@@ -117,7 +125,8 @@ class LEACH_C:
                 curr, curr_eval = candidate, candidate_eval
 
         # print(
-        #     f"Best solution: {initial_solution}, length: {len(initial_solution)}")
+        #     f"Best solution: {best}, length: {len(best)}, best eval: {best_eval}")
+        # input("Press Enter to continue...")
 
         # Assign the cluster heads
         for node in self.network:

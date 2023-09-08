@@ -41,6 +41,11 @@ class Node:
     def remaining_energy(self):
         return self.__remaining_energy
 
+    @remaining_energy.setter
+    def remaining_energy(self, value: float):
+        # This is only used for the RL based algorithms
+        self.__remaining_energy = value
+
     @property
     def energy_dissipated(self):
         return self.__energy_dissipated
@@ -95,8 +100,8 @@ class Node:
         return 1 - self.pdr()
 
     def clear_stats(self):
-        self.pkt_sent = 0
-        self.pkt_received = 0
+        self.__pkt_sent = 0
+        self.__pkt_received = 0
         self.__energy_dissipated = 0
         self.__energy_control_packets = 0
         self.__control_pkt_bits = 0
