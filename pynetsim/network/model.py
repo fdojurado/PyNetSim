@@ -25,6 +25,9 @@ class NetworkModel(ABC):
     def register_round_complete_callback(self, callback):
         self.round_callback = callback
 
+    def set_network(self, network):
+        self.network = network
+
     def get_energy_conversion_factors(self):
         self.elect = self.config.network.protocol.eelect_nano * NANO
         self.eamp = self.config.network.protocol.eamp_pico * PICO
