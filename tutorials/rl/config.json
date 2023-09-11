@@ -5,8 +5,8 @@
         "transmission_range": 60,
         "model": "extended",
         "protocol": {
-            "name": "LEACH-RL",
-            "max_steps": 10,
+            "name": "LEACH-RL-MULT",
+            "max_steps": 15,
             "init_energy": 0.1,
             "rounds": 8000,
             "cluster_head_percentage": 0.05,

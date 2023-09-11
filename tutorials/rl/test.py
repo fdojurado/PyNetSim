@@ -85,7 +85,7 @@ def update_cluster_heads(network, network_copy):
         node.cluster_id = network_copy.nodes[node.node_id].cluster_id
     chs = [cluster_head.node_id for cluster_head in network.nodes.values()
            if cluster_head.is_cluster_head]
-    # print(f"Cluster heads: {chs}")
+    input(f"Cluster heads at high level: {chs}")
 
 
 def evaluate_round(round, config, network, model, network_model, rounds):
@@ -95,6 +95,18 @@ def evaluate_round(round, config, network, model, network_model, rounds):
     network_copy = copy.deepcopy(network)
     network_model_copy = copy.deepcopy(network_model)
     env = create_env(config, network_copy, network_model_copy)
+    # Network average remaining energy
+    network_avg_energy = network.average_remaining_energy()
+    print(
+        f"Network average remaining energy: {network_avg_energy} at round {round}")
+    chs = [
+        cluster_head.node_id for cluster_head in network if cluster_head.is_cluster_head]
+    print(f"Cluster heads: {chs}")
+    # print sensor nodes' remaining energy
+    for node in network:
+        if node.node_id == 1:
+            continue
+        print(f"Node {node.node_id}: {node.remaining_energy}")
     obs, _ = env.reset()
     while not done:
         action, _ = model.predict(obs)

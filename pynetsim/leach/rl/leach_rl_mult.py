@@ -127,21 +127,21 @@ class LEACH_RL_MULT(gym.Env):
 
         # Create a random network of num_nodes nodes and random positions and
         # random energy levels
-        rl.create_network(network=self.network, config=self.config,
-                          lower_energy=self.config.network.protocol.init_energy/2)
+        # rl.create_network(network=self.network, config=self.config,
+        #                   lower_energy=self.config.network.protocol.init_energy/2)
 
         # print all cluster heads
-        chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        ) if cluster_head.is_cluster_head]
+        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+        # ) if cluster_head.is_cluster_head]
         # print(f"Cluster heads at reset: {chs}")
 
-        self.network.create_clusters()
+        # self.network.create_clusters()
 
-        self.net_model.dissipate_energy(round=self.round)
-
-        observation, info = self._get_obs()
+        # self.net_model.dissipate_energy(round=self.round)
 
         # self._print_network_info("Reset:", self.network)
+        observation, info = self._get_obs()
+
 
         return observation, info
 
@@ -158,14 +158,14 @@ class LEACH_RL_MULT(gym.Env):
         done = False
 
         if node.is_cluster_head:
-            # print(f"Node {node.node_id} is a cluster head, mark as non-CH")
+            print(f"Node {node.node_id} is a cluster head, mark as non-CH")
             self.network_copy.mark_as_non_cluster_head(node)
         else:
             if node.remaining_energy < self.network_copy.average_remaining_energy():
                 obs, info = self._get_obs()
-                # print(f"LL: Penalty for selecting node {node.node_id} as CH")
+                print(f"LL: Penalty for selecting node {node.node_id} as CH")
                 return obs, 0, True, False, info
-            # print(f"Node {node.node_id} is not a cluster head, mark as CH")
+            print(f"Node {node.node_id} is not a cluster head, mark as CH")
             self.network_copy.mark_as_cluster_head(node, node.node_id)
             # print(
             #     f"Node {node.node_id} is a cluster head with cluster id {node.cluster_id}")
@@ -176,11 +176,11 @@ class LEACH_RL_MULT(gym.Env):
         self._update_cluster_heads()
         # print network information
         # self._print_network_info("Step:", self.network_copy)
-        # print(f"Reward: {reward}")
+        print(f"Reward: {reward}")
 
         observation, info = self._get_obs()
-        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        # ) if cluster_head.is_cluster_head]
+        chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+        ) if cluster_head.is_cluster_head]
         # input(f"Cluster heads at round {self.round}: {chs}")
         return observation, reward, done, False, info
 
