@@ -97,12 +97,12 @@ def obs_packet_loss(num_sensors: int, network: object,
     return observation
 
 
-def create_network(network: object, config: object):
+def create_network(network: object, config: object, lower_energy: float = 0):
     for node in network:
         network.mark_as_non_cluster_head(node)
         # use np random to set the energy
         node.remaining_energy = np.random.uniform(
-            low=0, high=config.network.protocol.init_energy)
+            low=lower_energy, high=config.network.protocol.init_energy)
         # packet sent and received are set to 0 by default
         node.round_dead = 0
         node.clear_stats()

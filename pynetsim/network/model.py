@@ -22,7 +22,7 @@ class NetworkModel(ABC):
     def name(self):
         return self.__name
 
-    def register_callback(self, callback):
+    def register_round_complete_callback(self, callback):
         self.round_callback = callback
 
     def get_energy_conversion_factors(self):

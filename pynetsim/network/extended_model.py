@@ -24,7 +24,23 @@ class Extended(NetworkModel):
         # This is only processed by centralized algorithms
         if self.config.network.protocol.name == "LEACH":
             return
-        # How many cluster heads are there?
+        if round-1 <= 0:
+            prev_chs = []
+        else:
+            prev_chs = self.network.get_cluster_head_ids_at_round(
+                round=round-1)
+        curr_chs = self.network.get_cluster_head_ids()
+        # How many different cluster heads from the previous round are there?
+        diff = len(set(curr_chs) - set(prev_chs))
+        # print(f"Current cluster heads: {curr_chs}")
+        # print(f"Previous cluster heads: {prev_chs}")
+        # print(f"Diff: {diff}")
+        # if there are no new cluster heads, then there is no need to transmit
+        # a control packet
+        if diff == 0:
+            # print node_ids of cluster heads
+            # print("No new cluster heads")
+            return
         chs = self.network.num_cluster_heads()
         pkt_size = (4*chs+15) * 8
         # Reduce the energy of all nodes by the energy required to transmit the

@@ -57,6 +57,12 @@ class LEACH_RL(gym.Env):
         self.prev_obs = np.zeros(int(n_observation/2))
         self.action_space = spaces.Discrete(n_actions)
 
+    def set_network(self, network):
+        self.network = network
+
+    def set_net_model(self, net_model):
+        self.net_model = net_model
+
     def _get_obs(self):
         obs = rl.obs(num_sensors=self.config.network.num_sensor,
                      network=self.network,
@@ -102,7 +108,7 @@ class LEACH_RL(gym.Env):
         # print all cluster heads
         # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
         # ) if cluster_head.is_cluster_head]
-        # print(f"Cluster heads: {chs}")
+        # print(f"Cluster heads at reset: {chs}")
 
         self.network.create_clusters()
 
@@ -119,18 +125,22 @@ class LEACH_RL(gym.Env):
         node = self.network.nodes[action]
         done = False
 
-        if node.remaining_energy < self.network.average_remaining_energy():
-            obs, info = self._get_obs()
-            return obs, 0, True, False, info
-
         if node.is_cluster_head:
+            # input(f"Node {node.node_id} is a cluster head")
             self.network.mark_as_non_cluster_head(node)
         else:
+            if node.remaining_energy < self.network.average_remaining_energy():
+                obs, info = self._get_obs()
+                # input(f"LL: Penalty for selecting node {node.node_id} as CH")
+                return obs, 0, True, False, info
             self.network.mark_as_cluster_head(node, node.node_id)
 
         self.network.create_clusters()
         reward = self._calculate_reward()
         observation, info = self._get_obs()
+        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+        # ) if cluster_head.is_cluster_head]
+        # input(f"Cluster heads at round {self.round}: {chs}")
         return observation, reward, done, False, info
 
     def render(self, mode='human'):

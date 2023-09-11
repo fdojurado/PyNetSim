@@ -29,6 +29,7 @@ class Network:
         self.config = config
         self.stats = Statistics(self, config)
         self.nodes = {}
+        self.cluster_heads_per_round = {}
 
     def set_model(self, model):
         self.model = model
@@ -36,8 +37,16 @@ class Network:
     # -----------------LEACH-----------------
 
     def round_callback(self, round: int):
+        chs = [
+            cluster_head.node_id for cluster_head in self if cluster_head.is_cluster_head]
+        # Order in ascending order
+        chs.sort()
+        self.cluster_heads_per_round[round] = chs
         self.stats.generate_round_stats(round=round)
         self.stats.export_json()
+
+    def get_cluster_head_ids_at_round(self, round: int):
+        return self.cluster_heads_per_round[round]
 
     def max_distance_to_sink(self):
         max_distance = 0
@@ -209,6 +218,15 @@ class Network:
         sink = self.get_node(1)
         return sink.pkt_received
 
+    def get_cluster_head_ids(self):
+        cluster_heads = []
+        for node in self:
+            if node.node_id == 1:
+                continue
+            if node.is_cluster_head:
+                cluster_heads.append(node.node_id)
+        return cluster_heads
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:
@@ -312,7 +330,8 @@ class Network:
                 for other_node in self:
                     if node.node_id != other_node.node_id:
                         if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
-                                self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-RL-LOSS'):
+                                self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-RL-LOSS' or
+                                self.config.network.protocol.name == 'LEACH-HRL'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:
@@ -359,7 +378,7 @@ class Network:
         for node in self:
             node.is_cluster_head = False
         # Register callback to the network model
-        self.model.register_callback(self.round_callback)
+        self.model.register_round_complete_callback(self.round_callback)
         return True
 
     def plot_network(self):
