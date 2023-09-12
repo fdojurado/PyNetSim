@@ -6,7 +6,7 @@
         "model": "extended",
         "protocol": {
             "name": "LEACH-RL-MULT",
-            "max_steps": 15,
+            "max_steps": 10,
             "init_energy": 0.1,
             "rounds": 8000,
             "cluster_head_percentage": 0.05,

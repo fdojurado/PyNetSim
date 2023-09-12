@@ -98,26 +98,36 @@ def obs_packet_loss(num_sensors: int, network: object,
 
 
 def create_network(network: object, config: object, lower_energy: float = 0):
+
+    # Set a random initial energy value between 50% and 100% of the initial energy
+    init_energy = np.random.uniform(
+        low=config.network.protocol.init_energy*0.1, high=config.network.protocol.init_energy)
+
     for node in network:
+        if node.node_id == 1:
+            continue
         network.mark_as_non_cluster_head(node)
-        # use np random to set the energy
-        node.remaining_energy = np.random.uniform(
-            low=lower_energy, high=config.network.protocol.init_energy)
+        # Generate a random initial energy values with mean init_energy and standard deviation 0.1*init_energy
+        remaining_energy = np.random.normal(
+            loc=init_energy, scale=0.01*init_energy)
+        if remaining_energy > config.network.protocol.init_energy:
+            remaining_energy = config.network.protocol.init_energy
+        node.remaining_energy = max(remaining_energy, 0)
         # packet sent and received are set to 0 by default
         node.round_dead = 0
         node.clear_stats()
 
     # Choose 5% of the number of nodes as cluster heads
-    num_cluster_heads = int(config.network.num_sensor *
-                            config.network.protocol.cluster_head_percentage)
+    # num_cluster_heads = int(config.network.num_sensor *
+    #                         config.network.protocol.cluster_head_percentage)
 
     # Choose num_cluster_heads nodes as cluster heads from the set of nodes
     # whose energy is greater or equal to the current network's average energy
-    avg_energy = network.average_remaining_energy()
+    # avg_energy = network.average_remaining_energy()
     # Also avoid choosing the sink as a cluster head
-    cluster_heads = np.random.choice(
-        [node for node in network if node.remaining_energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
+    # cluster_heads = np.random.choice(
+    #     [node for node in network if node.remaining_energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
 
-    # Set the cluster heads
-    for cluster_head in cluster_heads:
-        network.mark_as_cluster_head(cluster_head, cluster_head.node_id)
+    # # Set the cluster heads
+    # for cluster_head in cluster_heads:
+    #     network.mark_as_cluster_head(cluster_head, cluster_head.node_id)

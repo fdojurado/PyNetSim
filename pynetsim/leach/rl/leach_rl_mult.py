@@ -10,7 +10,7 @@ import copy
 
 class LEACH_RL_MULT(gym.Env):
     def __init__(self, network, net_model: object):
-        self.name = "LEACH_RL"
+        self.name = "LEACH_RL_MULT"
         self.net_model = net_model
         self.config = network.config
         self.network = network
@@ -64,6 +64,7 @@ class LEACH_RL_MULT(gym.Env):
 
     def set_net_model(self, net_model):
         self.net_model = net_model
+        self.net_model.set_network(self.network)
 
     def _get_obs(self):
         obs = rl.obs(num_sensors=self.config.network.num_sensor,
@@ -109,44 +110,58 @@ class LEACH_RL_MULT(gym.Env):
             print(f"{msg} Node {node.node_id}: {node.remaining_energy}")
 
     def _calculate_reward(self):
-        current_energy = self.network_copy.average_remaining_energy()
+        current_energy = self.network_copy.remaining_energy()
         # print(f"Current energy: {current_energy}")
         self.net_model_copy.dissipate_energy(round=self.round)
-        latest_energy = self.network_copy.average_remaining_energy()
+        latest_energy = self.network_copy.remaining_energy()
         # print(f"Latest energy: {latest_energy}")
-        energy = (current_energy - latest_energy)*100
+        energy = (current_energy - latest_energy)*10
         # print(f"Energy: {energy}")
         # Check that the energy is between 0 and 1
         assert energy >= 0 and energy <= 1, f"Energy: {energy}"
         reward = 2 - 1 * energy
         return reward
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options: dict = None):
         super().reset(seed=seed)
         self.round = 0
 
-        # Create a random network of num_nodes nodes and random positions and
-        # random energy levels
-        # rl.create_network(network=self.network, config=self.config,
-        #                   lower_energy=self.config.network.protocol.init_energy/2)
+        # if the options are not provided, then create a random network
+        # otherwise, create a network based on the options.
+        # The options are a dictionary with the following keys:
+        #   - num_nodes: number of nodes in the network
+        #   - num_chs: number of cluster heads in the network
 
-        # print all cluster heads
-        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        # ) if cluster_head.is_cluster_head]
-        # print(f"Cluster heads at reset: {chs}")
+        if options is None:
+            # Create a random network of num_nodes nodes and random positions and
+            # random energy levels
+            rl.create_network(network=self.network, config=self.config,
+                              lower_energy=0)
 
-        # self.network.create_clusters()
+            # print all cluster heads
+            # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+            # ) if cluster_head.is_cluster_head]
+            # print(f"Cluster heads at reset: {chs}")
 
-        # self.net_model.dissipate_energy(round=self.round)
+            # self.network.create_clusters()
 
-        # self._print_network_info("Reset:", self.network)
+            # self._print_network_info("Reset:", self.network)
+        else:
+            # Mark all nodes as non-cluster heads
+            for node in self.network:
+                self.network.mark_as_non_cluster_head(node)
+            # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+            # ) if cluster_head.is_cluster_head]
+            # print(f"Cluster heads at reset: {chs}")
+
         observation, info = self._get_obs()
-
 
         return observation, info
 
     def step(self, action):
         self.round += 1
+        # Network average remaining energy
+        network_avg_energy = self.network.average_remaining_energy()
         # Make a deep copy of the network
         self.network_copy = copy.deepcopy(self.network)
         # Make a deep copy of the network model
@@ -156,19 +171,25 @@ class LEACH_RL_MULT(gym.Env):
         action = self.actions_dict[int(action)]
         node = self.network_copy.get_node(action)
         done = False
+        penalty = False
+        # print(f"Network average remaining energy: {network_avg_energy}")
+        # print(f"Node {node.node_id} remaining energy: {node.remaining_energy}")
 
-        if node.is_cluster_head:
-            print(f"Node {node.node_id} is a cluster head, mark as non-CH")
-            self.network_copy.mark_as_non_cluster_head(node)
-        else:
-            if node.remaining_energy < self.network_copy.average_remaining_energy():
-                obs, info = self._get_obs()
-                print(f"LL: Penalty for selecting node {node.node_id} as CH")
-                return obs, 0, True, False, info
-            print(f"Node {node.node_id} is not a cluster head, mark as CH")
-            self.network_copy.mark_as_cluster_head(node, node.node_id)
+        if node.node_id in self.network.get_cluster_head_ids():
+            # obs, info = self._get_obs()
             # print(
-            #     f"Node {node.node_id} is a cluster head with cluster id {node.cluster_id}")
+            #     f"LL: Penalty for selecting node {node.node_id} as it is already a CH")
+            penalty = True
+            # return obs, -10, True, False, info
+        if node.remaining_energy < network_avg_energy:
+            # obs, info = self._get_obs()
+            # print(f"LL: Penalty for selecting node {node.node_id} as CH")
+            penalty = True
+            # return obs, -10, True, False, info
+        # print(f"Node {node.node_id} is not a cluster head, mark as CH")
+        self.network_copy.mark_as_cluster_head(node, node.node_id)
+        # print(
+        #     f"Node {node.node_id} is a cluster head with cluster id {node.cluster_id}")
 
         self.network_copy.create_clusters()
         reward = self._calculate_reward()
@@ -176,12 +197,26 @@ class LEACH_RL_MULT(gym.Env):
         self._update_cluster_heads()
         # print network information
         # self._print_network_info("Step:", self.network_copy)
-        print(f"Reward: {reward}")
+        # print(f"Reward: {reward}")
 
         observation, info = self._get_obs()
-        chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        ) if cluster_head.is_cluster_head]
+
+        if penalty:
+            # input(f"Penalty for selecting node {node.node_id} as CH")
+            reward = -10
+            return observation, reward, True, False, info
+
+        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
+        # ) if cluster_head.is_cluster_head]
+        # The episode is over when the number of cluster heads is equal to the
+        # number of alive nodes times the percentage of cluster heads
+        if self.network.num_cluster_heads() >= (self.network.alive_nodes() *
+                                                self.config.network.protocol.cluster_head_percentage):
+            done = True
+            # print(f"Episode is over at round {self.round}")
+            reward += 3
         # input(f"Cluster heads at round {self.round}: {chs}")
+
         return observation, reward, done, False, info
 
     def render(self, mode='human'):
