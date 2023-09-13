@@ -1,6 +1,8 @@
 import pynetsim.leach as leach
 import numpy as np
 
+from sklearn.cluster import KMeans
+
 
 def obs(num_sensors: int, network: object,
         x_pos: np.ndarray, y_pos: np.ndarray,
@@ -68,6 +70,65 @@ def obs(num_sensors: int, network: object,
     return observation
 
 
+def clustered_obs(num_sensors: int, network: object,
+                  max_x: float, max_y: float,
+                  init_energy: float,
+                  round: int,
+                  max_steps: int,
+                  max_distance: float,
+                  action_taken: int = 0):
+    # Put the energy consumption in a numpy array
+    energy_consumption = np.zeros(num_sensors)
+    # Get all nodes in the network except the sink which is node_id 1
+    nodes = [node for node in network if node.node_id != 1]
+    for i, node in enumerate(nodes):
+        energy = max(node.remaining_energy, 0)/init_energy
+        energy_consumption[i] = energy
+    # print(f"Energy consumption: {energy_consumption}")
+
+    cluster_heads = np.zeros(num_sensors)
+    for i, node in enumerate(nodes):
+        if node.is_cluster_head:
+            cluster_heads[i] = 1
+    # print(f"Cluster heads: {cluster_heads}")
+
+    observation = np.append(energy_consumption, cluster_heads)
+
+    x_pos = np.zeros(num_sensors)
+    y_pos = np.zeros(num_sensors)
+    for i, node in enumerate(nodes):
+        x_pos[i] = node.x/max_x
+        y_pos[i] = node.y/max_y
+    # print(f"X positions: {x_pos}")
+    # print(f"Y positions: {y_pos}")
+    observation = np.append(observation, x_pos)
+    observation = np.append(observation, y_pos)
+
+    dst_to_sink = np.zeros(num_sensors)
+    for i, node in enumerate(nodes):
+        dst_to_sink[i] = node.dst_to_sink/max_distance
+    # print(f"Distance to sink: {dst_to_sink}")
+    observation = np.append(observation, dst_to_sink)
+
+    # append rounds
+    observation = np.append(observation, round/max_steps)
+
+    # Append network's average energy
+    avg_energy = network.average_remaining_energy()/init_energy
+    observation = np.append(observation, avg_energy)
+
+    # Append action taken
+    observation = np.append(observation, action_taken)
+
+    # print(f"Lenght of observation: {len(observation)}")
+
+    # Check that all the observations are between 0 and 1
+    for ob in observation:
+        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
+
+    return observation
+
+
 def obs_packet_loss(num_sensors: int, network: object,
                     x_pos: np.ndarray, y_pos: np.ndarray,
                     dst_to_sink: np.ndarray,
@@ -101,7 +162,7 @@ def create_network(network: object, config: object, lower_energy: float = 0):
 
     # Set a random initial energy value between 50% and 100% of the initial energy
     init_energy = np.random.uniform(
-        low=config.network.protocol.init_energy*0.1, high=config.network.protocol.init_energy)
+        low=config.network.protocol.init_energy*0.05, high=config.network.protocol.init_energy)
 
     for node in network:
         if node.node_id == 1:
@@ -117,17 +178,43 @@ def create_network(network: object, config: object, lower_energy: float = 0):
         node.round_dead = 0
         node.clear_stats()
 
-    # Choose 5% of the number of nodes as cluster heads
-    # num_cluster_heads = int(config.network.num_sensor *
-    #                         config.network.protocol.cluster_head_percentage)
 
-    # Choose num_cluster_heads nodes as cluster heads from the set of nodes
-    # whose energy is greater or equal to the current network's average energy
-    # avg_energy = network.average_remaining_energy()
-    # Also avoid choosing the sink as a cluster head
-    # cluster_heads = np.random.choice(
-    #     [node for node in network if node.remaining_energy >= avg_energy and node.node_id != 1], size=num_cluster_heads, replace=False)
+def create_clustered_network(network: object, config: object, lower_energy: float = 0):
 
-    # # Set the cluster heads
-    # for cluster_head in cluster_heads:
-    #     network.mark_as_cluster_head(cluster_head, cluster_head.node_id)
+    create_network(network, config, lower_energy)
+
+    # Number of clusters
+    num_clusters = np.ceil(
+        network.alive_nodes() * config.network.protocol.cluster_head_percentage)
+    # print(f"Number of clusters: {num_clusters}")
+    # print the number of alive nodes
+    # print(f"Number of alive nodes: {network.alive_nodes()}")
+    #  x and y coordinates of nodes
+    x = []
+    y = []
+    for node in network:
+        if network.should_skip_node(node):
+            continue
+        x.append(node.x)
+        y.append(node.y)
+    coordinates = np.array(list(zip(x, y)))
+    # print(f"Coordinates: {coordinates}")
+    kmeans = KMeans(n_clusters=int(num_clusters), random_state=0, n_init=10)
+    # fit the model to the coordinates
+    kmeans.fit(coordinates)
+    # get the cluster centers
+    centers = kmeans.cluster_centers_
+    # get the cluster labels
+    labels = kmeans.labels_
+    # Assign cluster ids to the nodes
+    for node in network:
+        if network.should_skip_node(node):
+            continue
+        # get index of node in coordinates
+        index = np.where((coordinates[:, 0] == node.x) & (
+            coordinates[:, 1] == node.y))
+        # print(f"Node: {node.node_id}, index: {index}")
+        # get label of node
+        label = labels[index[0][0]]
+        # print(f"Node: {node.node_id}, label: {label}")
+        node.cluster_id = label

@@ -227,6 +227,33 @@ class Network:
                 cluster_heads.append(node.node_id)
         return cluster_heads
 
+    def get_cluster_ids(self):
+        cluster_ids = []
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            if node.cluster_id not in cluster_ids:
+                cluster_ids.append(node.cluster_id)
+        return cluster_ids
+
+    def get_nodes_in_cluster(self, cluster_id):
+        nodes = []
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            if node.cluster_id == cluster_id:
+                nodes.append(node)
+        return nodes
+
+    def get_nodes_not_in_cluster(self, cluster_id):
+        nodes = []
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            if node.cluster_id != cluster_id:
+                nodes.append(node)
+        return nodes
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:
@@ -344,6 +371,9 @@ class Network:
 
     def add_node(self, node: Node):
         self.nodes[node.node_id] = node
+
+    def rm_node(self, node: Node):
+        self.nodes.pop(node.node_id)
 
     def get_nodes(self):
         return self.nodes.values()

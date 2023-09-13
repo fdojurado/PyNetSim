@@ -40,19 +40,12 @@ class LEACH_RL_MULT(gym.Env):
             self.x_locations[node.node_id] = node.x/self.config.network.width
             self.y_locations[node.node_id] = node.y/self.config.network.height
 
-        self.actions_dict = {}
-        count = 0
-        for node in self.network.nodes.values():
-            if node.node_id == 1:
-                continue
-            self.actions_dict[count] = node.node_id
-            count += 1
         # print(f"Actions: {self.actions_dict}")
-        n_actions = len(self.actions_dict)
+        n_actions = 30
         # print(f"Action space: {n_actions}")
 
         # Observation space: energy consumption + cluster head indicators
-        n_observation = (6 * (self.config.network.num_sensor+1) + 3)*2
+        n_observation = (5 * 30 + 3)*2
         # print(f"Observation space: {n_observation}")
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(n_observation,), dtype=np.float32)
@@ -67,16 +60,15 @@ class LEACH_RL_MULT(gym.Env):
         self.net_model.set_network(self.network)
 
     def _get_obs(self):
-        obs = rl.obs(num_sensors=self.config.network.num_sensor,
-                     network=self.network,
-                     x_pos=self.x_locations,
-                     y_pos=self.y_locations,
-                     dst_to_sink=self.dst_to_sink,
-                     init_energy=self.config.network.protocol.init_energy,
-                     round=self.round,
-                     max_steps=self.max_steps,
-                     max_distance=self.max_distance,
-                     action_taken=self.action/len(self.actions_dict))
+        obs = rl.clustered_obs(num_sensors=30,
+                               network=self.network,
+                               max_x=self.config.network.width,
+                               max_y=self.config.network.height,
+                               init_energy=self.config.network.protocol.init_energy,
+                               round=self.round,
+                               max_steps=self.max_steps,
+                               max_distance=self.max_distance,
+                               action_taken=self.action/len(self.actions_dict))
 
         # Append the previous observation
         observations = np.append(obs, self.prev_obs)
@@ -135,13 +127,52 @@ class LEACH_RL_MULT(gym.Env):
         if options is None:
             # Create a random network of num_nodes nodes and random positions and
             # random energy levels
-            rl.create_network(network=self.network, config=self.config,
-                              lower_energy=0)
+            rl.create_clustered_network(network=self.network, config=self.config,
+                                        lower_energy=0)
 
-            # print all cluster heads
-            # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-            # ) if cluster_head.is_cluster_head]
-            # print(f"Cluster heads at reset: {chs}")
+            # Get the cluster ids
+            cluster_ids = self.network.get_cluster_ids()
+            # print(f"Cluster ids: {cluster_ids}")
+
+            # Choose a random cluster id
+            cluster_id = np.random.choice(cluster_ids)
+            # print(f"Cluster id selected for training: {cluster_id}")
+
+            # Get the nodes in the cluster
+            nodes = self.network.get_nodes_in_cluster(cluster_id)
+            # print(f"Nodes in cluster {cluster_id}: ", end="")
+            # for node in nodes:
+            #     print(f"{node.node_id} ", end="")
+            # print()
+
+            # Nodes not in the cluster
+            nodes_not_in_cluster = self.network.get_nodes_not_in_cluster(
+                cluster_id)
+
+            for node in nodes_not_in_cluster:
+                self.network.rm_node(node)
+
+            # Create a new mapping of actions to nodes
+            self.actions_dict = {}
+            # Get all nodes in the network except the sink which is node_id 1
+            for i, node in enumerate(nodes):
+                self.actions_dict[i] = node.node_id
+
+            actions_len = len(self.actions_dict)
+            # Generate number from actions_len to 30
+            for i in range(actions_len, 30):
+                self.actions_dict[i] = None
+
+            # print(
+            #     f"Actions: {self.actions_dict}, len: {len(self.actions_dict)}")
+
+            # print nodes' ids
+            # print(f"Nodes: ", end="")
+            # for node in self.network.nodes.values():
+            #     if node.node_id == 1:
+            #         continue
+            #     print(f"{node.node_id} ", end="")
+            # print()
 
             # self.network.create_clusters()
 
@@ -168,26 +199,34 @@ class LEACH_RL_MULT(gym.Env):
         self.net_model_copy = copy.deepcopy(self.net_model)
         self.net_model_copy.set_network(self.network_copy)
         self.action = int(action)
+        # print(f"Action taken: {action}")
         action = self.actions_dict[int(action)]
+        if action is None:
+            # print(f"Action is None")
+            obs, info = self._get_obs()
+            return obs, -1, True, False, info
         node = self.network_copy.get_node(action)
         done = False
-        penalty = False
         # print(f"Network average remaining energy: {network_avg_energy}")
         # print(f"Node {node.node_id} remaining energy: {node.remaining_energy}")
 
-        if node.node_id in self.network.get_cluster_head_ids():
-            # obs, info = self._get_obs()
-            # print(
-            #     f"LL: Penalty for selecting node {node.node_id} as it is already a CH")
-            penalty = True
-            # return obs, -10, True, False, info
         if node.remaining_energy < network_avg_energy:
-            # obs, info = self._get_obs()
+            obs, info = self._get_obs()
             # print(f"LL: Penalty for selecting node {node.node_id} as CH")
-            penalty = True
-            # return obs, -10, True, False, info
-        # print(f"Node {node.node_id} is not a cluster head, mark as CH")
-        self.network_copy.mark_as_cluster_head(node, node.node_id)
+            return obs, -1, True, False, info
+        if node.is_cluster_head:
+            # print(f"Node {node.node_id} is a cluster head, mark as non-CH")
+            self.network_copy.mark_as_non_cluster_head(node)
+            # print(
+            #     f"Node {node.node_id} is not a cluster head with cluster id {node.cluster_id}")
+        else:
+            # print(f"Node {node.node_id} is not a cluster head, mark as CH")
+            self.network_copy.mark_as_cluster_head(node, node.node_id)
+
+        # if there are no cluster heads, then the episode is over
+        if self.network_copy.num_cluster_heads() == 0:
+            obs, info = self._get_obs()
+            return obs, -1, True, False, info
         # print(
         #     f"Node {node.node_id} is a cluster head with cluster id {node.cluster_id}")
 
@@ -200,22 +239,6 @@ class LEACH_RL_MULT(gym.Env):
         # print(f"Reward: {reward}")
 
         observation, info = self._get_obs()
-
-        if penalty:
-            # input(f"Penalty for selecting node {node.node_id} as CH")
-            reward = -10
-            return observation, reward, True, False, info
-
-        # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
-        # ) if cluster_head.is_cluster_head]
-        # The episode is over when the number of cluster heads is equal to the
-        # number of alive nodes times the percentage of cluster heads
-        if self.network.num_cluster_heads() >= (self.network.alive_nodes() *
-                                                self.config.network.protocol.cluster_head_percentage):
-            done = True
-            # print(f"Episode is over at round {self.round}")
-            reward += 3
-        # input(f"Cluster heads at round {self.round}: {chs}")
 
         return observation, reward, done, False, info
 
