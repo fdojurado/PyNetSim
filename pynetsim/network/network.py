@@ -331,7 +331,7 @@ class Network:
                     if node.node_id != other_node.node_id:
                         if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
                                 self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-RL-LOSS' or
-                                self.config.network.protocol.name == 'LEACH-RL-MULT'):
+                                self.config.network.protocol.name == 'LEACH-RL-MULT' or self.config.network.protocol.name == 'LEACH-K'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:
