@@ -3,6 +3,7 @@ from pynetsim.config import PROTOCOLS
 from pynetsim.node.node import Node
 
 import networkx as nx
+import numpy as np
 import matplotlib.pyplot as plt
 import random
 
@@ -254,6 +255,23 @@ class Network:
                 nodes.append(node)
         return nodes
 
+    def get_clusters_average_energy(self):
+        clusters_average_energy = {}
+        for cluster_id in self.get_cluster_ids():
+            cluster_nodes = self.get_nodes_in_cluster(cluster_id)
+            cluster_energy = 0
+            for node in cluster_nodes:
+                cluster_energy += node.remaining_energy
+            clusters_average_energy[cluster_id] = cluster_energy / \
+                len(cluster_nodes)
+        return clusters_average_energy
+
+    def get_clusters_variance_energy(self):
+        # Calculate the variance of the get_clusters_average_energy values
+        clusters_average_energy = self.get_clusters_average_energy()
+        values = clusters_average_energy.values()
+        return np.var(list(values))
+
     def num_cluster_heads(self):
         num_cluster_heads = 0
         for node in self:
@@ -358,7 +376,7 @@ class Network:
                     if node.node_id != other_node.node_id:
                         if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
                                 self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-RL-LOSS' or
-                                self.config.network.protocol.name == 'LEACH-RL-MULT' or self.config.network.protocol.name == 'LEACH-K'):
+                                self.config.network.protocol.name == 'LEACH-CE' or self.config.network.protocol.name == 'LEACH-K'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:
