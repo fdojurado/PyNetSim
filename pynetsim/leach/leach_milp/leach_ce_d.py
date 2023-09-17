@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyomo.environ as pyo
 import copy
+import pynetsim.leach.leach_milp as leach_milp
 
 from pynetsim import common
 
@@ -13,12 +14,8 @@ class LEACH_CE_D:
         self.net_model = net_model
         self.config = network.config
         self.network = network
-
-    def copy_network(self, network, net_model):
-        network_copy = copy.deepcopy(network)
-        net_model_copy = copy.deepcopy(net_model)
-        net_model_copy.set_network(network_copy)
-        return network_copy, net_model_copy
+        self.alpha = 0.3
+        self.beta = 1-self.alpha
 
     def create_model(self, cluster_heads, alive_nodes):
         model = pyo.ConcreteModel()
@@ -31,8 +28,8 @@ class LEACH_CE_D:
         model.nodes = pyo.Set(initialize=alive_nodes)
 
         # Parameter representing the distance from a node to all other nodes
-        distances = {i: {j: self.dist_between_nodes(
-            i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
+        distances = {i: {j: leach_milp.dist_between_nodes(self.network,
+                                                          i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
 
         model.distances = pyo.Param(
             model.nodes, initialize=lambda model, node: distances[node], mutable=False)
@@ -65,18 +62,10 @@ class LEACH_CE_D:
         return model
 
     def objective_function(self, model):
-        return sum(model.distances[node][other_node] * model.y[node, other_node]
-                   for node in model.nodes for other_node in model.cluster_heads if other_node != node) + \
-            sum(model.distances[node][other_node] * (1-model.x[node])
-                for node in model.cluster_heads for other_node in model.cluster_heads if other_node != node)
-
-    def get_energy(self, node):
-        return node.remaining_energy
-
-    def dist_between_nodes(self, node1, node2):
-        node1 = self.network.get_node(node1)
-        node2 = self.network.get_node(node2)
-        return self.network.distance_between_nodes(node1, node2)
+        return self.alpha * sum(model.distances[node][other_node] * model.y[node, other_node]
+                                for node in model.nodes for other_node in model.cluster_heads if other_node != node) - \
+            self.beta * sum(model.distances[node][other_node] * model.x[node]
+                            for node in model.cluster_heads for other_node in model.cluster_heads if other_node != node and model.x[other_node].value)
 
     def choose_cluster_heads(self, round):
         alive_nodes = [node.node_id for node in self.network if not self.network.should_skip_node(
@@ -93,6 +82,8 @@ class LEACH_CE_D:
         results = solver.solve(model)
 
         chs = []
+        # cluster heads assignment
+        node_cluster_head = {}
         if results.solver.status == pyo.SolverStatus.ok and results.solver.termination_condition == pyo.TerminationCondition.optimal:
             # Access the optimal objective value
             # optimal_objective_value = pyo.value(model.OBJ)
@@ -103,13 +94,19 @@ class LEACH_CE_D:
                 if pyo.value(model.x[node]) == 1:
                     chs.append(node)
                     # print(f"Node {node} is a cluster head.")
+            # print nodes assigned to each cluster head
+            for node in model.nodes:
+                for cluster_head in model.cluster_heads:
+                    if pyo.value(model.y[node, cluster_head]) == 1:
+                        node_cluster_head[node] = cluster_head
+                        pass
 
         # Display the objective function value
         # input(f"Objective Function Value: {model.OBJ()}")
-        return chs
+        return chs, node_cluster_head
 
     def run(self):
-        print("Running LEACH-CE...")
+        print("Running LEACH-CE-D...")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
 
@@ -127,12 +124,6 @@ class LEACH_CE_D:
             self.run_with_plotting(
                 num_rounds)
 
-    def update_cluster_heads(self, chs):
-        for node in self.network:
-            if node.node_id in chs:
-                self.network.mark_as_cluster_head(
-                    node, node.node_id)
-
     def evaluate_round(self, round):
         round += 1
 
@@ -148,10 +139,10 @@ class LEACH_CE_D:
 
         print(f"Max CHs: {self.max_chs}")
 
-        chs = self.choose_cluster_heads(round=round)
+        chs, node_cluster_head = self.choose_cluster_heads(round)
         print(f"Cluster heads at round {round}: {chs}")
-        self.update_cluster_heads(chs)
-        self.network.create_clusters()
+        leach_milp.update_cluster_heads(self.network, chs)
+        leach_milp.update_chs_to_nodes(self.network, node_cluster_head)
         self.net_model.dissipate_energy(round=round)
         # input("Press Enter to continue...")
 
