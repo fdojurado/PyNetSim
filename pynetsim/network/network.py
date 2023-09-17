@@ -287,6 +287,12 @@ class Network:
     def distance_between_nodes(self, node1, node2):
         return ((node1.x - node2.x)**2 + (node1.y - node2.y)**2)**0.5
 
+    def calculate_energy_tx_non_ch(self, distance):
+        return self.model.calculate_energy_tx_non_ch(distance)
+
+    def calculate_energy_tx_ch(self, distance):
+        return self.model.calculate_energy_tx_ch(distance)
+
     # -----------------Network creation-----------------
 
     def is_connected(self):
@@ -379,7 +385,8 @@ class Network:
                     if node.node_id != other_node.node_id:
                         if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
                                 self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-CE-D' or
-                                self.config.network.protocol.name == 'LEACH-CE' or self.config.network.protocol.name == 'LEACH-K'):
+                                self.config.network.protocol.name == 'LEACH-CE' or self.config.network.protocol.name == 'LEACH-K' or
+                                self.config.network.protocol.name == 'LEACH-CE-E'):
                             if node.is_within_range(other_node, self.transmission_range):
                                 node.add_neighbor(other_node)
                         else:

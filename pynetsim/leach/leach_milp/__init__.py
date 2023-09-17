@@ -14,6 +14,19 @@ def dist_between_nodes(network: object, node1: int, node2: int):
     return network.distance_between_nodes(node1, node2)
 
 
+def energy_spent_non_ch(network: object, src: int, dst: int):
+    src = network.get_node(src)
+    dst = network.get_node(dst)
+    return network.calculate_energy_tx_non_ch(
+        dist_between_nodes(network, src.node_id, dst.node_id))
+
+
+def energy_spent_ch(network: object, src: int):
+    src = network.get_node(src)
+    # print(f"CH: {src.node_id}, dst_to_sink: {src.dst_to_sink}")
+    return network.calculate_energy_tx_ch(src.dst_to_sink)
+
+
 def update_cluster_heads(network: object, chs: list):
     for node in network:
         if node.node_id in chs:

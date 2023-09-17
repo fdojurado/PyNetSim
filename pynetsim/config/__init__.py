@@ -8,6 +8,7 @@ from pynetsim.leach.rl.leach_hrl import LEACH_HRL
 from pynetsim.network.simple_model import Simple
 from pynetsim.network.extended_model import Extended
 from pynetsim.leach.leach_milp.leach_ce_d import LEACH_CE_D
+from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.leach.leach_ce import LEACH_CE
 from pynetsim.leach.leach_k import LEACH_K
 from pynetsim.leach.leach_c import LEACH_C
@@ -26,7 +27,8 @@ PROTOCOLS = {
     "LEACH-RL-MULT": LEACH_RL_MULT,
     "LEACH-K": LEACH_K,
     "LEACH-CE": LEACH_CE,
-    "LEACH-CE-D": LEACH_CE_D
+    "LEACH-CE-D": LEACH_CE_D,
+    "LEACH-CE-E": LEACH_CE_E
 }
 
 NETWORK_MODELS = {
