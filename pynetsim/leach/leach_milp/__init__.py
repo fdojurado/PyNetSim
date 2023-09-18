@@ -27,6 +27,14 @@ def energy_spent_ch(network: object, src: int):
     return network.calculate_energy_tx_ch(src.dst_to_sink)
 
 
+def target_load_balancing(network: object, ch: int,
+                          a: float, b: float):
+    ch = network.get_node(ch)
+    ch_energy = ch.remaining_energy
+    num_nodes = network.alive_nodes()
+    return a * ch_energy + b * num_nodes
+
+
 def update_cluster_heads(network: object, chs: list):
     for node in network:
         if node.node_id in chs:

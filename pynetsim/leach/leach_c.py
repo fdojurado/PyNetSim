@@ -73,6 +73,8 @@ class LEACH_C:
             number_of_cluster_heads = 1
         # print(
         #     f"Potential cluster heads: {cluster_heads}, length: {len(cluster_heads)}, number of cluster heads: {number_of_cluster_heads}")
+        if len(cluster_heads) < number_of_cluster_heads:
+            number_of_cluster_heads = len(cluster_heads)
         best = np.random.choice(
             cluster_heads, size=number_of_cluster_heads, replace=False)
 
