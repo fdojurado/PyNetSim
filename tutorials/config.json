@@ -5,7 +5,7 @@
         "transmission_range": 60,
         "model": "extended",
         "protocol": {
-            "name": "LEACH-CE",
+            "name": "LEACH-R",
             "max_steps": 10,
             "init_energy": 0.1,
             "rounds": 8000,

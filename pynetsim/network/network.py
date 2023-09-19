@@ -284,7 +284,7 @@ class Network:
     def distance_to_sink(self, node):
         return ((node.x - self.nodes[1].x)**2 + (node.y - self.nodes[1].y)**2)**0.5
 
-    def distance_between_nodes(self, node1, node2):
+    def distance_between_nodes(self, node1: Node, node2: Node):
         return ((node1.x - node2.x)**2 + (node1.y - node2.y)**2)**0.5
 
     def calculate_energy_tx_non_ch(self, distance):
@@ -384,7 +384,7 @@ class Network:
                 for other_node in self:
                     if node.node_id != other_node.node_id:
                         if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
-                                self.config.network.protocol.name == 'LEACH-RL' or self.config.network.protocol.name == 'LEACH-CE-D' or
+                                self.config.network.protocol.name == 'LEACH-R' or self.config.network.protocol.name == 'LEACH-CE-D' or
                                 self.config.network.protocol.name == 'LEACH-CE' or self.config.network.protocol.name == 'LEACH-K' or
                                 self.config.network.protocol.name == 'LEACH-CE-E'):
                             if node.is_within_range(other_node, self.transmission_range):

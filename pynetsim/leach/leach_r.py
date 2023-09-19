@@ -1,0 +1,182 @@
+import numpy as np
+import pynetsim.common as common
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+from scipy.optimize import minimize
+from rich.progress import Progress
+from decimal import Decimal as D
+
+
+class LEACH_R:
+
+    def __init__(self, network, net_model: object):
+        self.name = "LEACH-R"
+        self.net_model = net_model
+        self.elect = self.net_model.elect
+        self.config = network.config
+        self.network = network
+
+    def calculate_expected_energy_consumption_per_round(self):
+        # Calculate the energy spent by non-cluster heads
+        E_non_ch = 0
+        for node in self.network:
+            if self.network.should_skip_node(node) or node.is_cluster_head:
+                continue
+            # Get the cluster head of the node
+            cluster_head = self.network.get_cluster_head(node)
+            # Calculate the distance between the node and its cluster head
+            distance = self.network.distance_between_nodes(node, cluster_head)
+            # Calculate the energy spent by the node to transmit to its cluster head
+            E_non_ch += self.net_model.calculate_energy_tx_non_ch(distance)
+        # Calculate the energy spent by cluster heads
+        E_ch = 0
+        E_ch_rx = 0
+        for node in self.network:
+            if self.network.should_skip_node(node) or not node.is_cluster_head:
+                continue
+            # Calculate the energy spent by the node to transmit to the sink
+            E_ch += self.net_model.calculate_energy_tx_ch(node.dst_to_sink)
+            # Calculate the energy spent by the node to receive data from non-cluster heads
+            E_ch_rx += self.net_model.calculate_energy_rx()
+        # Calculate the energy spent by control packets
+        E_control = 0
+        # Get the number of cluster heads
+        chs = self.network.num_cluster_heads()
+        pkt_size = (4*chs+15) * 8
+        energy = self.elect * pkt_size
+        for node in self.network:
+            if self.network.should_skip_node(node):
+                continue
+            E_control += energy
+
+        return E_non_ch + E_ch + E_ch_rx + E_control, E_control
+
+    def calculate_expected_energy_consumption(self, num_rounds: int):
+        if num_rounds < 1:
+            raise ValueError("num_rounds must be greater than 0.")
+        E, E_control = self.calculate_expected_energy_consumption_per_round()
+        E_R = num_rounds*E - (num_rounds-1)*E_control
+        return E_R
+
+    def objective_function(self, parameters):
+        num_rounds = parameters[0]
+        print(f"Calculating objective function for {num_rounds} rounds...")
+        # Calculate expected energy consumption over R rounds
+        E_R = self.calculate_expected_energy_consumption(num_rounds=num_rounds)
+        # Calculate the network lifetime
+        NL = self.network.average_remaining_energy() / E_R
+
+        return -NL
+
+    def calculate_r(self, round):
+        print(f"Calculating R for round {round}...")
+        initial_guess = 1  # Initial guess for R
+        bounds = [(0, None)]  # R should be non-negative
+
+        def energy_constraint(R):
+            E_R = self.calculate_expected_energy_consumption(num_rounds=R)
+            return self.network.remaining_energy() - E_R
+
+        # Define constraints (energy constraint)
+        constraints = [{'type': 'ineq', 'fun': energy_constraint},
+                       {'type': 'int', 'fun': lambda R: R - 1}]
+
+        # Perform the optimization
+        result = minimize(self.objective_function, initial_guess,
+                          bounds=bounds, constraints=constraints)
+
+        optimal_R = result.x[0]
+        max_network_lifetime = -result.fun
+
+        print(f"Optimal R: {optimal_R}")
+
+    def run(self):
+        print(f"Running {self.name} protocol...")
+        num_rounds = self.config.network.protocol.rounds
+        plot_clusters_flag = False
+
+        for node in self.network:
+            node.is_cluster_head = False
+
+        # Set all dst_to_sink for all nodes
+        for node in self.network:
+            node.dst_to_sink = self.network.distance_to_sink(node)
+
+        if not plot_clusters_flag:
+            self.run_without_plotting(
+                num_rounds)
+        else:
+            self.run_with_plotting(
+                num_rounds)
+
+    def evaluate_round(self, round):
+        round += 1
+
+        for node in self.network:
+            self.network.mark_as_non_cluster_head(node)
+
+        self.threshold_energy = D(f"{self.network.average_remaining_energy()}")
+
+        print(f"Threshold energy: {self.threshold_energy}")
+
+        self.max_chs = np.ceil(
+            self.network.alive_nodes() * self.config.network.protocol.cluster_head_percentage)
+
+        print(f"Max CHs: {self.max_chs}")
+
+        # Select self.max_chs cluster heads from the network
+        self.select_cluster_heads()
+
+        chs, node_cluster_head = self.calculate_r(round)
+        print(f"Cluster heads at round {round}: {chs}")
+        # leach_milp.update_cluster_heads(self.network, chs)
+        # leach_milp.update_chs_to_nodes(self.network, node_cluster_head)
+        # self.net_model.dissipate_energy(round=round)
+
+        return round
+
+    def select_cluster_heads(self):
+        nodes = [node.node_id for node in self.network]
+        # Select self.max_chs cluster heads from the network
+        chs = np.random.choice(
+            nodes, size=int(self.max_chs), replace=False)
+        print(f"Cluster heads: {chs}")
+        # Set them as cluster heads
+        for node_id in chs:
+            self.network.mark_as_cluster_head(
+                self.network.get_node(node_id), node_id)
+        # Create clusters
+        self.network.create_clusters()
+
+    def run_without_plotting(self, num_rounds):
+        round = 0
+        with Progress() as progress:
+            task = progress.add_task(
+                f"[red]Running {self.name}...", total=num_rounds)
+            while self.network.alive_nodes() > 0 and round < num_rounds:
+                round = self.evaluate_round(round)
+                progress.update(task, completed=round)
+            progress.update(task, completed=num_rounds)
+
+    def run_with_plotting(self, num_rounds):
+        fig, ax = plt.subplots()
+        common.plot_clusters(network=self.network, round=0, ax=ax)
+
+        def animate(round):
+            round = self.evaluate_round(round)
+
+            if round >= num_rounds or self.network.alive_nodes() <= 0:
+                print("Done!")
+                ani.event_source.stop()
+
+            ax.clear()
+            common.plot_clusters(network=self.network, round=round, ax=ax)
+
+            plt.pause(0.1)
+
+        ani = animation.FuncAnimation(
+            fig, animate, frames=range(1, num_rounds + 1), repeat=False)
+
+        plt.show()
