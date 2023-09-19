@@ -15,8 +15,8 @@ class LEACH_CE_E:
         self.net_model = net_model
         self.config = network.config
         self.network = network
-        self.alpha = 2.5
-        self.beta = 0.5
+        self.alpha = 2
+        self.beta = 0.7
         self.gamma = 2
         self.a = 4
         self.b = 0.5
@@ -39,34 +39,37 @@ class LEACH_CE_E:
             model.nodes, initialize=lambda model, node: energy_spent_non_ch[node], mutable=False)
 
         # Parameter representing the energy spent by a cluster head node to transmit to the sink
-        energy_spent_ch = {i: leach_milp.energy_spent_ch(
-            self.network, i) for i in model.cluster_heads}
-
         model.energy_spent_ch = pyo.Param(
-            model.cluster_heads, initialize=lambda model, node: energy_spent_ch[node], mutable=False)
+            model.cluster_heads,
+            initialize=lambda model, node: leach_milp.energy_spent_ch(
+                self.network, node),
+            mutable=False)
 
         # Parameter representing the current remaining energy of each node
-        remaining_energy = {i: leach_milp.get_energy(
-            self.network.get_node(i)) for i in model.nodes}
-
         model.remaining_energy = pyo.Param(
-            model.nodes, initialize=lambda model, node: remaining_energy[node], mutable=False)
+            model.nodes,
+            initialize=lambda model, node: leach_milp.get_energy(
+                self.network.get_node(node)),
+            mutable=False)
+
+        remaining_energy = {}
+        for node in model.remaining_energy:
+            if node in model.cluster_heads:
+                remaining_energy[node] = model.remaining_energy[node]
+
+        # sort and print
+        remaining_energy = {k: v for k, v in sorted(
+            remaining_energy.items(), key=lambda item: item[1], reverse=True)}
+        print(f"Remaining energy: {remaining_energy}")
 
         # Parameter representing the target load balancing for each cluster head
-        target_load_balancing = {i: leach_milp.target_load_balancing(
-            self.network, i, self.a, self.b) for i in model.cluster_heads}
-
         model.target_load_balancing = pyo.Param(
-            model.cluster_heads, initialize=lambda model, node: target_load_balancing[node], mutable=False)
+            model.cluster_heads,
+            initialize=lambda model, node: leach_milp.target_load_balancing(
+                self.network, node, self.a, self.b),
+            mutable=False)
 
         model.abs_load_balancing = pyo.Var()
-
-        # Parameter representing the distance from a node to all other nodes
-        distances = {i: {j: leach_milp.dist_between_nodes(self.network,
-                                                          i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
-
-        model.distances = pyo.Param(
-            model.nodes, initialize=lambda model, node: distances[node], mutable=False)
 
         # print model.y
         # for y in model.y:
@@ -129,6 +132,13 @@ class LEACH_CE_E:
         model.consistency_constraint = pyo.Constraint(
             model.nodes, model.cluster_heads, rule=consistency_rule)
 
+        # Constraint to limit the number of non-cluster head nodes per cluster
+        def non_cluster_head_limit_rule(model, j):
+            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.3*(len(alive_nodes) / self.max_chs))
+
+        model.non_cluster_head_limit = pyo.Constraint(
+            model.cluster_heads, rule=non_cluster_head_limit_rule)
+
         return model
 
     def objective_function(self, model):
@@ -168,7 +178,7 @@ class LEACH_CE_E:
 
         print(f"Potential cluster heads: {cluster_heads}")
 
-        print("Alive nodes: ", end="")
+        print("Alive nodes IDs: ", end="")
         for node in alive_nodes:
             print(node, end=" ")
         print()
@@ -199,12 +209,53 @@ class LEACH_CE_E:
                     if pyo.value(model.y[node, cluster_head]) == 1:
                         node_cluster_head[node] = cluster_head
                         pass
+            # self.print_model(model)
         else:
             print("No solution found.")
+            # raise Exception("No solution found.")
+            raise Exception("No solution found.")
 
         # Display the objective function value
         # input(f"Objective Function Value: {model.OBJ()}")
         return chs, node_cluster_head
+
+    def print_model(self, model):
+        chs = []
+        # print the optimal solution
+        for node in model.cluster_heads:
+            if pyo.value(model.x[node]) == 1:
+                chs.append(node)
+
+        print(f"Cluster heads: {chs}")
+
+        # dict that holds the current energy level of the cluster heads
+        chs_energy = {}
+        for node in chs:
+            chs_energy[node] = leach_milp.get_energy(
+                self.network.get_node(node))
+
+        # Sort the cluster heads by their energy level in descending order
+        chs_energy = {k: v for k, v in sorted(
+            chs_energy.items(), key=lambda item: item[1], reverse=True)}
+
+        print(f"Cluster heads sorted by energy: {chs_energy}")
+
+        # print nodes assigned to each cluster head, key is the cluster head, value is the list of nodes assigned to it
+        clusters_assignment = {}
+        for node in model.nodes:
+            for cluster_head in model.cluster_heads:
+                if pyo.value(model.y[node, cluster_head]) == 1:
+                    if cluster_head not in clusters_assignment:
+                        clusters_assignment[cluster_head] = []
+                    clusters_assignment[cluster_head].append(node)
+
+        print(f"Clusters assignment: {clusters_assignment}")
+
+        # How many nodes are assigned to each cluster head
+        for cluster_head in clusters_assignment:
+            print(
+                f"Cluster head {cluster_head} has {len(clusters_assignment[cluster_head])} nodes assigned to it.")
+        input("Press Enter to continue...")
 
     def run(self):
         print(f"Running {self.name}...")
