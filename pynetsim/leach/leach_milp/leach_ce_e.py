@@ -4,6 +4,7 @@ import numpy as np
 import pyomo.environ as pyo
 import copy
 import pynetsim.leach.leach_milp as leach_milp
+import matplotlib.animation as animation
 
 from pynetsim import common
 from decimal import Decimal as D
@@ -297,7 +298,8 @@ class LEACH_CE_E:
 
         print(f"Max CHs: {self.max_chs}")
 
-        chs, node_cluster_head = self.choose_cluster_heads(round)
+        chs, node_cluster_head = LEACH_CE_E.choose_cluster_heads(
+            network=self.network, threshold_energy=self.threshold_energy, max_chs=self.max_chs, a=self.a, b=self.b, alpha=self.alpha, beta=self.beta, gamma=self.gamma)
         print(f"Cluster heads at round {round}: {chs}")
         leach_milp.update_cluster_heads(self.network, chs)
         leach_milp.update_chs_to_nodes(self.network, node_cluster_head)

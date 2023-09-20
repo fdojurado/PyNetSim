@@ -81,7 +81,7 @@ class LEACH_R:
         model.obj = pyo.Objective(
             sense=pyo.minimize, rule=self.objective_function)
         # print objective expression
-        print(f"Objective function: {model.obj.expr}")
+        # print(f"Objective function: {model.obj.expr}")
 
         # Constraints
 
