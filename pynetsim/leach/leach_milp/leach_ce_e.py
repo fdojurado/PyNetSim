@@ -21,7 +21,9 @@ class LEACH_CE_E:
         self.a = 4
         self.b = 0.5
 
-    def create_model(self, cluster_heads, alive_nodes):
+    @staticmethod
+    def create_model(network: object, cluster_heads: list, alive_nodes: list, a: int, b: int,
+                     alpha: float, beta: float, gamma: float, max_chs: int):
         model = pyo.ConcreteModel()
 
         # Decision variables
@@ -33,7 +35,7 @@ class LEACH_CE_E:
 
         # Parameter representing the energy spent by a non-cluster head node to transmit to a cluster head
         energy_spent_non_ch = {i: {j: leach_milp.energy_spent_non_ch(
-            self.network, i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
+            network, i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
 
         model.energy_spent_non_ch = pyo.Param(
             model.nodes, initialize=lambda model, node: energy_spent_non_ch[node], mutable=False)
@@ -42,14 +44,14 @@ class LEACH_CE_E:
         model.energy_spent_ch = pyo.Param(
             model.cluster_heads,
             initialize=lambda model, node: leach_milp.energy_spent_ch(
-                self.network, node),
+                network, node),
             mutable=False)
 
         # Parameter representing the current remaining energy of each node
         model.remaining_energy = pyo.Param(
             model.nodes,
             initialize=lambda model, node: leach_milp.get_energy(
-                self.network.get_node(node)),
+                network.get_node(node)),
             mutable=False)
 
         remaining_energy = {}
@@ -66,7 +68,7 @@ class LEACH_CE_E:
         model.target_load_balancing = pyo.Param(
             model.cluster_heads,
             initialize=lambda model, node: leach_milp.target_load_balancing(
-                self.network, node, self.a, self.b),
+                network, node, a, b),
             mutable=False)
 
         model.abs_load_balancing = pyo.Var()
@@ -81,11 +83,11 @@ class LEACH_CE_E:
 
         load_balancing = 0
         for cluster_head in model.cluster_heads:
-            load_balancing += self.a * \
+            load_balancing += a * \
                 model.remaining_energy[cluster_head] * model.x[cluster_head]
             num_nodes = sum(model.y[node, cluster_head]
                             for node in model.nodes)
-            load_balancing += self.b * num_nodes
+            load_balancing += b * num_nodes
             load_balancing -= model.target_load_balancing[cluster_head] * \
                 model.x[cluster_head]
 
@@ -106,7 +108,7 @@ class LEACH_CE_E:
         )
         # # Objective function
         model.OBJ = pyo.Objective(
-            sense=pyo.minimize, rule=self.objective_function)
+            sense=pyo.minimize, rule=lambda model: LEACH_CE_E.objective_function(model, alpha, beta, gamma))
 
         # print objective expression
         # input(f"Objective expression: {model.OBJ.expr}")
@@ -119,7 +121,7 @@ class LEACH_CE_E:
             model.nodes, rule=assignment_rule)
 
         def cluster_heads_limit_rule(model):
-            return sum(model.x[j] for j in model.cluster_heads) == self.max_chs
+            return sum(model.x[j] for j in model.cluster_heads) == max_chs
 
         # Ensure that the number of selected cluster heads does not exceed a predefined limit
         model.cluster_heads_limit = pyo.Constraint(
@@ -134,14 +136,15 @@ class LEACH_CE_E:
 
         # Constraint to limit the number of non-cluster head nodes per cluster
         def non_cluster_head_limit_rule(model, j):
-            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.3*(len(alive_nodes) / self.max_chs))
+            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.3*(len(alive_nodes) / max_chs))
 
         model.non_cluster_head_limit = pyo.Constraint(
             model.cluster_heads, rule=non_cluster_head_limit_rule)
 
         return model
 
-    def objective_function(self, model):
+    @staticmethod
+    def objective_function(model: object, alpha: float, beta: float, gamma: float):
         # Sum the distances from each node to its cluster head
         # expr = self.alpha * sum(model.distances[node][cluster_head] * model.y[node, cluster_head]
         #                         for node in model.nodes for cluster_head in model.cluster_heads if cluster_head != node)
@@ -152,29 +155,31 @@ class LEACH_CE_E:
         # expr += self.gamma * model.abs_load_balancing
         # return expr
         # Sum the energy spent from from each node to its cluster head
-        expr = self.alpha * sum(model.energy_spent_non_ch[node][cluster_head] * model.y[node, cluster_head]
-                                for node in model.nodes for cluster_head in model.cluster_heads if cluster_head != node)
+        expr = alpha * sum(model.energy_spent_non_ch[node][cluster_head] * model.y[node, cluster_head]
+                           for node in model.nodes for cluster_head in model.cluster_heads if cluster_head != node)
         #  Now, subtract the energy spent from each potential cluster head that is selected to be a cluster head to all other cluster heads
         # expr += self.alpha * sum(-1*model.energy_spent_non_ch[node][cluster_head] * model.x[node]
         #                          for node in model.cluster_heads for cluster_head in model.cluster_heads if cluster_head != node)
         # Now, add the energy spent from each cluster head to the sink
-        expr += self.beta * sum(model.energy_spent_ch[node] * model.x[node]
-                                for node in model.cluster_heads)
+        expr += beta * sum(model.energy_spent_ch[node] * model.x[node]
+                           for node in model.cluster_heads)
         # Now, add the load balancing term
-        expr += self.gamma * model.abs_load_balancing
+        expr += gamma * model.abs_load_balancing
         return expr
         # return self.alpha * sum(model.energy_spent_non_ch[node][other_node] * model.y[node, other_node]
         #                         for node in model.nodes for other_node in model.cluster_heads if other_node != node) + \
         #     self.beta*sum(model.energy_spent_ch[node] * model.x[node]
         #                   for node in model.cluster_heads) + self.gamma * model.abs_load_balancing
 
-    def choose_cluster_heads(self, round):
-        alive_nodes = [node.node_id for node in self.network if not self.network.should_skip_node(
-            node) and self.network.alive(node)]
+    @staticmethod
+    def choose_cluster_heads(network: object, threshold_energy: float,
+                             alpha: float = 2, beta: float = 0.7, gamma: float = 2, a: int = 4, b: int = 0.5, max_chs: int = 2):
+        alive_nodes = [node.node_id for node in network if not network.should_skip_node(
+            node) and network.alive(node)]
 
         # Potential cluster heads
-        cluster_heads = [node for node in alive_nodes if self.network.get_node(
-            node).remaining_energy >= self.threshold_energy]
+        cluster_heads = [node for node in alive_nodes if network.get_node(
+            node).remaining_energy >= threshold_energy]
 
         print(f"Potential cluster heads: {cluster_heads}")
 
@@ -183,7 +188,8 @@ class LEACH_CE_E:
             print(node, end=" ")
         print()
 
-        model = self.create_model(cluster_heads, alive_nodes)
+        model = LEACH_CE_E.create_model(
+            network=network, cluster_heads=cluster_heads, alive_nodes=alive_nodes, a=a, b=b, alpha=alpha, beta=beta, gamma=gamma, max_chs=max_chs)
 
         # Solve the problem
         solver = pyo.SolverFactory('glpk', tee=True)

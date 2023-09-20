@@ -40,6 +40,8 @@ def update_cluster_heads(network: object, chs: list):
         if node.node_id in chs:
             network.mark_as_cluster_head(
                 node, node.node_id)
+        else:
+            network.mark_as_non_cluster_head(node)
 
 
 def update_chs_to_nodes(network: object, assignments: dict):
