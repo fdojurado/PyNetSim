@@ -50,12 +50,12 @@ class Extended(NetworkModel):
         for node in self.network:
             if self.network.should_skip_node(node):
                 continue
-            # self.energy_dissipated(node=node, energy=energy)
+            self.energy_dissipated(node=node, energy=energy, round=round)
             # node.energy_control_packets(energy=energy)
             node.energy_dissipation_control_packets(
                 energy=energy, bits=pkt_size)
-            # if not self.network.alive(node):
-            #     self.network.mark_node_as_dead(node, round)
+            if not self.network.alive(node):
+                self.network.mark_node_as_dead(node, round)
             #     self.network.remove_node_from_cluster(node)
 
     def calculate_energy_rx(self):

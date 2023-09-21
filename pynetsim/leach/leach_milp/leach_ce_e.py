@@ -137,7 +137,7 @@ class LEACH_CE_E:
 
         # Constraint to limit the number of non-cluster head nodes per cluster
         def non_cluster_head_limit_rule(model, j):
-            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.3*(len(alive_nodes) / max_chs))
+            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.5*(len(alive_nodes) / max_chs))
 
         model.non_cluster_head_limit = pyo.Constraint(
             model.cluster_heads, rule=non_cluster_head_limit_rule)
@@ -188,6 +188,9 @@ class LEACH_CE_E:
         for node in alive_nodes:
             print(node, end=" ")
         print()
+
+        if len(cluster_heads) == 0 and len(alive_nodes) == 1:
+            cluster_heads = alive_nodes
 
         model = LEACH_CE_E.create_model(
             network=network, cluster_heads=cluster_heads, alive_nodes=alive_nodes, a=a, b=b, alpha=alpha, beta=beta, gamma=gamma, max_chs=max_chs)

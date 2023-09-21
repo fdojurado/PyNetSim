@@ -5,6 +5,11 @@ def copy_network(network: object, net_model: object):
     network_copy = copy.deepcopy(network)
     net_model_copy = copy.deepcopy(net_model)
     net_model_copy.set_network(network_copy)
+    # Register callback to the network model
+    # self.model.register_round_complete_callback(self.round_callback)
+    # Register the callback to the network
+    net_model_copy.register_round_complete_callback(
+        network_copy.round_callback)
     return network_copy, net_model_copy
 
 

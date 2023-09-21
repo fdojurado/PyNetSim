@@ -112,7 +112,7 @@ class LEACH_R:
         results = solver.solve(model)
 
         if results.solver.status == pyo.SolverStatus.ok and results.solver.termination_condition == pyo.TerminationCondition.optimal:
-            print("Model solved to optimality.")
+            print(f"Model solved to optimality: {model.R.value}")
             return pyo.value(model.R)
         else:
             print("Model was not solved to optimality.")
