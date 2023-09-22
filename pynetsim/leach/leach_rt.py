@@ -60,6 +60,7 @@ class LEACH_RT:
     def solve_milp(self):
         # We first solve the MILP until the first node dies
         node_dead = False
+        alive_nodes = self.network.alive_nodes()
         round = 0
         data = {}
         # Copy the network and network model
@@ -89,8 +90,12 @@ class LEACH_RT:
                 "ctrl_energy_per_round": ctrl_energy_per_round
             }
 
-            if network_copy.alive_nodes() <= 0:
+            # Lets stop if there is one node dead
+            if alive_nodes != network_copy.alive_nodes():
                 node_dead = True
+
+            # if network_copy.alive_nodes() <= 0:
+            #     node_dead = True
             round += 1
 
         print(f"Data: {data}")

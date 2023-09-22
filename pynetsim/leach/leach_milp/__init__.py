@@ -51,7 +51,7 @@ def update_cluster_heads(network: object, chs: list):
 
 def update_chs_to_nodes(network: object, assignments: dict):
     for node in assignments:
-        src = network.get_node(node)
+        src = network.get_node(int(node))
         ch = network.get_node(assignments[node])
         src.dst_to_cluster_head = dist_between_nodes(
             network, src.node_id, ch.node_id)

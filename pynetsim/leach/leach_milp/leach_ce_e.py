@@ -63,7 +63,7 @@ class LEACH_CE_E:
         # sort and print
         remaining_energy = {k: v for k, v in sorted(
             remaining_energy.items(), key=lambda item: item[1], reverse=True)}
-        print(f"Remaining energy: {remaining_energy}")
+        # print(f"Remaining energy: {remaining_energy}")
 
         # Parameter representing the target load balancing for each cluster head
         model.target_load_balancing = pyo.Param(
@@ -182,12 +182,12 @@ class LEACH_CE_E:
         cluster_heads = [node for node in alive_nodes if network.get_node(
             node).remaining_energy >= threshold_energy]
 
-        print(f"Potential cluster heads: {cluster_heads}")
+        # print(f"Potential cluster heads: {cluster_heads}")
 
-        print("Alive nodes IDs: ", end="")
-        for node in alive_nodes:
-            print(node, end=" ")
-        print()
+        # print("Alive nodes IDs: ", end="")
+        # for node in alive_nodes:
+        #     print(node, end=" ")
+        # print()
 
         if len(cluster_heads) == 0 and len(alive_nodes) == 1:
             cluster_heads = alive_nodes

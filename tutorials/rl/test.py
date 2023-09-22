@@ -50,10 +50,15 @@ def run_without_plotting(config, network, model, network_model, rounds):
     with Progress() as progress:
         task = progress.add_task("[cyan]Simulation Progress", total=rounds)
 
+        env = create_env(config, network, network_model)
+        obs, _ = env.reset(options={"round": round})
+
         while network.alive_nodes() > 0 and round < rounds:
+            print(f"Round: {round}")
             # Start the progress bar
-            round = evaluate_round(
-                round, config, network, model, network_model, rounds)
+            round, obs = evaluate_round(
+                round, config, network, model, network_model, round, env, obs)
+            print(f"Alive nodes: {network.alive_nodes()}")
             # Update the progress bar
             progress.update(task, completed=round)
         progress.update(task, completed=rounds)
@@ -88,50 +93,15 @@ def update_cluster_heads(network, network_copy):
     print(f"Cluster heads at high level: {chs}")
 
 
-def evaluate_round(round, config, network, model, network_model, rounds):
-    round += 1
-    # print(f"Round: {round}")
-    done = False
-    network_copy = copy.deepcopy(network)
-    network_model_copy = copy.deepcopy(network_model)
-    env = create_env(config, network_copy, network_model_copy)
-    # Network average remaining energy
-    network_avg_energy = network.average_remaining_energy()
-    print(
-        f"Network average remaining energy: {network_avg_energy} at round {round}")
-    # chs = [
-    #     cluster_head.node_id for cluster_head in network if cluster_head.is_cluster_head]
-    # print(f"Cluster heads: {chs}")
-    # print sensor nodes' remaining energy
-    print(f"Potential cluster heads at round {round}:", end=" ")
-    for node in network:
-        if node.node_id == 1:
-            continue
-        if node.remaining_energy >= network_avg_energy:
-            print(f"{node.node_id} ", end=" ")
-    obs, _ = env.reset(options={"round": round})
-    while not done:
-        action, _ = model.predict(obs)
-        obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        if reward <= 0:
-            # print(f"Reward is negative: {reward}")
-            network_copy = copy.deepcopy(network)
-            network_model_copy = copy.deepcopy(network_model)
-            env = create_env(config, network_copy, network_model_copy)
-            obs, _ = env.reset(options={"round": round})
-            done = False
-        if done:
-            break
+def evaluate_round(round, config, network, model, network_model, rounds, env, obs):
+    rounds += 1
+    action, _ = model.predict(obs)
+    print(f"Action taken: {action}")
+    obs, reward, terminated, truncated, info = env.step(action)
+    done = terminated or truncated
+    print(f"Reward: {reward}, done: {done}")
 
-    # print_energy_consumption_difference(network, network_copy)
-    update_cluster_heads(network, network_copy)
-    input(f"Round: {round}, Reward: {reward}")
-
-    network.create_clusters()
-    network_model.dissipate_energy(round=round)
-
-    return round
+    return rounds, obs
 
 
 def evaluate(config, network, model, network_model, rounds, plot):
