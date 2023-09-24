@@ -5,7 +5,7 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
-from pynetsim.config import PyNetSimConfig, NETWORK_MODELS
+from pynetsim.config import load_config, NETWORK_MODELS
 from stable_baselines3 import DQN, PPO
 from pynetsim.config import PROTOCOLS
 import gymnasium as gym
@@ -16,7 +16,7 @@ import sys
 import os
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
+CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -74,7 +74,7 @@ def main(args):
     if not os.path.exists(args.logdir):
         os.makedirs(args.logdir)
     # Load config
-    config = PyNetSimConfig.from_json(CONFIG_FILE)
+    config = load_config(CONFIG_FILE)
     print(f"config: {config}")
 
     network = Network(config=config)
@@ -97,15 +97,15 @@ def main(args):
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=1e-4,
+        learning_rate=3e-4,
         # buffer_size=50000,
-        learning_starts=5e3,
+        learning_starts=1024,
         batch_size=512,
         # tau=1.0,
-        gamma=0.8,
+        gamma=0.98,
         # train_freq=4,
         target_update_interval=100,
-        exploration_fraction=0.8,
+        exploration_fraction=0.6,
         exploration_initial_eps=1.0,
         exploration_final_eps=0.05,
         tensorboard_log=tensorboard_log
@@ -131,7 +131,7 @@ def main(args):
     #     # exploration_final_eps=0.05,
     #     tensorboard_log=tensorboard_log
     # )
-    model.learn(total_timesteps=500e3, log_interval=4, callback=best_model)
+    model.learn(total_timesteps=200e3, log_interval=4, callback=best_model)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-import json
+import yaml
 import os
-from pynetsim.config.network import NetworkConfig
+
 from pynetsim.leach.rl.leach_rl import LEACH_RL
 from pynetsim.leach.rl.leach_rl_mult import LEACH_RL_MULT
 from pynetsim.leach.rl.leach_rl_loss import LEACH_RL_LOSS
@@ -41,25 +41,85 @@ NETWORK_MODELS = {
 }
 
 
-class PyNetSimConfig:
+DEFAULT_NUM_SENSOR = 100
+DEFAULT_TRANSMISSION_RANGE = 80
+DEFAULT_WIDTH = 200
+DEFAULT_HEIGHT = 200
+DEFAULT_NUM_SINK = 1
+DEFAULT_DEFAULT_MODEL = "simple"
+# Protocol defaults
+DEFAULT_PROTOCOL_NAME = "LEACH"
+# RL max steps
+DEFAULT_MAX_STEPS = 2000
+DEFAULT_INIT_ENERGY = 0.5
+DEFAULT_ROUNDS = 8000
+DEFAULT_CLUSTER_HEAD_PERCENTAGE = 0.05
+DEFAULT_EELECT = 50 * 10**(-9)
+DEFAULT_EAMP = 0.0013 * 10**(-12)
+DEFAULT_EFS = 10 * 10**(-12)
+DEFAULT_EDA = 5 * 10**(-9)
+DEFAULT_PACKET_SIZE = 4000
+# Node defaults
+DEFAULT_TYPE_NODE = "Sensor"
+DEFAULT_NODE_ENERGY = 0.5
 
-    def __init__(self, name="default", network=None):
-        self.name = name
-        self.network = network
 
-    @classmethod
-    def from_json(cls, filename=None):
+class ProtocolConfiguration:
+    def __init__(self, protocol_dict):
+        self.name = protocol_dict.get('name', DEFAULT_PROTOCOL_NAME)
+        self.max_steps = protocol_dict.get('max_steps', DEFAULT_MAX_STEPS)
+        self.init_energy = protocol_dict.get(
+            'init_energy', DEFAULT_INIT_ENERGY)
+        self.rounds = protocol_dict.get('rounds', DEFAULT_ROUNDS)
+        self.cluster_head_percentage = protocol_dict.get(
+            'cluster_head_percentage', DEFAULT_CLUSTER_HEAD_PERCENTAGE)
+        self.eelect = protocol_dict.get('eelect', DEFAULT_EELECT)
+        self.eamp = protocol_dict.get('eamp', DEFAULT_EAMP)
+        self.efs = protocol_dict.get('efs', DEFAULT_EFS)
+        self.eda = protocol_dict.get('eda', DEFAULT_EDA)
+        self.packet_size = protocol_dict.get(
+            'packet_size', DEFAULT_PACKET_SIZE)
 
-        # If there is not filename, we load the default config
-        if filename is None:
-            filename = DEFAULT_CONFIG
 
-        try:
-            with open(filename, "r") as f:
-                config = json.load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Config file {filename} not found.")
+class NodeConfiguration:
+    def __init__(self, node_dict):
+        self.node_id = node_dict.get('node_id')
+        self.x = node_dict.get('x')
+        self.y = node_dict.get('y')
+        self.type_node = node_dict.get('type_node', DEFAULT_TYPE_NODE)
+        self.energy = node_dict.get('energy', DEFAULT_NODE_ENERGY)
 
-        return cls(name=config.get("name", "default"),
-                   network=NetworkConfig.from_json(
-                       config.get("network")))
+
+class NetworkConfiguration:
+    def __init__(self, network_dict):
+        self.num_sensor = network_dict.get('num_sensor', DEFAULT_NUM_SENSOR)
+        self.transmission_range = network_dict.get(
+            'transmission_range', DEFAULT_TRANSMISSION_RANGE)
+        self.model = network_dict.get('model', DEFAULT_DEFAULT_MODEL)
+        self.protocol = ProtocolConfiguration(
+            network_dict.get('protocol', {}))
+        self.width = network_dict.get('width', DEFAULT_WIDTH)
+        self.height = network_dict.get('height', DEFAULT_HEIGHT)
+        self.num_sink = network_dict.get('num_sink', DEFAULT_NUM_SINK)
+        self.nodes = [NodeConfiguration(node)
+                      for node in network_dict.get('nodes', [])]
+
+
+class Configuration:
+    def __init__(self, config_dict):
+        self.name = config_dict.get('name')
+        self.network = NetworkConfiguration(config_dict.get('network', {}))
+
+
+def load_config(file_path):
+    try:
+        with open(file_path, 'r') as config_file:
+            config_data = yaml.safe_load(config_file)
+            if config_data:
+                return Configuration(config_data)
+            else:
+                raise ValueError("Empty configuration file")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Config file not found at {file_path}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Error parsing YAML file: {e}")

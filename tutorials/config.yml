@@ -1,0 +1,414 @@
+name: example network
+network:
+  num_sensor: 100
+  transmission_range: 60
+  model: extended
+  protocol:
+    name: LEACH
+    init_energy: 0.1
+    rounds: 8000
+  width: 100
+  height: 100
+  num_sink: 1
+  nodes:
+    - node_id: 1
+      x: 50
+      y: 175
+      type_node: Sink
+      energy: 0.1
+    - node_id: 2
+      x: 56
+      y: 91
+      energy: 0.1
+    - node_id: 3
+      x: 21
+      y: 32
+      energy: 0.1
+    - node_id: 4
+      x: 99
+      y: 76
+      energy: 0.1
+    - node_id: 5
+      x: 43
+      y: 27
+      energy: 0.1
+    - node_id: 6
+      x: 54
+      y: 90
+      energy: 0.1
+    - node_id: 7
+      x: 70
+      y: 39
+      energy: 0.1
+    - node_id: 8
+      x: 2
+      y: 71
+      energy: 0.1
+    - node_id: 9
+      x: 46
+      y: 46
+      energy: 0.1
+    - node_id: 10
+      x: 92
+      y: 64
+      energy: 0.1
+    - node_id: 11
+      x: 94
+      y: 34
+      energy: 0.1
+    - node_id: 12
+      x: 92
+      y: 90
+      energy: 0.1
+    - node_id: 13
+      x: 81
+      y: 12
+      energy: 0.1
+    - node_id: 14
+      x: 24
+      y: 58
+      energy: 0.1
+    - node_id: 15
+      x: 51
+      y: 77
+      energy: 0.1
+    - node_id: 16
+      x: 14
+      y: 41
+      energy: 0.1
+    - node_id: 17
+      x: 1
+      y: 57
+      energy: 0.1
+    - node_id: 18
+      x: 15
+      y: 18
+      energy: 0.1
+    - node_id: 19
+      x: 64
+      y: 38
+      energy: 0.1
+    - node_id: 20
+      x: 52
+      y: 0
+      energy: 0.1
+    - node_id: 21
+      x: 69
+      y: 31
+      energy: 0.1
+    - node_id: 22
+      x: 62
+      y: 97
+      energy: 0.1
+    - node_id: 23
+      x: 10
+      y: 93
+      energy: 0.1
+    - node_id: 24
+      x: 60
+      y: 92
+      energy: 0.1
+    - node_id: 25
+      x: 49
+      y: 95
+      energy: 0.1
+    - node_id: 26
+      x: 60
+      y: 34
+      energy: 0.1
+    - node_id: 27
+      x: 61
+      y: 4
+      energy: 0.1
+    - node_id: 28
+      x: 22
+      y: 86
+      energy: 0.1
+    - node_id: 29
+      x: 61
+      y: 79
+      energy: 0.1
+    - node_id: 30
+      x: 37
+      y: 75
+      energy: 0.1
+    - node_id: 31
+      x: 42
+      y: 51
+      energy: 0.1
+    - node_id: 32
+      x: 48
+      y: 28
+      energy: 0.1
+    - node_id: 33
+      x: 8
+      y: 52
+      energy: 0.1
+    - node_id: 34
+      x: 58
+      y: 28
+      energy: 0.1
+    - node_id: 35
+      x: 3
+      y: 22
+      energy: 0.1
+    - node_id: 36
+      x: 84
+      y: 67
+      energy: 0.1
+    - node_id: 37
+      x: 41
+      y: 59
+      energy: 0.1
+    - node_id: 38
+      x: 91
+      y: 19
+      energy: 0.1
+    - node_id: 39
+      x: 25
+      y: 39
+      energy: 0.1
+    - node_id: 40
+      x: 71
+      y: 87
+      energy: 0.1
+    - node_id: 41
+      x: 19
+      y: 99
+      energy: 0.1
+    - node_id: 42
+      x: 46
+      y: 62
+      energy: 0.1
+    - node_id: 43
+      x: 9
+      y: 77
+      energy: 0.1
+    - node_id: 44
+      x: 21
+      y: 60
+      energy: 0.1
+    - node_id: 45
+      x: 35
+      y: 59
+      energy: 0.1
+    - node_id: 46
+      x: 59
+      y: 47
+      energy: 0.1
+    - node_id: 47
+      x: 66
+      y: 19
+      energy: 0.1
+    - node_id: 48
+      x: 12
+      y: 18
+      energy: 0.1
+    - node_id: 49
+      x: 83
+      y: 30
+      energy: 0.1
+    - node_id: 50
+      x: 26
+      y: 94
+      energy: 0.1
+    - node_id: 51
+      x: 89
+      y: 52
+      energy: 0.1
+    - node_id: 52
+      x: 84
+      y: 67
+      energy: 0.1
+    - node_id: 53
+      x: 60
+      y: 85
+      energy: 0.1
+    - node_id: 54
+      x: 20
+      y: 58
+      energy: 0.1
+    - node_id: 55
+      x: 77
+      y: 14
+      energy: 0.1
+    - node_id: 56
+      x: 28
+      y: 83
+      energy: 0.1
+    - node_id: 57
+      x: 70
+      y: 30
+      energy: 0.1
+    - node_id: 58
+      x: 24
+      y: 91
+      energy: 0.1
+    - node_id: 59
+      x: 50
+      y: 79
+      energy: 0.1
+    - node_id: 60
+      x: 65
+      y: 85
+      energy: 0.1
+    - node_id: 61
+      x: 10
+      y: 29
+      energy: 0.1
+    - node_id: 62
+      x: 52
+      y: 44
+      energy: 0.1
+    - node_id: 63
+      x: 53
+      y: 32
+      energy: 0.1
+    - node_id: 64
+      x: 24
+      y: 63
+      energy: 0.1
+    - node_id: 65
+      x: 75
+      y: 0
+      energy: 0.1
+    - node_id: 66
+      x: 57
+      y: 77
+      energy: 0.1
+    - node_id: 67
+      x: 80
+      y: 75
+      energy: 0.1
+    - node_id: 68
+      x: 79
+      y: 83
+      energy: 0.1
+    - node_id: 69
+      x: 24
+      y: 62
+      energy: 0.1
+    - node_id: 70
+      x: 95
+      y: 88
+      energy: 0.1
+    - node_id: 71
+      x: 21
+      y: 73
+      energy: 0.1
+    - node_id: 72
+      x: 32
+      y: 21
+      energy: 0.1
+    - node_id: 73
+      x: 64
+      y: 15
+      energy: 0.1
+    - node_id: 74
+      x: 45
+      y: 32
+      energy: 0.1
+    - node_id: 75
+      x: 24
+      y: 19
+      energy: 0.1
+    - node_id: 76
+      x: 31
+      y: 34
+      energy: 0.1
+    - node_id: 77
+      x: 42
+      y: 94
+      energy: 0.1
+    - node_id: 78
+      x: 70
+      y: 99
+      energy: 0.1
+    - node_id: 79
+      x: 98
+      y: 41
+      energy: 0.1
+    - node_id: 80
+      x: 86
+      y: 45
+      energy: 0.1
+    - node_id: 81
+      x: 95
+      y: 29
+      energy: 0.1
+    - node_id: 82
+      x: 52
+      y: 92
+      energy: 0.1
+    - node_id: 83
+      x: 12
+      y: 61
+      energy: 0.1
+    - node_id: 84
+      x: 20
+      y: 31
+      energy: 0.1
+    - node_id: 85
+      x: 78
+      y: 43
+      energy: 0.1
+    - node_id: 86
+      x: 14
+      y: 98
+      energy: 0.1
+    - node_id: 87
+      x: 90
+      y: 67
+      energy: 0.1
+    - node_id: 88
+      x: 52
+      y: 92
+      energy: 0.1
+    - node_id: 89
+      x: 55
+      y: 0
+      energy: 0.1
+    - node_id: 90
+      x: 20
+      y: 81
+      energy: 0.1
+    - node_id: 91
+      x: 75
+      y: 61
+      energy: 0.1
+    - node_id: 92
+      x: 63
+      y: 17
+      energy: 0.1
+    - node_id: 93
+      x: 78
+      y: 70
+      energy: 0.1
+    - node_id: 94
+      x: 63
+      y: 39
+      energy: 0.1
+    - node_id: 95
+      x: 34
+      y: 43
+      energy: 0.1
+    - node_id: 96
+      x: 97
+      y: 21
+      energy: 0.1
+    - node_id: 97
+      x: 23
+      y: 35
+      energy: 0.1
+    - node_id: 98
+      x: 81
+      y: 74
+      energy: 0.1
+    - node_id: 99
+      x: 82
+      y: 51
+      energy: 0.1
+    - node_id: 100
+      x: 59
+      y: 32
+      energy: 0.1

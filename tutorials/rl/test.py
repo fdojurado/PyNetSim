@@ -13,14 +13,14 @@ import os
 
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
-from pynetsim.config import PyNetSimConfig, NETWORK_MODELS
+from pynetsim.config import load_config, NETWORK_MODELS
 from pynetsim.config import PROTOCOLS
 from rich.progress import Progress
 from stable_baselines3 import DQN
 
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SELF_PATH, "config.json")
+CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
 
 
 def run_with_plotting(config, network, model, network_model, rounds):
@@ -117,9 +117,9 @@ def evaluate(config, network, model, network_model, rounds, plot):
 def main(args):
     # If there is not configuration file, use the default one
     if args.config is None:
-        config = PyNetSimConfig.from_json(CONFIG_FILE)
+        config = load_config(CONFIG_FILE)
     else:
-        config = PyNetSimConfig.from_json(args.config)
+        config = load_config(args.config)
     if not os.path.exists(args.log):
         os.makedirs(args.log)
 

@@ -5,9 +5,6 @@ import json
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 
-NANO = 1e-9
-PICO = 1e-12
-
 
 class NetworkModel(ABC):
     def __init__(self, name="default", config=object, network=object):
@@ -29,10 +26,10 @@ class NetworkModel(ABC):
         self.network = network
 
     def get_energy_conversion_factors(self):
-        self.elect = self.config.network.protocol.eelect_nano * NANO
-        self.eamp = self.config.network.protocol.eamp_pico * PICO
-        self.efs = self.config.network.protocol.efs_pico * PICO
-        self.eda = self.config.network.protocol.eda_nano * NANO
+        self.elect = self.config.network.protocol.eelect
+        self.eamp = self.config.network.protocol.eamp
+        self.efs = self.config.network.protocol.efs
+        self.eda = self.config.network.protocol.eda
         self.d_0 = (self.efs/self.eamp)**0.5
         self.packet_size = self.config.network.protocol.packet_size
 
