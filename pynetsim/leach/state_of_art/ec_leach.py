@@ -1,3 +1,14 @@
+# This is based on:
+# @article{bsoul2013energy,
+#   title={An energy-efficient threshold-based clustering protocol for wireless sensor networks},
+#   author={Bsoul, Mohammad and Al-Khasawneh, Ahmad and Abdallah, Alaa E and Abdallah, Emad E and Obeidat, Ibrahim},
+#   journal={Wireless personal communications},
+#   volume={70},
+#   pages={99--112},
+#   year={2013},
+#   publisher={Springer}
+#   url={https://link.springer.com/content/pdf/10.1007/s11277-012-0681-8.pdf}
+# }
 import numpy as np
 import pynetsim.common as common
 import matplotlib.pyplot as plt
