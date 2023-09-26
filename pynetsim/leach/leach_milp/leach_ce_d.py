@@ -14,9 +14,10 @@ class LEACH_CE_D:
         self.net_model = net_model
         self.config = network.config
         self.network = network
-        self.alpha = 1
+        self.alpha = 1.2
         self.beta = 3
-        self.gamma = 3
+        self.gamma = 0.6
+        self.delta = 0
 
     def create_model(self, cluster_heads, alive_nodes):
         model = pyo.ConcreteModel()
@@ -24,25 +25,46 @@ class LEACH_CE_D:
         # Decision variables
         model.x = pyo.Var(cluster_heads, within=pyo.Binary)
         model.y = pyo.Var(alive_nodes, cluster_heads, within=pyo.Binary)
-        model.z = pyo.Var(cluster_heads, cluster_heads, within=pyo.Binary)
+        model.abs_load_balancing = pyo.Var()
 
         model.cluster_heads = pyo.Set(initialize=cluster_heads)
         model.nodes = pyo.Set(initialize=alive_nodes)
 
-        # Parameter representing the distance from a node to all other nodes
-        distances = {i: {j: leach_milp.dist_between_nodes(self.network,
-                                                          i, j) for j in model.nodes} for i in model.nodes}
+        # Parameter representing the distance between nodes
+        distances = {i: {j: self.network.distance_between_nodes(
+            self.network.get_node(i), self.network.get_node(j)) for j in model.nodes} for i in model.nodes}
 
-        # max distance
-        model.max_distance = pyo.Param(
-            initialize=max([distances[i][j] for i in model.nodes for j in model.nodes]))
+        # Get the maximum distance between nodes
+        max_distance = max([distances[i][j]
+                           for i in model.nodes for j in model.nodes])
 
         model.distances = pyo.Param(
-            model.nodes, model.cluster_heads, initialize=lambda model, i, j: distances[i][j]/model.max_distance if i != j else 0, mutable=False)
+            model.nodes, model.nodes, initialize=lambda model, i, j: distances[i][j]/max_distance, mutable=False)
 
-        print("Alive nodes: ", alive_nodes)
+        # Parameter representing the energy spent by a non-cluster head node to transmit to a cluster head
+        energy_spent_non_ch = {i: {j: leach_milp.energy_spent_non_ch(
+            self.network, i, j) for j in model.cluster_heads} for i in model.nodes}
 
-        print(f"Max distance: {model.max_distance.value}")
+        # Get the maximum energy spent by a non-cluster head node to transmit to a cluster head
+        max_energy_spent_non_ch = max([energy_spent_non_ch[i][j]
+                                       for i in model.nodes for j in model.cluster_heads])
+
+        print(
+            f"Max energy spent by a non-cluster head node to transmit to a cluster head: {max_energy_spent_non_ch}")
+
+        model.energy_spent_non_ch = pyo.Param(
+            model.nodes, model.cluster_heads, initialize=lambda model, i, j: energy_spent_non_ch[i][j]/max_energy_spent_non_ch, mutable=False)
+
+        # Get the maximum energy spent by a cluster head node to transmit to the sink
+        max_energy_spent_ch = max([leach_milp.energy_spent_ch(
+            self.network, node) for node in model.cluster_heads])
+
+        # Parameter representing the energy spent by a cluster head node to transmit to the sink
+        model.energy_spent_ch = pyo.Param(
+            model.cluster_heads,
+            initialize=lambda model, node: leach_milp.energy_spent_ch(
+                self.network, node)/max_energy_spent_ch,
+            mutable=False)
 
         # Max remaining energy
         model.max_remaining_energy = pyo.Param(
@@ -53,13 +75,27 @@ class LEACH_CE_D:
         # Parameter representing the current remaining energy of each node
         model.remaining_energy = pyo.Param(
             model.nodes,
-            initialize=lambda model, node: self.network.get_node(
-                node).remaining_energy/model.max_remaining_energy,
+            initialize=lambda model, node: leach_milp.get_energy(
+                self.network.get_node(node))/model.max_remaining_energy,
             mutable=False)
+
+        # Parameter representing the target load balancing for each cluster head
+        model.target_load_balancing = pyo.Param(
+            model.cluster_heads,
+            initialize=lambda model, node: leach_milp.target_load_balancing(
+                self.network, node, 2, 0.7, model.max_remaining_energy),
+            mutable=False)
+
+        # Parameter representing the current remaining energy of each node
+        # model.remaining_energy = pyo.Param(
+        #     model.nodes,
+        #     initialize=lambda model, node: self.network.get_node(
+        #         node).remaining_energy/model.max_remaining_energy,
+        #     mutable=False)
 
         # Objective function
         model.OBJ = pyo.Objective(
-            sense=pyo.minimize, rule=self.objective_function)
+            sense=pyo.minimize, rule=lambda model: self.objective_function(model))
 
         def assignment_rule(model, i):
             return sum(model.y[i, j] for j in model.cluster_heads) == 1
@@ -69,7 +105,7 @@ class LEACH_CE_D:
             model.nodes, rule=assignment_rule)
 
         def cluster_heads_limit_rule(model):
-            return sum(model.x[j] for j in model.cluster_heads) <= self.max_chs
+            return sum(model.x[j] for j in model.cluster_heads) == self.max_chs
 
         # Ensure that the number of selected cluster heads does not exceed a predefined limit
         model.cluster_heads_limit = pyo.Constraint(
@@ -83,18 +119,36 @@ class LEACH_CE_D:
             model.nodes, model.cluster_heads, rule=consistency_rule)
 
         # Constraint: Model z_ij
-        def z_rule(model, i, j):
-            return model.z[i, j] >= model.x[i]+model.x[j]-1
+        # def z_rule(model, i, j):
+        #     return model.z[i, j] >= model.x[i]+model.x[j]-1
 
-        model.z_constraint = pyo.Constraint(
-            model.cluster_heads, model.cluster_heads, rule=z_rule)
+        # model.z_constraint = pyo.Constraint(
+        #     model.cluster_heads, model.cluster_heads, rule=z_rule)
 
         # Constraint to limit the number of non-cluster head nodes per cluster
         def non_cluster_head_limit_rule(model, j):
-            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.2*(len(alive_nodes) / self.max_chs))
+            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.5*(len(alive_nodes) / self.max_chs))
 
         model.non_cluster_head_limit = pyo.Constraint(
             model.cluster_heads, rule=non_cluster_head_limit_rule)
+
+        load_balancing = 0
+        for cluster_head in model.cluster_heads:
+            load_balancing += 2 * \
+                model.remaining_energy[cluster_head] * model.x[cluster_head]
+            num_nodes = sum(model.y[node, cluster_head]
+                            for node in model.nodes)
+            load_balancing += 0.7 * num_nodes/len(alive_nodes)
+            load_balancing -= model.target_load_balancing[cluster_head] * \
+                model.x[cluster_head]
+
+        model.abs_value_constraint = pyo.Constraint(
+            expr=model.abs_load_balancing >= load_balancing,
+        )
+
+        model.abs_value_constraint2 = pyo.Constraint(
+            expr=model.abs_load_balancing >= -load_balancing,
+        )
 
         # Constraint: Model z_ij model.z <= x_i
         # def z_rule2(model, i, j):
@@ -113,15 +167,31 @@ class LEACH_CE_D:
         return model
 
     def objective_function(self, model):
-        non_chs = sum(model.distances[node, ch] * model.y[node, ch]
-                      for node in model.nodes for ch in model.cluster_heads)
+        expr = self. alpha * sum(model.energy_spent_non_ch[node, cluster_head] * model.y[node, cluster_head]
+                                 for node in model.nodes for cluster_head in model.cluster_heads if cluster_head != node)
+        expr += self.beta * sum(model.energy_spent_ch[node] * model.x[node]
+                                for node in model.cluster_heads)
+        expr += self.gamma * model.abs_load_balancing
+        # Energy consumed by CH when receiving data from non-CHs
+        for ch in model.cluster_heads:
+            # Number of non-CHs
+            num_non_chs = sum(model.y[node, ch]
+                              for node in model.nodes)
+            # Energy consumed by CH when receiving data from non-CHs
+            energy = num_non_chs * self.net_model.calculate_energy_rx()
+            expr += self.delta * energy / \
+                (len(model.nodes)*self.net_model.calculate_energy_rx())
+        # Maximize the distance between cluster heads
+        # expr += self.delta * sum(-1*model.distances[node, other_node] * model.x[node]
+        #                          for node in model.cluster_heads for other_node in model.cluster_heads)
+        return expr
         # Minimize the distance between cluster heads and the sink
-        chs = sum(self.network.get_node(node).dst_to_sink *
-                  model.x[node] for node in model.cluster_heads)
+        # chs = sum(self.network.get_node(node).dst_to_sink *
+        #           model.x[node] for node in model.cluster_heads)
         # Now, lets maximize the distance between cluster heads
         # bt_chs = sum(-1*model.distances[node, ch] * model.z[node, ch]
         #              for node in model.cluster_heads for ch in model.cluster_heads)
-        return self.alpha * non_chs + self.beta * chs
+        # return self.alpha * non_chs
         # return self.alpha * sum(model.distances[node][other_node] * model.y[node, other_node]
         #                         for node in model.nodes for other_node in model.cluster_heads if other_node != node) - \
         #     self.beta * sum(model.distances[node][other_node] * model.x[node]
