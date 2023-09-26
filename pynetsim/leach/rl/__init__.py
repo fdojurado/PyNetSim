@@ -4,7 +4,6 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 
-
 def obs(num_sensors: int, network: object,
         x_pos: np.ndarray, y_pos: np.ndarray,
         dst_to_sink: np.ndarray,

@@ -42,6 +42,7 @@ class Network:
             cluster_head.node_id for cluster_head in self if cluster_head.is_cluster_head]
         # Order in ascending order
         chs.sort()
+        # input(f"Cluster heads at round {round}: {chs}")
         self.cluster_heads_per_round[round] = chs
         self.stats.generate_round_stats(round=round)
         self.stats.export_json()
@@ -383,14 +384,14 @@ class Network:
             for node in self:
                 for other_node in self:
                     if node.node_id != other_node.node_id:
-                        if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
-                                self.config.network.protocol.name == 'LEACH-R' or self.config.network.protocol.name == 'LEACH-RL' or
-                                self.config.network.protocol.name == 'LEACH-RT' or self.config.network.protocol.name == 'LEACH-K' or
-                                self.config.network.protocol.name == 'LEACH-CE-E'):
-                            if node.is_within_range(other_node, self.transmission_range):
-                                node.add_neighbor(other_node)
-                        else:
-                            node.add_neighbor(other_node)
+                        # if not (self.config.network.protocol.name == 'LEACH' or self.config.network.protocol.name == 'LEACH-C' or
+                        #         self.config.network.protocol.name == 'LEACH-R' or self.config.network.protocol.name == 'LEACH-RL' or
+                        #         self.config.network.protocol.name == 'LEACH-RT' or self.config.network.protocol.name == 'LEACH-K' or
+                        #         self.config.network.protocol.name == 'LEACH-CE-E'):
+                        #     if node.is_within_range(other_node, self.transmission_range):
+                        #         node.add_neighbor(other_node)
+                        # else:
+                        node.add_neighbor(other_node)
 
         return self
 

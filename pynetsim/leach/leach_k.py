@@ -15,21 +15,22 @@ class LEACH_K:
         self.config = network.config
         self.network = network
 
-    def choose_cluster_heads(self):
-        num_clusters = self.network.alive_nodes() * \
-            self.config.network.protocol.cluster_head_percentage
+    @staticmethod
+    def choose_cluster_heads(network: object, config: object):
+        num_clusters = network.alive_nodes() * \
+            config.network.protocol.cluster_head_percentage
         # Round up the number of clusters
         num_clusters = np.ceil(num_clusters)
         x = []
         y = []
-        for node in self.network:
-            if self.network.should_skip_node(node):
+        for node in network:
+            if network.should_skip_node(node):
                 continue
             x.append(node.x)
             y.append(node.y)
         coordinates = np.array(list(zip(x, y)))
         # print(f"Coordinates: {coordinates}")
-        kmeans = KMeans(n_clusters=int(num_clusters), random_state=0)
+        kmeans = KMeans(n_clusters=int(num_clusters), random_state=0, n_init=10)
         # fit the model to the coordinates
         kmeans.fit(coordinates)
         # get the cluster centers
@@ -38,8 +39,8 @@ class LEACH_K:
         labels = kmeans.labels_
         # print(f"Labels: {labels}")
         # Assign cluster ids to the nodes
-        for node in self.network:
-            if self.network.should_skip_node(node):
+        for node in network:
+            if network.should_skip_node(node):
                 continue
             # get index of node in coordinates
             index = np.where((coordinates[:, 0] == node.x) & (
@@ -53,8 +54,8 @@ class LEACH_K:
         # Assign cluster heads
         for cluster_id in range(int(num_clusters)):
             cluster_nodes = []
-            for node in self.network:
-                if self.network.should_skip_node(node):
+            for node in network:
+                if network.should_skip_node(node):
                     continue
                 if node.cluster_id == cluster_id:
                     cluster_nodes.append(node)
@@ -63,8 +64,19 @@ class LEACH_K:
                 cluster_nodes, key=lambda node: node.remaining_energy)
             # print(f"Cluster head: {cluster_head.node_id}")
             # set the cluster head
-            self.network.mark_as_cluster_head(
+            network.mark_as_cluster_head(
                 cluster_head, cluster_head.cluster_id)
+        # Assign the distance to cluster head
+        for node in network:
+            if network.should_skip_node(node):
+                continue
+            if node.is_cluster_head:
+                node.dst_to_cluster_head = node.dst_to_sink
+            else:
+                cluster_head = network.get_cluster_head(node)
+                # print(f"Node {cluster_head.node_id} is cluster head with cluster id {cluster_head.cluster_id} of node {node.node_id}")
+                node.dst_to_cluster_head = network.distance_between_nodes(
+                    node, cluster_head)
 
         # visualize the clusters
         # nodes_labels = [node.cluster_id for node in self.network if not self.network.should_skip_node(

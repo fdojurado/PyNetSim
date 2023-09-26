@@ -14,8 +14,9 @@ class LEACH_CE_D:
         self.net_model = net_model
         self.config = network.config
         self.network = network
-        self.alpha = 0.3
-        self.beta = 1-self.alpha
+        self.alpha = 1
+        self.beta = 3
+        self.gamma = 3
 
     def create_model(self, cluster_heads, alive_nodes):
         model = pyo.ConcreteModel()
@@ -23,16 +24,38 @@ class LEACH_CE_D:
         # Decision variables
         model.x = pyo.Var(cluster_heads, within=pyo.Binary)
         model.y = pyo.Var(alive_nodes, cluster_heads, within=pyo.Binary)
+        model.z = pyo.Var(cluster_heads, cluster_heads, within=pyo.Binary)
 
         model.cluster_heads = pyo.Set(initialize=cluster_heads)
         model.nodes = pyo.Set(initialize=alive_nodes)
 
         # Parameter representing the distance from a node to all other nodes
         distances = {i: {j: leach_milp.dist_between_nodes(self.network,
-                                                          i, j) for j in model.cluster_heads if j != i} for i in model.nodes}
+                                                          i, j) for j in model.nodes} for i in model.nodes}
+
+        # max distance
+        model.max_distance = pyo.Param(
+            initialize=max([distances[i][j] for i in model.nodes for j in model.nodes]))
 
         model.distances = pyo.Param(
-            model.nodes, initialize=lambda model, node: distances[node], mutable=False)
+            model.nodes, model.cluster_heads, initialize=lambda model, i, j: distances[i][j]/model.max_distance if i != j else 0, mutable=False)
+
+        print("Alive nodes: ", alive_nodes)
+
+        print(f"Max distance: {model.max_distance.value}")
+
+        # Max remaining energy
+        model.max_remaining_energy = pyo.Param(
+            initialize=max([self.network.get_node(node).remaining_energy for node in model.nodes]))
+
+        print(f"Max remaining energy: {model.max_remaining_energy.value}")
+
+        # Parameter representing the current remaining energy of each node
+        model.remaining_energy = pyo.Param(
+            model.nodes,
+            initialize=lambda model, node: self.network.get_node(
+                node).remaining_energy/model.max_remaining_energy,
+            mutable=False)
 
         # Objective function
         model.OBJ = pyo.Objective(
@@ -59,13 +82,50 @@ class LEACH_CE_D:
         model.consistency_constraint = pyo.Constraint(
             model.nodes, model.cluster_heads, rule=consistency_rule)
 
+        # Constraint: Model z_ij
+        def z_rule(model, i, j):
+            return model.z[i, j] >= model.x[i]+model.x[j]-1
+
+        model.z_constraint = pyo.Constraint(
+            model.cluster_heads, model.cluster_heads, rule=z_rule)
+
+        # Constraint to limit the number of non-cluster head nodes per cluster
+        def non_cluster_head_limit_rule(model, j):
+            return sum(model.y[i, j] for i in model.nodes) <= np.ceil(1.2*(len(alive_nodes) / self.max_chs))
+
+        model.non_cluster_head_limit = pyo.Constraint(
+            model.cluster_heads, rule=non_cluster_head_limit_rule)
+
+        # Constraint: Model z_ij model.z <= x_i
+        # def z_rule2(model, i, j):
+        #     return model.z[i, j] <= model.x[i]
+
+        # model.z_constraint2 = pyo.Constraint(
+        #     model.cluster_heads, model.cluster_heads, rule=z_rule2)
+
+        # # Constraint: Model z_ij model.z <= x_j
+        # def z_rule3(model, i, j):
+        #     return model.z[i, j] <= model.x[j]
+
+        # model.z_constraint3 = pyo.Constraint(
+        #     model.cluster_heads, model.cluster_heads, rule=z_rule3)
+
         return model
 
     def objective_function(self, model):
-        return self.alpha * sum(model.distances[node][other_node] * model.y[node, other_node]
-                                for node in model.nodes for other_node in model.cluster_heads if other_node != node) - \
-            self.beta * sum(model.distances[node][other_node] * model.x[node]
-                            for node in model.cluster_heads for other_node in model.cluster_heads if other_node != node and model.x[other_node].value)
+        non_chs = sum(model.distances[node, ch] * model.y[node, ch]
+                      for node in model.nodes for ch in model.cluster_heads)
+        # Minimize the distance between cluster heads and the sink
+        chs = sum(self.network.get_node(node).dst_to_sink *
+                  model.x[node] for node in model.cluster_heads)
+        # Now, lets maximize the distance between cluster heads
+        # bt_chs = sum(-1*model.distances[node, ch] * model.z[node, ch]
+        #              for node in model.cluster_heads for ch in model.cluster_heads)
+        return self.alpha * non_chs + self.beta * chs
+        # return self.alpha * sum(model.distances[node][other_node] * model.y[node, other_node]
+        #                         for node in model.nodes for other_node in model.cluster_heads if other_node != node) - \
+        #     self.beta * sum(model.distances[node][other_node] * model.x[node]
+        #                     for node in model.cluster_heads for other_node in model.cluster_heads if other_node != node and model.x[other_node].value)
 
     def choose_cluster_heads(self, round):
         alive_nodes = [node.node_id for node in self.network if not self.network.should_skip_node(

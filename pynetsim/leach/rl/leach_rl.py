@@ -3,10 +3,19 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pynetsim.leach.rl as rl
-import json
+import math
 # from pynetsim.config import PyNetSimConfig
-from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
+from pynetsim.leach.leach_k import LEACH_K
 import pynetsim.leach.leach_milp as leach_milp
+
+
+# Define the rewards and penalties
+REWARD_ROUND_NO_DEATHS = 1  # Positive reward for rounds without deaths
+PENALTY_NODE_DEATH = -1  # Penalty for node death
+PENALTY_NODE_FACTOR = -100  # Penalty for node death
+PENALTY_NODE_EXPONENT = 0.1  # Penalty exponent for node death
+EXPLORATION_BONUS = 0.1  # Small positive bonus for exploration
+TERMINATION_BONUS_FACTOR = 15  # Bonus for prolonging the episode
 
 
 class LEACH_RL(gym.Env):
@@ -18,8 +27,9 @@ class LEACH_RL(gym.Env):
         self.max_steps = self.config.network.protocol.max_steps
         self.action = 0
 
+        self.first_dead_node = False
+
         self.round = 0
-        self.new_cluster = 0
 
         # Calculate the maximum distance to the sink, which is the distance
         # between the sink and the farthest node
@@ -53,11 +63,6 @@ class LEACH_RL(gym.Env):
         self.prev_obs = np.zeros(int(n_observation/2))
         self.action_space = spaces.Discrete(n_actions)
 
-        # load the JSON file
-        with open('data/' + 'data' + '.json', 'r') as json_file:
-            # Load the JSON data into a Python dictionary
-            self.data = json.load(json_file)
-
     def set_network(self, network):
         self.network = network
 
@@ -89,19 +94,64 @@ class LEACH_RL(gym.Env):
         return observations, info
 
     def _calculate_reward(self):
-        current_energy = self.network.remaining_energy()
         self.net_model.dissipate_energy(round=self.round)
-        latest_energy = self.network.remaining_energy()
-        # Check if there is a dead node
-        for node in self.network:
-            if node.remaining_energy <= 0:
-                return (1-self.round/self.max_steps)*-1
-        return 1
+        nodes_died = self.prev_alive_nodes - self.network.alive_nodes()
+
+        # Calculate the reward
+        reward = 0
+
+        if self.action == 1:
+            reward += EXPLORATION_BONUS
+
+        if nodes_died > 0:
+            if not self.first_dead_node:
+                reward += PENALTY_NODE_DEATH * 50
+                self.first_dead_node = True
+            else:
+                reward += PENALTY_NODE_DEATH
+        else:
+            if self.first_dead_node:
+                reward += REWARD_ROUND_NO_DEATHS * 0.01
+            else:
+                reward += REWARD_ROUND_NO_DEATHS
+
+        # Previous alive nodes
+        self.prev_alive_nodes = self.network.alive_nodes()
+
+        return reward
+
+        # self.net_model.dissipate_energy(round=self.round)
+        # nodes_died = self.prev_alive_nodes - self.network.alive_nodes()
+
+        # # Calculate the reward
+        # reward = 0
+
+        # if nodes_died == 0:
+        #     reward += REWARD_ROUND_NO_DEATHS
+        # else:
+        #     reward += PENALTY_NODE_DEATH
+
+        # # Encourage exploration with an exploration bonus
+        # reward += EXPLORATION_BONUS
+
+        # # Previous alive nodes
+        # self.prev_alive_nodes = self.network.alive_nodes()
+
+        # # Episode termination bonus (encourage the agent to prolong the episode)
+        # if self.prev_alive_nodes == 0:
+        #     # All nodes are dead, end the episode
+        #     termination_bonus = self.round
+        #     reward += termination_bonus
+
+        # return reward
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.round = 0
         self.new_cluster = 0
+        self.first_dead_node = False
+
+        self.prev_alive_nodes = self.network.alive_nodes()
 
         # Create a random network of num_nodes nodes and random positions and
         # random energy levels
@@ -130,21 +180,17 @@ class LEACH_RL(gym.Env):
             pass
             # print("Stay in the same set of clusters")
         if self.action == 1:
+            # Mark all nodes as non cluster heads
+            for node in self.network:
+                self.network.mark_as_non_cluster_head(node)
             # print(f"Create a new set of clusters at {self.new_cluster} round {self.round}!")
-            # Get the cluster from the self.data
-            cluster = self.data[str(self.new_cluster)]
-            chs = cluster['chs']
-            # print(f"chs: {chs}")
-            non_chs = cluster['non_chs']
-            # input(f"non_chs: {non_chs}")
-            leach_milp.update_cluster_heads(network=self.network, chs=chs)
-            leach_milp.update_chs_to_nodes(network=self.network,
-                                           assignments=non_chs)
-            self.new_cluster += 1
+            LEACH_K.choose_cluster_heads(
+                network=self.network, config=self.config)
 
         reward = self._calculate_reward()
         observation, info = self._get_obs()
-        if reward <= 0:
+        # We end the episode when there are not alive nodes
+        if self.network.alive_nodes() == 0:
             done = True
             # input(f"Dead node at round {self.round}")
         # chs = [cluster_head.node_id for cluster_head in self.network.nodes.values(
