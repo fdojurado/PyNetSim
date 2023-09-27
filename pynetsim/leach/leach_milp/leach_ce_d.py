@@ -15,7 +15,7 @@ class LEACH_CE_D:
         if 'name' in kwargs:
             self.name = kwargs['name']
         else:
-            self.name = "LEACH-CE-E"
+            self.name = "LEACH-CE-D"
         self.net_model = net_model
         self.config = network.config
         self.network = network

@@ -294,6 +294,9 @@ class Network:
     def calculate_energy_tx_ch(self, distance):
         return self.model.calculate_energy_tx_ch(distance)
 
+    def calculate_energy_rx_ch_per_node(self):
+        return self.model.calculate_energy_rx()
+
     # -----------------Network creation-----------------
 
     def is_connected(self):

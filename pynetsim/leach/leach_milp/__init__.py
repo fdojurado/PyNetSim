@@ -31,6 +31,9 @@ def energy_spent_ch(network: object, src: int):
     # print(f"CH: {src.node_id}, dst_to_sink: {src.dst_to_sink}")
     return network.calculate_energy_tx_ch(src.dst_to_sink)
 
+def calculate_energy_ch_rx_per_node(network: object):
+    return network.calculate_energy_rx_ch_per_node()
+
 
 def target_load_balancing(network: object, ch: int,
                           a: float, b: float):
