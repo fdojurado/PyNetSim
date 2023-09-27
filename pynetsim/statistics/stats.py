@@ -15,7 +15,8 @@ class Statistics(object):
     def add_round_stats(self, round, remaining_energy, dead_nodes, alive_nodes,
                         num_cluster_heads, pdr, plr,
                         control_packets_energy, control_pkt_bits, pkts_sent_to_bs,
-                        energy_dissipated, pkts_recv_by_bs, membership):
+                        energy_dissipated, pkts_recv_by_bs, membership,
+                        energy_levels, cluster_heads):
 
         self._round_stats[round] = {
             'remaining_energy': remaining_energy,
@@ -29,7 +30,9 @@ class Statistics(object):
             'pkts_sent_to_bs': pkts_sent_to_bs,
             'energy_dissipated': energy_dissipated,
             'pkts_recv_by_bs': pkts_recv_by_bs,
-            'membership': membership
+            'membership': membership,
+            'energy_levels': energy_levels,
+            'cluster_heads': cluster_heads
         }
 
     # This function is called when a round is finished, so we generate the
@@ -50,13 +53,20 @@ class Statistics(object):
         membership = {}
         for node in self.network:
             membership[node.node_id] = node.cluster_id
+        # Put the energy level of each node excluding the sink
+        energy_levels = {}
+        for node in self.network:
+            if node.node_id != 1:
+                energy_levels[node.node_id] = node.remaining_energy
+        # Put the cluster heads at this round
+        cluster_heads = self.network.get_cluster_head_ids()
 
         self.add_round_stats(round, remaining_energy, dead_nodes, alive_nodes,
                              num_cluster_heads, pdr,
                              plr, control_packets_energy,
                              control_pkt_bits, pkts_sent_to_bs,
                              energy_dissipated, pkts_recv_by_bs,
-                             membership)
+                             membership, energy_levels, cluster_heads)
 
     @property
     def name(self):
