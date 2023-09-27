@@ -9,11 +9,13 @@ class Statistics(object):
         self.network = network
         self.config = config
         self._round_stats = {}
+        self.__name = self.config.network.protocol.name + '_' + \
+            self.config.network.model
 
     def add_round_stats(self, round, remaining_energy, dead_nodes, alive_nodes,
                         num_cluster_heads, pdr, plr,
                         control_packets_energy, control_pkt_bits, pkts_sent_to_bs,
-                        energy_dissipated, pkts_recv_by_bs):
+                        energy_dissipated, pkts_recv_by_bs, membership):
 
         self._round_stats[round] = {
             'remaining_energy': remaining_energy,
@@ -26,7 +28,8 @@ class Statistics(object):
             'control_pkt_bits': control_pkt_bits,
             'pkts_sent_to_bs': pkts_sent_to_bs,
             'energy_dissipated': energy_dissipated,
-            'pkts_recv_by_bs': pkts_recv_by_bs
+            'pkts_recv_by_bs': pkts_recv_by_bs,
+            'membership': membership
         }
 
     # This function is called when a round is finished, so we generate the
@@ -43,12 +46,25 @@ class Statistics(object):
         pkts_sent_to_bs = self.network.pkts_sent_to_bs()
         energy_dissipated = self.network.energy_dissipated()
         pkts_recv_by_bs = self.network.pkts_recv_by_bs()
+        # Put membership of each node in the cluster
+        membership = {}
+        for node in self.network:
+            membership[node.node_id] = node.cluster_id
 
         self.add_round_stats(round, remaining_energy, dead_nodes, alive_nodes,
                              num_cluster_heads, pdr,
                              plr, control_packets_energy,
                              control_pkt_bits, pkts_sent_to_bs,
-                             energy_dissipated, pkts_recv_by_bs)
+                             energy_dissipated, pkts_recv_by_bs,
+                             membership)
+
+    @property
+    def name(self):
+        return self.__name
+
+    @name.setter
+    def name(self, name):
+        self.__name = name
 
     def get_round_stats(self, round):
         return self._round_stats[round]
@@ -69,13 +85,11 @@ class Statistics(object):
         return self._round_stats[round]['alive_nodes']
 
     def export_json(self):
-        name = self.config.network.protocol.name + '_' + \
-            self.config.network.model
         # If the results directory does not exist, create it
         try:
             os.makedirs('results')
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
-        with open('results/' + name + '.json', 'w') as outfile:
+        with open('results/' + self.name + '.json', 'w') as outfile:
             json.dump(self._round_stats, outfile)

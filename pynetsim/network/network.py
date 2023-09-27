@@ -393,6 +393,11 @@ class Network:
                         # else:
                         node.add_neighbor(other_node)
 
+        # Set the distance to the sink node for each node
+        for node in self:
+            node.dst_to_sink = self.distance_to_sink(node)
+            self.mark_as_non_cluster_head(node)
+
         return self
 
     def get_node(self, node_id: int):
