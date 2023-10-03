@@ -33,24 +33,23 @@ HIDDEN_SIZE = 128
 OUTPUT_SIZE = 99
 NUM_CLUSTERS = 100
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 500
-PRINT_EVERY = 50
-PLOT_EVERY = 1
+NUM_EPOCHS = 2001
+PRINT_EVERY = 500
+PLOT_EVERY = 10
 
 
 class NetworkDataset(Dataset):
     def __init__(self, weights, current_membership, y_membership):
-        self.weights = torch.tensor(weights, dtype=torch.float32)
-        self.X = torch.tensor(
-            current_membership)
-        self.y = torch.tensor(y_membership)
+        self.weights = torch.from_numpy(weights.astype(np.float32))
+        self.X = torch.from_numpy(current_membership.astype(np.int64))
+        self.y = torch.from_numpy(y_membership.astype(np.int64))
         self.len = len(self.weights)+len(self.X)
 
     def __len__(self):
         return self.len
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        return self.weights[idx], self.X[idx], self.y[idx]
 
 
 class LSTM(nn.Module):
@@ -188,6 +187,23 @@ def timeSince(since):
     return '%dm %ds' % (m, s)
 
 
+def get_all_samples(samples):
+    # Get the samples in the form of weights, current_membership, y_membership
+    weights = []
+    current_membership = []
+    y_membership = []
+    for key, sample in samples.items():
+        for round in range(1, len(sample)+1):
+            x_data = sample[str(round)]['x_data']
+            y_data = sample[str(round)]['y_data']
+            pre_membership = sample[str(round)]['membership']
+            weights.append(x_data)
+            current_membership.append(pre_membership)
+            y_membership.append(y_data)
+
+    return weights, current_membership, y_membership
+
+
 def random_sample(samples):
     random_key = random.choice(list(samples.keys()))
     current_membership = []
@@ -230,21 +246,68 @@ def main(args):
 
     print(f"Number of samples: {len(samples)}")
 
-    weights, current_membership, y_membership = random_sample(samples)
+    # Get all the samples
+    weights, current_membership, y_membership = get_all_samples(samples)
+
+    np_weights = np.array(weights)
+    np_weights_size = np_weights.shape
+    np_current_membership = np.array(current_membership)
+    np_current_membership_size = np_current_membership.shape
+    np_y = np.array(y_membership)
+
+    # Concatenate the weights and current_membership
+    np_x = np.concatenate(
+        (np_weights, np_current_membership), axis=1)
+
+    # Lets split the data into training and testing
+    X_train, X_test, y_train, y_test = train_test_split(
+        np_x, np_y, test_size=0.2, random_state=42)
+
+    # Print the shape of the training and testing data
+    print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
+    print(f"Shape of the testing data: {X_test.shape}, {y_test.shape}")
+
+    # Lets unpack the weights and current_membership
+    X_train_weights = X_train[:, :np_weights_size[1]]
+    X_train_current_membership = X_train[:, np_weights_size[1]:]
 
     # Lets create the training data
-    Training_DataSet = NetworkDataset(weights=weights,
-                                      current_membership=current_membership,
-                                      y_membership=y_membership)
+    Training_DataSet = NetworkDataset(weights=X_train_weights,
+                                      current_membership=X_train_current_membership,
+                                      y_membership=y_train)
+
+    # Lets create the testing data
+    Testing_DataSet = NetworkDataset(weights=X_test[:, :np_weights_size[1]],
+                                     current_membership=X_test[:,
+                                                               np_weights_size[1]:],
+                                     y_membership=y_test)
+
+    # weights, current_membership, y_membership = random_sample(samples)
+
+    # Lets create the training data
+    # Training_DataSet = NetworkDataset(weights=weights,
+    #                                   current_membership=current_membership,
+    #                                   y_membership=y_membership)
 
     # Lets create the dataloader
     train_dataloader = DataLoader(
         Training_DataSet, batch_size=1, shuffle=False)
 
+    test_dataloader = DataLoader(
+        Testing_DataSet, batch_size=1, shuffle=False)
+
+    # Lets loop through the dataloader
+    # for w, x, y in train_dataloader:
+    #     print(f"w: {w.shape}, {w.dtype}, x: {x.shape}, {x.dtype}, y: {y.shape}, {y.dtype}")
+    #     print(f"w: {w}")
+    #     print(f"x: {x}")
+    #     print(f"y: {y}")
+    #     input("Continue?")
+
     print(f"Lenght of the dataloader: {len(train_dataloader)}")
 
     print(
-        f"Shape of the training data, x: {Training_DataSet.X.shape}, {Training_DataSet.X.dtype}, y: {Training_DataSet.y.shape}, {Training_DataSet.y.dtype}")
+        f"Shape of the training data, x: {Training_DataSet.X.shape}, {Training_DataSet.X.dtype}, y: {Training_DataSet.y.shape}, {Training_DataSet.y.dtype}, weights: {Training_DataSet.weights.shape}, {Training_DataSet.weights.dtype}")
 
     model = LSTM(embedding_dim=120, vocab_size=101, output_size=101,
                  extra_input_size=Training_DataSet.weights.shape[1])
@@ -254,38 +317,74 @@ def main(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # Lets train with the Training_DataSet
+    count_training_samples = 0
     loss_list = []
-    model.train()
     # i = 0
-    for epoch in range(NUM_EPOCHS):
-        X = Training_DataSet.X[0]
-        y = Training_DataSet.y[0]
-        weights = Training_DataSet.weights[0]
-        model.zero_grad()
-        output, (h, c) = model(X, weights)
+    for weight, input_data, target in train_dataloader:
+        model.train()
+        count_training_samples += 1
+        print(f"weight shape: {weight.shape}")
+        print(f"input_data shape: {input_data.shape}")
+        print(f"target shape: {target.shape}")
+        print(f"weight: {weight}")
+        print(f"input_data: {input_data}")
+        print(f"target: {target}")
+        for epoch in range(NUM_EPOCHS):
+            X = input_data[0]
+            y = target[0]
+            w = weight[0]
+            model.zero_grad()
+            output, (h, c) = model(X, w)
 
-        loss = criterion(output, y)
-        loss_list.append(loss.item())
+            loss = criterion(output, y)
+            loss_list.append(loss.item())
 
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-        if epoch % PRINT_EVERY != 0:
+            if epoch % PRINT_EVERY != 0:
+                continue
+
+            print(f"EPOCH: {epoch}, loss: {loss.item()}")
+
+            _, preds = output.max(dim=-1)
+
+            # Check how many are correct
+            correct = 0
+            total = 0
+            for i in range(len(preds)):
+                if preds[i] == y[i]:
+                    correct += 1
+                total += 1
+            print(f"Correct: {correct}")
+            print(f"Accuracy: {correct/total}")
+
+        if count_training_samples % PLOT_EVERY != 0:
             continue
 
-        print(f"EPOCH: {epoch}, loss: {loss.item()}")
+        count_training_samples = 0
 
-        _, preds = output.max(dim=-1)
-
-        # Check how many are correct
+        # Validate the model
+        model.eval()
+        counter = 0
         correct = 0
         total = 0
-        for i in range(len(preds)):
-            if preds[i] == y[i]:
-                correct += 1
-            total += 1
-        print(f"Correct: {correct}")
-        print(f"Accuracy: {correct/total}")
+        with torch.no_grad():
+            for test_weight, test_input, test_output in test_dataloader:
+                counter += 1
+                X = test_input[0]
+                y = test_output[0]
+                w = test_weight[0]
+                output, (h, c) = model(X, w)
+                _, preds = output.max(dim=-1)
+                # Check how many are correct
+                for i in range(len(preds)):
+                    if preds[i] == y[i]:
+                        correct += 1
+                    total += 1
+                if counter >= 100:
+                    break
+        input(f"Correct: {correct}, Total: {total} ({correct/total*100}%)")
 
     # Lets plot the loss
     plt.figure()
