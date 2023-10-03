@@ -33,9 +33,9 @@ HIDDEN_SIZE = 128
 OUTPUT_SIZE = 99
 NUM_CLUSTERS = 100
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 2001
+NUM_EPOCHS = 1
 PRINT_EVERY = 500
-PLOT_EVERY = 10
+PLOT_EVERY = 1000
 
 
 class NetworkDataset(Dataset):
@@ -43,7 +43,7 @@ class NetworkDataset(Dataset):
         self.weights = torch.from_numpy(weights.astype(np.float32))
         self.X = torch.from_numpy(current_membership.astype(np.int64))
         self.y = torch.from_numpy(y_membership.astype(np.int64))
-        self.len = len(self.weights)+len(self.X)
+        self.len = weights.shape[0]
 
     def __len__(self):
         return self.len
@@ -261,7 +261,7 @@ def main(args):
 
     # Lets split the data into training and testing
     X_train, X_test, y_train, y_test = train_test_split(
-        np_x, np_y, test_size=0.2, random_state=42)
+        np_x, np_y, test_size=0.2, random_state=42, shuffle=False)
 
     # Print the shape of the training and testing data
     print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
@@ -291,10 +291,10 @@ def main(args):
 
     # Lets create the dataloader
     train_dataloader = DataLoader(
-        Training_DataSet, batch_size=1, shuffle=False)
+        Training_DataSet, batch_size=1, shuffle=True)
 
     test_dataloader = DataLoader(
-        Testing_DataSet, batch_size=1, shuffle=False)
+        Testing_DataSet, batch_size=1, shuffle=True)
 
     # Lets loop through the dataloader
     # for w, x, y in train_dataloader:
@@ -318,17 +318,19 @@ def main(args):
 
     # Lets train with the Training_DataSet
     count_training_samples = 0
+    samples_num = 0
     loss_list = []
     # i = 0
     for weight, input_data, target in train_dataloader:
         model.train()
+        samples_num += 1
         count_training_samples += 1
-        print(f"weight shape: {weight.shape}")
-        print(f"input_data shape: {input_data.shape}")
-        print(f"target shape: {target.shape}")
-        print(f"weight: {weight}")
-        print(f"input_data: {input_data}")
-        print(f"target: {target}")
+        # print(f"weight shape: {weight.shape}")
+        # print(f"input_data shape: {input_data.shape}")
+        # print(f"target shape: {target.shape}")
+        # print(f"weight: {weight}")
+        # print(f"input_data: {input_data}")
+        # print(f"target: {target}")
         for epoch in range(NUM_EPOCHS):
             X = input_data[0]
             y = target[0]
@@ -342,27 +344,31 @@ def main(args):
             loss.backward()
             optimizer.step()
 
-            if epoch % PRINT_EVERY != 0:
-                continue
+            # if epoch % PRINT_EVERY != 0:
+            #     continue
 
-            print(f"EPOCH: {epoch}, loss: {loss.item()}")
+            # print(f"EPOCH: {epoch}, loss: {loss.item()}")
 
-            _, preds = output.max(dim=-1)
+            # _, preds = output.max(dim=-1)
 
-            # Check how many are correct
-            correct = 0
-            total = 0
-            for i in range(len(preds)):
-                if preds[i] == y[i]:
-                    correct += 1
-                total += 1
-            print(f"Correct: {correct}")
-            print(f"Accuracy: {correct/total}")
+            # # Check how many are correct
+            # correct = 0
+            # total = 0
+            # for i in range(len(preds)):
+            #     if preds[i] == y[i]:
+            #         correct += 1
+            #     total += 1
+            # print(f"Correct: {correct}")
+            # print(f"Accuracy: {correct/total}")
 
         if count_training_samples % PLOT_EVERY != 0:
             continue
 
         count_training_samples = 0
+
+        # Print the average loss
+        print(f"Average loss: {np.mean(loss_list)} ({len(loss_list)} samples) ({samples_num} samples)")
+        loss_list = []
 
         # Validate the model
         model.eval()
@@ -384,7 +390,7 @@ def main(args):
                     total += 1
                 if counter >= 100:
                     break
-        input(f"Correct: {correct}, Total: {total} ({correct/total*100}%)")
+        print(f"Correct: {correct}, Total: {total} ({correct/total*100}%)")
 
     # Lets plot the loss
     plt.figure()
