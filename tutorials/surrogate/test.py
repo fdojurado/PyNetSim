@@ -188,7 +188,7 @@ def main(args):
                 total = len(actual)
                 # Get the correct
                 correct = (predicted == actual).sum().item()
-                input(f"A: {actual}\nP: {predicted}\nC: {correct}\nT: {total}")
+                input(f"A: {actual}\nP: {predicted}\nC: {correct}\nT: {total}, accuracy: {correct/total*100:.3f}%")
 
     print(f"Accuracy: {correct/total}")
 

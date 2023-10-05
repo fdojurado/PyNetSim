@@ -27,7 +27,7 @@ RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
 MODELS_PATH = os.path.join(SELF_PATH, "models")
 
 # Lets create a dataloader
-BATCH_SIZE = 1
+BATCH_SIZE = 64
 
 # Neural network parameters
 INPUT_SIZE = 203
@@ -69,7 +69,6 @@ class RegressionModel(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        print(f"Input size: {input_size}, Output size: {output_size}")
         # Define three layers
         self.fc1 = nn.Linear(self.input_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
@@ -123,12 +122,68 @@ def get_all_samples(samples):
 
 
 def closest_value(output):
-    # This method finds the closest integer for each element in the output
-    output = output.tolist()
+    # Convert tensors to numpy
+    output = np.array(output)
+
     for i in range(len(output)):
-        for j in range(len(output[i])):
-            output[i][j] = round(output[i][j])
+        # Get the closest value
+        closest = np.round(output[i])
+        # Convert to integer
+        output[i] = closest.astype(int)
     return output
+
+
+def test_predicted_sample(x, y, output):
+    # print(f"Shape of x: {x.shape}")
+    # print(f"Shape of y: {y.shape}")
+    # print(f"Shape of output: {output.shape}")
+
+    # For each element in the y, find the closest integer
+    y = closest_value(y)
+    output = closest_value(output)
+    # input(f"closes y: {y}")
+    # input(f"closest output: {output}")
+    # Convert to numpy
+    y = np.array(y)
+    output = np.array(output)
+    # Count the number of correct predictions
+    correct = np.sum(y == output)
+    # Count the total number of predictions
+    total = np.prod(y.shape)
+    # Get the index of the correct predictions
+    # correct_index = np.where(y == output)
+    # print(f"correct_index {correct_index}")
+
+    # input(
+    #     f"Correct: {correct}, Total: {total}, Accuracy: {correct/total*100:.2f}%")
+
+    return correct, total
+
+
+def test_predicted_batch(x, y, output):
+    # print shapes
+    # print(f"X: {x.shape}")
+    # print(f"Y: {y.shape}")
+    # print(f"Output: {output.shape}")
+    accuracy = []
+
+    # Loop through the batch
+    for i in range(len(output)):
+        # Get the ith output
+        ith_output = output[i]
+        # Get the ith y
+        ith_y = y[i]
+        # Get the ith x
+        ith_x = x[i]
+        correct, total = test_predicted_sample(
+            ith_x, ith_y, ith_output)
+
+        accuracy.append(correct/total*100)
+
+    # Get the average accuracy
+    average_accuracy = np.mean(accuracy)
+
+    return average_accuracy
 
 
 def main(args):
@@ -156,46 +211,39 @@ def main(args):
     model = RegressionModel(
         test_dataset.x.shape[1], HIDDEN_SIZE, test_dataset.y.shape[1])
 
+    # Define the loss function
+    criterion = nn.HuberLoss()
+
     model.load_state_dict(torch.load(args.model))
 
     # Lets test the model
     model.eval()
-    correct = 0
-    total = 0
+    losses = []
+    avg_accuracy = []
     with torch.no_grad():
         for batch_x, batch_y in test_loader:
             X = batch_x
             y = batch_y
+            # print shapes
+            # print(f"X: {X.shape}")
+            # print(f"Y: {y.shape}")
             # Get the output
             output = model(X)
-            print(f"X: {X}")
-            print(f"y: {y}")
-            print(f"output: {output}")
-            # print shapes
-            print(f"X.shape: {X.shape}")
-            print(f"y.shape: {y.shape}")
-            print(f"output.shape: {output.shape}")
 
-            # For each element in the y, find the closest integer
-            y = closest_value(y)
-            print(f"y orignial: {y}")
-            output = closest_value(output)
-            print(f"output original: {output}")
-            # Convert to numpy
-            y = np.array(y)
-            output = np.array(output)
-            # Count the number of correct predictions
-            correct += np.sum(y == output)
-            # Count the total number of predictions
-            total += np.prod(y.shape)
-            # Get the index of the correct predictions
-            correct_index = np.where(y == output)
-            print(f"correct_index: {correct_index}")
+            if BATCH_SIZE == 1:
+                # input(f"testing prediction")
+                test_predicted_sample(X, y, output)
+                continue
 
-            input(
-                f"Correct: {correct}, Total: {total}, Accuracy: {correct/total}%")
+            loss = criterion(output, y)
+            losses.append(loss.item())
+            acc = test_predicted_batch(X, y, output)
+            avg_accuracy.append(acc)
 
-    print(f"Correct: {correct}, Total: {total}, Accuracy: {correct/total}%")
+    # Print the average loss
+    print(f"Average Loss: {np.mean(losses)}")
+    # Print the average accuracy
+    print(f"Average Accuracy: {np.mean(avg_accuracy)}")
 
 
 if __name__ == "__main__":
