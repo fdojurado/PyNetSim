@@ -23,9 +23,11 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 TUTORIALS_PATH = os.path.dirname(SELF_PATH)
 # Go to the results folder
 RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
+# Folder to save the models
+MODELS_PATH = os.path.join(SELF_PATH, "models")
 
 # Lets create a dataloader
-BATCH_SIZE = 256
+BATCH_SIZE = 64
 
 # Neural network parameters
 INPUT_SIZE = 203
@@ -33,9 +35,9 @@ HIDDEN_SIZE = 128
 OUTPUT_SIZE = 99
 NUM_CLUSTERS = 100
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 1
-PRINT_EVERY = 500
-PLOT_EVERY = 1000
+NUM_EPOCHS = 1000
+PRINT_EVERY = 200
+PLOT_EVERY = 10000
 
 
 class NetworkDataset(Dataset):
@@ -50,6 +52,13 @@ class NetworkDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.weights[idx], self.X[idx], self.y[idx]
+
+    # Support batching
+    def collate_fn(self, batch):
+        weights = torch.stack([x[0] for x in batch])
+        X = torch.stack([x[1] for x in batch])
+        y = torch.stack([x[2] for x in batch])
+        return weights, X, y
 
 
 class LSTM(nn.Module):
@@ -71,8 +80,9 @@ class LSTM(nn.Module):
         embeds = self.embedding(sequence)
         # Concatenate the extra input
         if extra_input is not None:
-            num_rows = embeds.shape[0]
-            extra_input = extra_input.repeat(num_rows, 1)
+            extra_input = extra_input.unsqueeze(1)  # Add batch dimension
+            extra_input = extra_input.repeat(
+                1, sequence.size(1), 1)  # Repeat for each time step
             embeds = torch.cat((embeds, extra_input), dim=-1)
         # Lets get the lstm
         output, (h, c) = self.lstm(embeds)
@@ -238,6 +248,10 @@ def get_sample_ch(ch, samples):
 
 
 def main(args):
+
+    # Create a folder to save the model
+    os.makedirs("models", exist_ok=True)
+
     if args.data is None:
         samples = process_data()
     else:
@@ -291,10 +305,10 @@ def main(args):
 
     # Lets create the dataloader
     train_dataloader = DataLoader(
-        Training_DataSet, batch_size=1, shuffle=True)
+        Training_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Training_DataSet.collate_fn)
 
     test_dataloader = DataLoader(
-        Testing_DataSet, batch_size=1, shuffle=True)
+        Testing_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Testing_DataSet.collate_fn)
 
     # Lets loop through the dataloader
     # for w, x, y in train_dataloader:
@@ -312,93 +326,98 @@ def main(args):
     model = LSTM(embedding_dim=120, vocab_size=101, output_size=101,
                  extra_input_size=Training_DataSet.weights.shape[1])
 
+    # Load the model?
+    if args.load is not None:
+        model.load_state_dict(torch.load(args.load))
+
     criterion = nn.CrossEntropyLoss()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+    # Variable to save the best model
+    best = 0
+
     # Lets train with the Training_DataSet
-    count_training_samples = 0
     samples_num = 0
-    loss_list = []
-    # i = 0
-    for weight, input_data, target in train_dataloader:
+    losses = []
+    avg_losses = []
+    accuracy = []
+    model.train()
+    for epoch in range(NUM_EPOCHS):
         model.train()
-        samples_num += 1
-        count_training_samples += 1
-        # print(f"weight shape: {weight.shape}")
-        # print(f"input_data shape: {input_data.shape}")
-        # print(f"target shape: {target.shape}")
-        # print(f"weight: {weight}")
-        # print(f"input_data: {input_data}")
-        # print(f"target: {target}")
-        for epoch in range(NUM_EPOCHS):
-            X = input_data[0]
-            y = target[0]
-            w = weight[0]
+        for weight, input_data, target in train_dataloader:
+            samples_num += 1
+            X = input_data
+            y = target
+            w = weight
             model.zero_grad()
+
             output, (h, c) = model(X, w)
 
             loss = criterion(output, y)
-            loss_list.append(loss.item())
+            losses.append(loss.item())
 
             loss.backward()
             optimizer.step()
 
-            # if epoch % PRINT_EVERY != 0:
-            #     continue
-
-            # print(f"EPOCH: {epoch}, loss: {loss.item()}")
-
-            # _, preds = output.max(dim=-1)
-
-            # # Check how many are correct
-            # correct = 0
-            # total = 0
-            # for i in range(len(preds)):
-            #     if preds[i] == y[i]:
-            #         correct += 1
-            #     total += 1
-            # print(f"Correct: {correct}")
-            # print(f"Accuracy: {correct/total}")
-
-        if count_training_samples % PLOT_EVERY != 0:
-            continue
-
-        count_training_samples = 0
+         # Calculate the average loss
+        avg_loss = sum(losses)/len(losses)
+        avg_losses.append(avg_loss)
+        losses = []
 
         # Print the average loss
-        print(f"Average loss: {np.mean(loss_list)} ({len(loss_list)} samples) ({samples_num} samples)")
-        loss_list = []
+        print(
+            f"EPOCH: {epoch+1}/{NUM_EPOCHS}, avg_loss: {avg_loss:.6f}")
 
         # Validate the model
         model.eval()
-        counter = 0
         correct = 0
         total = 0
         with torch.no_grad():
             for test_weight, test_input, test_output in test_dataloader:
-                counter += 1
-                X = test_input[0]
-                y = test_output[0]
-                w = test_weight[0]
+                X = test_input
+                y = test_output
+                w = test_weight
                 output, (h, c) = model(X, w)
-                _, preds = output.max(dim=-1)
-                # Check how many are correct
-                for i in range(len(preds)):
-                    if preds[i] == y[i]:
-                        correct += 1
-                    total += 1
-                if counter >= 100:
-                    break
-        print(f"Correct: {correct}, Total: {total} ({correct/total*100}%)")
+                for i in range(output.shape[0]):
+                    # Get the predicted
+                    _, predicted = torch.max(output[i], 1)
+                    # Get the actual
+                    actual = y[i]
+                    # Get the total
+                    total += len(actual)
+                    # Get the correct
+                    correct += (predicted == actual).sum().item()
 
-    # Lets plot the loss
+        acc = correct/total*100
+
+        print(f"Correct: {correct}, Total: {total} ({acc:.2f}%)")
+
+        accuracy.append(acc)
+
+        if acc > best:
+            print(f"New best: {acc:.2f}%")
+            best = acc
+            # Save the model
+            torch.save(model.state_dict(), os.path.join(
+                MODELS_PATH, "model.pth"))
+        else:
+            print(f"Best: {best}%")
+
+    # Lets plot the loss and accuracy
     plt.figure()
-    plt.plot(loss_list)
+    plt.plot(avg_losses)
+    plt.title("Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.title("Loss")
-    plt.show()
+    plt.savefig(os.path.join(MODELS_PATH, "loss.png"))
+
+    plt.figure()
+    plt.plot(accuracy)
+    plt.title("Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.savefig(os.path.join(MODELS_PATH, "accuracy.png"))
 
 
 if __name__ == "__main__":
@@ -406,6 +425,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d", "--data", help="Path to the training and testing folder", default=None)
+    # Load model?
+    parser.add_argument(
+        "-l", "--load", help="Path to the model to load", default=None)
     args = parser.parse_args()
     main(args)
     sys.exit(0)
