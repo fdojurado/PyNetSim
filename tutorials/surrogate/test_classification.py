@@ -102,6 +102,10 @@ def test_predicted_sample(encoder, x, y, output):
     total = np.prod(y.shape)
     # Index where the values are equal
     # index = np.where(y == output)
+    # print(f"Y: {y}")
+    # print(f"Output: {output}")
+    # print(f"Index: {index}")
+    # input(f"Correct: {correct}, Total: {total}, Accuracy: {correct/total*100}")
     return correct, total
 
 
