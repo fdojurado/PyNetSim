@@ -1,42 +1,34 @@
-# This script is used for the training of the surrogate model.
-# We use pytorch to train the model.
-import math
-import time
-import sys
 import os
+import sys
 import json
-import random
-import torch
-import numpy as np
 import argparse
-import matplotlib.pyplot as plt
-
+import numpy as np
+import torch
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from torch import nn
-from torch.autograd import Variable
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
-
+# Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
-# Go to the tutorial folder which is one folder up
 TUTORIALS_PATH = os.path.dirname(SELF_PATH)
-# Go to the results folder
 RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
-# Folder to save the models
 MODELS_PATH = os.path.join(SELF_PATH, "models")
 
-# Lets create a dataloader
+# Configuration parameters
 BATCH_SIZE = 64
-
-# Neural network parameters
 INPUT_SIZE = 203
-HIDDEN_SIZE = 128
+HIDDEN_SIZE = 256
 OUTPUT_SIZE = 99
+LEARNING_RATE = 1e-4
+NUM_EPOCHS = 5000
+LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
-LEARNING_RATE = 1e-3
-NUM_EPOCHS = 1000
-PRINT_EVERY = 200
+
+# Print and plot intervals
+PRINT_EVERY = 1
+PLOT_EVERY = 10
 PLOT_EVERY = 10000
 
 
@@ -61,190 +53,243 @@ class NetworkDataset(Dataset):
         return weights, X, y
 
 
-class LSTM(nn.Module):
-    def __init__(self, embedding_dim, vocab_size, output_size, extra_input_size=0):
-        super(LSTM, self).__init__()
+class MixedDataModel(nn.Module):
+    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim, output_dim):
+        super(MixedDataModel, self).__init__()
 
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        # Embedding layer for categorical data
+        self.embedding_layer = nn.Embedding(
+            num_embeddings=num_embeddings, embedding_dim=embedding_dim)
 
-        # The LSTM takes word embeddings as inputs, and outputs hidden states
-        # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(embedding_dim+extra_input_size,
-                            embedding_dim, batch_first=True)
+        # Other input layers for numerical and text data
+        self.numerical_layer = nn.Linear(numerical_dim, hidden_dim)
 
-        # The linear layer that maps from hidden state space to tag space
-        self.hidden2tag = nn.Linear(embedding_dim, output_size)
+        # print(
+        #     f"Size of the input of the hidden layer: {num_embeddings + hidden_dim}")
+        # print(
+        #     f"Size of the input of the hidden layer2: {embedding_dim + hidden_dim}")
+        # print(
+        #     f"Size of the input of the hidden layer3: {num_embeddings+numerical_dim}")
+        # Combined hidden layer
+        self.hidden_layer = nn.Linear(
+            embedding_dim+numerical_dim, hidden_dim)
+
+        # Add another hidden layer
+        self.hidden_layer2 = nn.Linear(hidden_dim, 128)
+
+        # Output layer
+        self.output_layer = nn.Linear(128, output_dim)
+
+        # Activation functions
+        self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, sequence, extra_input=None):
-        embeds = self.embedding(sequence)
-        # Concatenate the extra input
-        if extra_input is not None:
-            extra_input = extra_input.unsqueeze(1)  # Add batch dimension
-            extra_input = extra_input.repeat(
-                1, sequence.size(1), 1)  # Repeat for each time step
-            embeds = torch.cat((embeds, extra_input), dim=-1)
-        # Lets get the lstm
-        output, (h, c) = self.lstm(embeds)
-        # Lets get the output
-        output = self.hidden2tag(output)
-        # Lets get the softmax
-        output = self.softmax(output)
-        return output, (h, c)
+    def forward(self, categorical_data, numerical_data):
+        # print(f"Shape of / categorical data 0: {categorical_data.shape}")
+        # Pass categorical data through embedding layer
+        categorical_data = self.embedding_layer(categorical_data)
+        # print(f"Shape of / categorical data: {categorical_data.shape}")
+        # Shape of categorical data: torch.Size([1, 99, 99])
+
+        # Expand dimensions of numerical data to match the sequence length
+        numerical_data = numerical_data.unsqueeze(
+            1).expand(-1, categorical_data.size(1), -1)
+        # print(f"Shape of numerical data: {numerical_data.shape}")
+        # Shape of numerical data: torch.Size([1, 99, 102])
+
+        # Concatenate all the data
+        combined_data = torch.cat(
+            (categorical_data, numerical_data), dim=2)
+        # print(f"Shape of combined data: {combined_data.shape}")
+        # Shape of combined data: torch.Size([1, 99, 201])
+
+        # Pass through hidden layer
+        hidden_data = self.hidden_layer(combined_data)
+
+        # Pass through the activation function
+        hidden_data = self.relu(hidden_data)
+
+        # Pass through hidden layer
+        hidden_data = self.hidden_layer2(hidden_data)
+
+        # Pass through the activation function
+        hidden_data = self.relu(hidden_data)
+
+        # Pass through output layer
+        output_data = self.output_layer(hidden_data)
+
+        # Pass through the activation function
+        output_data = self.softmax(output_data)
+
+        return output_data
 
 
-def process_data():
-    # Lets loop through all files that start with LEACH-CE-E_ but excluding LEACH-CE-E_extended.json
-    data = {}
-    for file in os.listdir(RESULTS_PATH):
-        if file.startswith("LEACH-CE-E_") and not file.endswith("extended.json"):
-            # Get the name only which is after LEACH-CE-E_ and before .json
-            # Lets split
-            name = file.split("_")[1:]
-            name[-1] = name[-1].split(".json")[0]
-            # put the name in a tuple
-            name = tuple(name)
-            # Load the data which is a dictionary
-            with open(os.path.join(RESULTS_PATH, file), "r") as f:
-                data[name] = json.load(f)
-
-    samples = {}
-
-    for name, data in data.items():
-        # How many rounds are there?
+def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_membership_values=NUM_CLUSTERS):
+    normalized_samples = {}
+    for name, data in samples.items():
+        normalized_samples[name] = {}
         max_rounds = len(data)
-        samples[name] = {}
-        # Lets loop through the rounds and print the alive nodes
+
         for round, stats in data.items():
             round = int(round)
-            # Lets create a list of the data
-            energy_levels = []
-            # cluster_heads = []
-            membership = []
-            for node_id, energy in stats['energy_levels'].items():
-                energy_levels.append(energy)
-            for node_id, cluster_id in stats['membership'].items():
-                if cluster_id is None:
-                    membership.append(0)
-                else:
-                    membership.append(int(cluster_id))
-            # Add a zero for the sink
+            if round == max_rounds:
+                continue
+
+            energy_levels = list(stats['energy_levels'].values())
+            membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
+                          for _, cluster_id in stats['membership'].items()]
+
+            # Add a 0 at the beginning of the membership
             membership.insert(0, 0)
-            x_data = [float(name[0]), float(name[1]), float(name[2]),
-                      float(round), float(stats['alive_nodes'])]
-            # append the energy levels
-            x_data.extend(energy_levels)
-            # Lets check if this is the last round
-            if int(round) == max_rounds:
-                # If it is then the membership is the same as the current round
-                y_data = membership
-            else:
-                # Otherwise the membership is the next round
-                next_round = int(round) + 1
-                # Lets get the membership of the next round
-                next_round_membership = []
-                for node_id, cluster_id in data[str(next_round)]['membership'].items():
-                    if cluster_id is None:
-                        next_round_membership.append(0)
-                    else:
-                        # Attach only the cluster id in integer form, remove .0
-                        next_round_membership.append(int(cluster_id))
-                # Add a zero for the sink
-                next_round_membership.insert(0, 0)
-                y_data = next_round_membership
-            # Lets append the x_data and y_data to the samples
-            samples[name][round] = {
+
+            x_data = [value / normalized_names_values for value in name] + \
+                energy_levels
+
+            next_round = round + 1
+            next_round_membership = [0 if cluster_id is None else int(
+                cluster_id) / normalized_membership_values for _, cluster_id in data[str(next_round)]['membership'].items()]
+
+            # Add a 0 at the beginning of the membership
+            next_round_membership.insert(0, 0)
+
+            y_data = next_round_membership
+
+            assert all(-1 <= value <=
+                       1 for value in x_data), f"Invalid x_data: {x_data}"
+            assert all(
+                0 <= value <= NUM_CLUSTERS for value in y_data), f"Invalid y_data: {y_data}"
+            assert all(
+                0 <= value <= NUM_CLUSTERS for value in membership), f"Invalid membership: {membership}"
+
+            normalized_samples[name][round] = {
                 "x_data": x_data,
-                "membership": membership,
-                "y_data": y_data
+                "y_data": y_data,
+                "membership": membership
             }
 
-    # Lets save the entire dict by name
     os.makedirs("data", exist_ok=True)
-    for name, data in samples.items():
-        # Lets save the x_data
+    for name, data in normalized_samples.items():
         with open(os.path.join("data", f"{name}.json"), "w") as f:
             json.dump(data, f)
 
+    return normalized_samples
+
+
+def load_files(data_dir):
+    samples = {}
+    for file in os.listdir(data_dir):
+        if file.startswith("LEACH-CE-E_") and not file.endswith("extended.json"):
+            name_parts = file.split("_")[1:]
+            name_parts[-1] = name_parts[-1].split(".json")[0]
+            name = tuple(name_parts)
+            name = tuple(float(part.replace("'", "")) for part in name_parts)
+
+            with open(os.path.join(data_dir, file), "r") as f:
+                data = json.load(f)
+            samples[name] = data
     return samples
 
 
-def load_samples():
+def load_samples(data_dir):
+    print(f"Loading samples from: {data_dir}")
     samples = {}
-    for file in os.listdir("data"):
-        # Ignore .DS_Store
+    for file in os.listdir(data_dir):
         if file == ".DS_Store":
             continue
-        # Load the data
-        with open(os.path.join("data", file), "r") as f:
+        with open(os.path.join(data_dir, file), "r") as f:
             data = json.load(f)
-        # Get the name only which is after LEACH-CE-E_ and before .json
-        # Lets get the name which is simply the concatenation of what is inside the ''
-        name = file.split(".json")[0]
-        name = name.replace("(", "").replace(")", "").split(",")
-        name = [x.replace("'", "") for x in name]
-        name = [float(x) for x in name]
-        name = tuple(name)
+        # Remove single quotes and split by comma
+        name = tuple(float(x.replace("'", "")) for x in file.split(
+            ".json")[0].replace("(", "").replace(")", "").split(","))
         samples[name] = data
     return samples
 
 
-def timeSince(since):
-    now = time.time()
-    s = now - since
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
+def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
+    # print(
+    #     f"Input size: {input_size}, hidden size: {hidden_size}, output size: {output_size}")
+    model = MixedDataModel(num_embeddings=200,
+                           embedding_dim=10,
+                           numerical_dim=102,
+                           hidden_dim=512,
+                           output_dim=101)
+
+    if load_model:
+        print(f"Loading model: {load_model}")
+        model.load_state_dict(torch.load(load_model))
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    best_loss = float("inf")
+    train_losses = []
+    validation_losses = []
+
+    for epoch in range(num_epochs):
+        model.train()
+        for input_data, categorical_data, target_data in train_loader:
+            optimizer.zero_grad()
+            # print(f"Target data: {target_data}, {target_data.shape}")
+            outputs = model(categorical_data=categorical_data,
+                            numerical_data=input_data)
+            # print(f"Outputs: {outputs}, {outputs.shape}")
+            loss = criterion(outputs, target_data)
+            loss.backward()
+            optimizer.step()
+            train_losses.append(loss.item())
+
+        model.eval()
+        with torch.no_grad():
+            for input_data, categorical_data, target_data in test_loader:
+                outputs = model(categorical_data=categorical_data,
+                                numerical_data=input_data)
+                loss = criterion(outputs, target_data)
+                validation_losses.append(loss.item())
+
+        avg_train_loss = np.mean(train_losses)
+        avg_val_loss = np.mean(validation_losses)
+
+        if epoch % PRINT_EVERY == 0:
+            print(
+                f"Epoch [{epoch}/{num_epochs}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
+
+        if epoch % PLOT_EVERY == 0:
+            plt.figure()  # Create a new figure
+            plt.plot(train_losses, label="Train Loss")
+            plt.plot(validation_losses, label="Validation Loss")
+            plt.legend()
+            plt.savefig(os.path.join(
+                "plots", f"train_validation_loss_classification.png"))
+
+        if avg_val_loss < best_loss:
+            print(
+                f"Epoch [{epoch}/{num_epochs}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
+            )
+            best_loss = avg_val_loss
+            if model_path:
+                torch.save(model.state_dict(), model_path)
+
+    return model
 
 
 def get_all_samples(samples):
     # Get the samples in the form of weights, current_membership, y_membership
-    weights = []
-    current_membership = []
-    y_membership = []
+    x = []
+    y = []
+    membership = []
     for key, sample in samples.items():
         for round in range(1, len(sample)+1):
             x_data = sample[str(round)]['x_data']
             y_data = sample[str(round)]['y_data']
             pre_membership = sample[str(round)]['membership']
-            weights.append(x_data)
-            current_membership.append(pre_membership)
-            y_membership.append(y_data)
+            x.append(x_data)
+            y.append(y_data)
+            membership.append(pre_membership)
+            if len(x_data) != 102:
+                raise (
+                    f"Invalid x_data: {key}, {round}, length: {len(x_data)}")
 
-    return weights, current_membership, y_membership
-
-
-def random_sample(samples):
-    random_key = random.choice(list(samples.keys()))
-    current_membership = []
-    y_membership = []
-    weights = []
-    sample = samples[random_key]
-    for round in range(1, len(sample)+1):
-        x_data = sample[str(round)]['x_data']
-        y_data = sample[str(round)]['y_data']
-        pre_membership = sample[str(round)]['membership']
-        weights.append(x_data)
-        current_membership.append(pre_membership)
-        y_membership.append(y_data)
-
-    return weights, current_membership, y_membership
-
-
-def get_sample_ch(ch, samples):
-    # Get a sample where there is a cluster head with id ch
-    X_train = []
-    y_train = []
-    for key, sample in samples.items():
-        for round in range(1, len(sample)+1):
-            cluster_heads = sample[str(round)]['y_data']
-            if ch in cluster_heads:
-                y_data = sample[str(round)]['y_data']
-                pre_membership = sample[str(round)]['membership']
-                x_data = pre_membership
-                X_train.append(x_data)
-                y_train.append(y_data)
-                return X_train, y_train
+    return x, y, membership
 
 
 def main(args):
@@ -252,22 +297,32 @@ def main(args):
     # Create a folder to save the model
     os.makedirs("models", exist_ok=True)
 
+    # Plot folder
+    os.makedirs("plots", exist_ok=True)
+
     if args.data is None:
-        samples = process_data()
+        files = load_files(RESULTS_PATH)
+        samples = normalize_data(
+            files, normalized_names_values=LARGEST_WEIGHT, normalized_membership_values=1)
     else:
         # Load the training and testing data
-        samples = load_samples()
+        samples = load_samples(args.data)
 
-    print(f"Number of samples: {len(samples)}")
+    # print(f"Number of samples: {len(samples)}")
 
     # Get all the samples
-    weights, current_membership, y_membership = get_all_samples(samples)
+    x, y, membership = get_all_samples(samples)
 
-    np_weights = np.array(weights)
+    # Print the shape of the data
+    # print(f"Length of x: {len(x)}")
+    # print(f"Length of y: {len(y)}")
+    # print(f"Length of membership: {len(membership)}")
+
+    np_weights = np.array(x)
     np_weights_size = np_weights.shape
-    np_current_membership = np.array(current_membership)
+    np_current_membership = np.array(membership)
     np_current_membership_size = np_current_membership.shape
-    np_y = np.array(y_membership)
+    np_y = np.array(y)
 
     # Concatenate the weights and current_membership
     np_x = np.concatenate(
@@ -278,8 +333,8 @@ def main(args):
         np_x, np_y, test_size=0.2, random_state=42, shuffle=False)
 
     # Print the shape of the training and testing data
-    print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
-    print(f"Shape of the testing data: {X_test.shape}, {y_test.shape}")
+    # print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
+    # print(f"Shape of the testing data: {X_test.shape}, {y_test.shape}")
 
     # Lets unpack the weights and current_membership
     X_train_weights = X_train[:, :np_weights_size[1]]
@@ -296,13 +351,6 @@ def main(args):
                                                                np_weights_size[1]:],
                                      y_membership=y_test)
 
-    # weights, current_membership, y_membership = random_sample(samples)
-
-    # Lets create the training data
-    # Training_DataSet = NetworkDataset(weights=weights,
-    #                                   current_membership=current_membership,
-    #                                   y_membership=y_membership)
-
     # Lets create the dataloader
     train_dataloader = DataLoader(
         Training_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Training_DataSet.collate_fn)
@@ -310,114 +358,17 @@ def main(args):
     test_dataloader = DataLoader(
         Testing_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Testing_DataSet.collate_fn)
 
-    # Lets loop through the dataloader
-    # for w, x, y in train_dataloader:
-    #     print(f"w: {w.shape}, {w.dtype}, x: {x.shape}, {x.dtype}, y: {y.shape}, {y.dtype}")
-    #     print(f"w: {w}")
-    #     print(f"x: {x}")
-    #     print(f"y: {y}")
-    #     input("Continue?")
-
     print(f"Lenght of the dataloader: {len(train_dataloader)}")
 
     print(
         f"Shape of the training data, x: {Training_DataSet.X.shape}, {Training_DataSet.X.dtype}, y: {Training_DataSet.y.shape}, {Training_DataSet.y.dtype}, weights: {Training_DataSet.weights.shape}, {Training_DataSet.weights.dtype}")
 
-    model = LSTM(embedding_dim=120, vocab_size=101, output_size=101,
-                 extra_input_size=Training_DataSet.weights.shape[1])
+    model_path = os.path.join(MODELS_PATH, "model.pt")
 
-    # Load the model?
-    if args.load is not None:
-        model.load_state_dict(torch.load(args.load))
-
-    criterion = nn.CrossEntropyLoss()
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-    # Variable to save the best model
-    best = 0
-
-    # Lets train with the Training_DataSet
-    samples_num = 0
-    losses = []
-    avg_losses = []
-    accuracy = []
-    model.train()
-    for epoch in range(NUM_EPOCHS):
-        model.train()
-        for weight, input_data, target in train_dataloader:
-            samples_num += 1
-            X = input_data
-            y = target
-            w = weight
-            model.zero_grad()
-
-            output, (h, c) = model(X, w)
-
-            loss = criterion(output, y)
-            losses.append(loss.item())
-
-            loss.backward()
-            optimizer.step()
-
-         # Calculate the average loss
-        avg_loss = sum(losses)/len(losses)
-        avg_losses.append(avg_loss)
-        losses = []
-
-        # Print the average loss
-        print(
-            f"EPOCH: {epoch+1}/{NUM_EPOCHS}, avg_loss: {avg_loss:.6f}")
-
-        # Validate the model
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for test_weight, test_input, test_output in test_dataloader:
-                X = test_input
-                y = test_output
-                w = test_weight
-                output, (h, c) = model(X, w)
-                for i in range(output.shape[0]):
-                    # Get the predicted
-                    _, predicted = torch.max(output[i], 1)
-                    # Get the actual
-                    actual = y[i]
-                    # Get the total
-                    total += len(actual)
-                    # Get the correct
-                    correct += (predicted == actual).sum().item()
-
-        acc = correct/total*100
-
-        print(f"Correct: {correct}, Total: {total} ({acc:.2f}%)")
-
-        accuracy.append(acc)
-
-        if acc > best:
-            print(f"New best: {acc:.2f}%")
-            best = acc
-            # Save the model
-            torch.save(model.state_dict(), os.path.join(
-                MODELS_PATH, "model.pth"))
-        else:
-            print(f"Best: {best}%")
-
-    # Lets plot the loss and accuracy
-    plt.figure()
-    plt.plot(avg_losses)
-    plt.title("Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.savefig(os.path.join(MODELS_PATH, "loss.png"))
-
-    plt.figure()
-    plt.plot(accuracy)
-    plt.title("Accuracy")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.savefig(os.path.join(MODELS_PATH, "accuracy.png"))
+    # train_model(args.load, train_dataloader, test_dataloader, Training_DataSet.X.shape[1],
+    #             HIDDEN_SIZE, Training_DataSet.y.shape[1], NUM_EPOCHS, LEARNING_RATE, model_path)
+    train_model(load_model=args.load, train_loader=train_dataloader, test_loader=test_dataloader, input_size=Training_DataSet.weights.shape[1],
+                hidden_size=HIDDEN_SIZE, output_size=Training_DataSet.y.shape[1], num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE, model_path=model_path)
 
 
 if __name__ == "__main__":

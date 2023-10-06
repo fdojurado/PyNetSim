@@ -149,10 +149,10 @@ def main(args):
             loss = criterion(output, y)
             losses.append(loss.item())
             if BATCH_SIZE == 1:
-                correct, total = test_predicted_sample(encoder, x, y, output)
+                correct, total = test_predicted_sample(encoder, X, y, output)
                 avg_accuracy.append(correct/total*100)
                 continue
-            acc = test_predicted_batch(encoder, x, y, output)
+            acc = test_predicted_batch(encoder, X, y, output)
             avg_accuracy.append(acc)
     print(f"Average Loss: {np.mean(losses)}")
     print(f"Average Accuracy: {np.mean(avg_accuracy)}")
