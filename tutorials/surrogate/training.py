@@ -5,9 +5,13 @@ import argparse
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import logging
+
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
+from rich.logging import RichHandler
+from pynetsim.utils import PyNetSimLogger
 
 # Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +25,7 @@ BATCH_SIZE = 32
 INPUT_SIZE = 203
 HIDDEN_SIZE = 256
 OUTPUT_SIZE = 99
-LEARNING_RATE = 1e-2
+LEARNING_RATE = 1e-4
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
@@ -30,6 +34,10 @@ NUM_CLUSTERS = 100
 PRINT_EVERY = 1
 PLOT_EVERY = 10
 PLOT_EVERY = 10000
+
+# -------------------- Create logger --------------------
+logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger = logger_utility.get_logger()
 
 
 class NetworkDataset(Dataset):
@@ -72,12 +80,12 @@ class MixedDataModel(nn.Module):
         #     f"Size of the hidden layer, input: {numerical_dim+embedding_dim}, output: {hidden_dim}")
 
         # Add another hidden layer
-        self.hidden_layer2 = nn.Linear(hidden_dim, 128)
+        self.hidden_layer2 = nn.Linear(hidden_dim, hidden_dim)
 
         # print(f"Size of the hidden layer2, input: {hidden_dim}, output: {hidden_dim}")
 
         # Output layer
-        self.output_layer = nn.Linear(128, output_dim)
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
 
         # print(f"Size of the output layer, input: {256}, output: {output_dim}")
 
@@ -210,7 +218,7 @@ def load_files(data_dir):
 
 
 def load_samples(data_dir):
-    print(f"Loading samples from: {data_dir}")
+    logger.info(f"Loading samples from: {data_dir}")
     samples = {}
     for file in os.listdir(data_dir):
         if file == ".DS_Store":
@@ -226,13 +234,13 @@ def load_samples(data_dir):
 
 def get_model(learning_rate=LEARNING_RATE, load_model=None):
     model = MixedDataModel(num_embeddings=101,
-                           embedding_dim=10,
+                           embedding_dim=50,
                            numerical_dim=102,
-                           hidden_dim=256,
+                           hidden_dim=512,
                            output_dim=101)
 
     if load_model:
-        print(f"Loading model: {load_model}")
+        logger.info(f"Loading model: {load_model}")
         model.load_state_dict(torch.load(load_model))
 
     criterion = nn.NLLLoss()
@@ -278,7 +286,7 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
         avg_val_loss = np.mean(validation_losses)
 
         if epoch % PRINT_EVERY == 0:
-            print(
+            logger.info(
                 f"Epoch [{epoch}/{num_epochs}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
 
         if epoch % PLOT_EVERY == 0:
@@ -290,7 +298,7 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
                 PLOTS_PATH, f"train_validation_loss_classification.png"))
 
         if avg_val_loss < best_loss:
-            print(
+            logger.info(
                 f"Epoch [{epoch}/{num_epochs}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
             )
             best_loss = avg_val_loss
@@ -336,7 +344,7 @@ def main(args):
         # Load the training and testing data
         samples = load_samples(args.data)
 
-    # print(f"Number of samples: {len(samples)}")
+    logger.info(f"Number of samples: {len(samples)}")
 
     # Get all the samples
     x, y, membership = get_all_samples(samples)
@@ -386,9 +394,9 @@ def main(args):
     test_dataloader = DataLoader(
         Testing_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Testing_DataSet.collate_fn)
 
-    print(f"Lenght of the dataloader: {len(train_dataloader)}")
+    logger.info(f"Lenght of the dataloader: {len(train_dataloader)}")
 
-    print(
+    logger.info(
         f"Shape of the training data, x: {Training_DataSet.X.shape}, {Training_DataSet.X.dtype}, y: {Training_DataSet.y.shape}, {Training_DataSet.y.dtype}, weights: {Training_DataSet.weights.shape}, {Training_DataSet.weights.dtype}")
 
     model_path = os.path.join(MODELS_PATH, "model.pt")
