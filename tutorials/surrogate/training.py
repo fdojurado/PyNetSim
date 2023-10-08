@@ -17,11 +17,11 @@ RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
 MODELS_PATH = os.path.join(SELF_PATH, "models")
 
 # Configuration parameters
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 INPUT_SIZE = 203
 HIDDEN_SIZE = 256
 OUTPUT_SIZE = 99
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-2
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
@@ -61,47 +61,57 @@ class MixedDataModel(nn.Module):
         self.embedding_layer = nn.Embedding(
             num_embeddings=num_embeddings, embedding_dim=embedding_dim)
 
-        # Other input layers for numerical and text data
-        self.numerical_layer = nn.Linear(numerical_dim, hidden_dim)
+        # print(
+        #     f"Size of the embedding layer, input: {num_embeddings}, output: {embedding_dim}")
 
-        # print(
-        #     f"Size of the input of the hidden layer: {num_embeddings + hidden_dim}")
-        # print(
-        #     f"Size of the input of the hidden layer2: {embedding_dim + hidden_dim}")
-        # print(
-        #     f"Size of the input of the hidden layer3: {num_embeddings+numerical_dim}")
         # Combined hidden layer
         self.hidden_layer = nn.Linear(
-            embedding_dim+numerical_dim, hidden_dim)
+            numerical_dim+embedding_dim, hidden_dim)
+
+        # print(
+        #     f"Size of the hidden layer, input: {numerical_dim+embedding_dim}, output: {hidden_dim}")
 
         # Add another hidden layer
         self.hidden_layer2 = nn.Linear(hidden_dim, 128)
 
+        # print(f"Size of the hidden layer2, input: {hidden_dim}, output: {hidden_dim}")
+
         # Output layer
         self.output_layer = nn.Linear(128, output_dim)
 
+        # print(f"Size of the output layer, input: {256}, output: {output_dim}")
+
         # Activation functions
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=2)
+
+        # Dropout
+        # self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, categorical_data, numerical_data):
         # print(f"Shape of / categorical data 0: {categorical_data.shape}")
+        # print(f"First element of categorical data: {categorical_data[0]}")
         # Pass categorical data through embedding layer
         categorical_data = self.embedding_layer(categorical_data)
         # print(f"Shape of / categorical data: {categorical_data.shape}")
-        # Shape of categorical data: torch.Size([1, 99, 99])
+        # Shape of categorical data: torch.Size([64, 99, 10])
+        # print(f"First element of categorical data: {categorical_data[0]}")
+
+        # print(f"Shape of numerical data 0: {numerical_data.shape}")
+        # print(f"First element of numerical data: {numerical_data[0]}")
 
         # Expand dimensions of numerical data to match the sequence length
         numerical_data = numerical_data.unsqueeze(
             1).expand(-1, categorical_data.size(1), -1)
-        # print(f"Shape of numerical data: {numerical_data.shape}")
-        # Shape of numerical data: torch.Size([1, 99, 102])
+        # print(f"Shape of numerical data 0: {numerical_data.shape}")
+        # print(f"First element of numerical data: {numerical_data[0]}")
 
         # Concatenate all the data
         combined_data = torch.cat(
             (categorical_data, numerical_data), dim=2)
-        # print(f"Shape of combined data: {combined_data.shape}")
+        # input(f"Shape of combined data: {combined_data.shape}")
         # Shape of combined data: torch.Size([1, 99, 201])
+        # input(f"First element of combined data: {combined_data[0]}")
 
         # Pass through hidden layer
         hidden_data = self.hidden_layer(combined_data)
@@ -109,17 +119,25 @@ class MixedDataModel(nn.Module):
         # Pass through the activation function
         hidden_data = self.relu(hidden_data)
 
+        # dropout
+        # hidden_data = self.dropout(hidden_data)
+
         # Pass through hidden layer
         hidden_data = self.hidden_layer2(hidden_data)
 
         # Pass through the activation function
         hidden_data = self.relu(hidden_data)
 
+        # dropout
+        # hidden_data = self.dropout(hidden_data)
+
         # Pass through output layer
         output_data = self.output_layer(hidden_data)
 
         # Pass through the activation function
         output_data = self.softmax(output_data)
+
+        # input(f"Shape of output data: {output_data.shape}")
 
         return output_data
 
@@ -137,9 +155,9 @@ def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_m
 
             energy_levels = list(stats['energy_levels'].values())
             membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
-                          for _, cluster_id in stats['membership'].items()]
+                          for node_id, cluster_id in stats['membership'].items()]
 
-            # Add a 0 at the beginning of the membership
+            # Add the sink at the beginning
             membership.insert(0, 0)
 
             x_data = [value / normalized_names_values for value in name] + \
@@ -147,9 +165,9 @@ def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_m
 
             next_round = round + 1
             next_round_membership = [0 if cluster_id is None else int(
-                cluster_id) / normalized_membership_values for _, cluster_id in data[str(next_round)]['membership'].items()]
+                cluster_id) / normalized_membership_values for node_id, cluster_id in data[str(next_round)]['membership'].items()]
 
-            # Add a 0 at the beginning of the membership
+            # Add the sink at the beginning
             next_round_membership.insert(0, 0)
 
             y_data = next_round_membership
@@ -205,21 +223,29 @@ def load_samples(data_dir):
     return samples
 
 
-def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
-    # print(
-    #     f"Input size: {input_size}, hidden size: {hidden_size}, output size: {output_size}")
-    model = MixedDataModel(num_embeddings=200,
+def get_model(learning_rate=LEARNING_RATE, load_model=None):
+    model = MixedDataModel(num_embeddings=101,
                            embedding_dim=10,
                            numerical_dim=102,
-                           hidden_dim=512,
+                           hidden_dim=256,
                            output_dim=101)
 
     if load_model:
         print(f"Loading model: {load_model}")
         model.load_state_dict(torch.load(load_model))
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    return model, criterion, optimizer
+
+
+def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
+    # print(
+    #     f"Input size: {input_size}, hidden size: {hidden_size}, output size: {output_size}")
+
+    model, criterion, optimizer = get_model(learning_rate=learning_rate,
+                                            load_model=load_model)
 
     best_loss = float("inf")
     train_losses = []
@@ -229,10 +255,11 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
         model.train()
         for input_data, categorical_data, target_data in train_loader:
             optimizer.zero_grad()
+            # print(f"Input data: {input_data}, {input_data.shape}")
             # print(f"Target data: {target_data}, {target_data.shape}")
             outputs = model(categorical_data=categorical_data,
                             numerical_data=input_data)
-            # print(f"Outputs: {outputs}, {outputs.shape}")
+            # input(f"Outputs: {outputs}, {outputs.shape}")
             loss = criterion(outputs, target_data)
             loss.backward()
             optimizer.step()
