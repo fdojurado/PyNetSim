@@ -10,7 +10,7 @@ from torch.autograd import Variable
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 from training import MixedDataModel, NetworkDataset, load_samples, get_all_samples, get_model
-
+from pynetsim.utils import PyNetSimLogger
 # Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 TUTORIALS_PATH = os.path.dirname(SELF_PATH)
@@ -18,6 +18,9 @@ RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
 MODELS_PATH = os.path.join(SELF_PATH, "models")
 HIDDEN_SIZE = 512
 NUM_EPOCHS = 100
+
+logger_utility = PyNetSimLogger(log_file="my_log.log", namespace=__name__)
+logger = logger_utility.get_logger()
 
 
 def test_predicted_sample(y, output, print_output=False):
@@ -29,12 +32,12 @@ def test_predicted_sample(y, output, print_output=False):
     total = np.prod(y.shape)
     # input(f"Correct: {correct}, Total: {total}")
     if print_output:
-        print(f"Y: {y}")
-        print(f"Predicted: {predicted}")
+        logger.info(f"Y: {y}")
+        logger.info(f"Predicted: {predicted}")
         # get the index where the values are equal
         index = np.where(y == predicted)
-        print(f"Index: {index}")
-        print(f"Correct: {correct}, Total: {total}")
+        logger.info(f"Index: {index}")
+        logger.info(f"Correct: {correct}, Total: {total}")
         input("Press enter to continue")
     return correct, total
 
@@ -104,8 +107,8 @@ def main(args):
                 continue
             acc = test_predicted_batch(y, output, args.print)
             avg_accuracy.append(acc)
-    print(f"Average Loss: {np.mean(losses)}")
-    print(f"Average Accuracy: {np.mean(avg_accuracy)}")
+    logger.info(f"Average Loss: {np.mean(losses)}")
+    logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
 
 
 if __name__ == "__main__":
