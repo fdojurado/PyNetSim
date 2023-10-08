@@ -16,6 +16,7 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 TUTORIALS_PATH = os.path.dirname(SELF_PATH)
 RESULTS_PATH = os.path.join(TUTORIALS_PATH, "results")
 MODELS_PATH = os.path.join(SELF_PATH, "models")
+PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 
 # Configuration parameters
 BATCH_SIZE = 64
@@ -113,7 +114,7 @@ def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_m
                 "y_data": y_data
             }
 
-    os.makedirs("data_classification", exist_ok=True)
+    os.makedirs(os.path.join(SELF_PATH, "data_classification"), exist_ok=True)
     for name, data in normalized_samples.items():
         with open(os.path.join("data_classification", f"{name}.json"), "w") as f:
             json.dump(data, f)
@@ -204,7 +205,7 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
             plt.plot(validation_losses, label="Validation Loss")
             plt.legend()
             plt.savefig(os.path.join(
-                "plots", f"train_validation_loss_classification.png"))
+                PLOTS_PATH, f"train_validation_loss_classification.png"))
 
         if avg_val_loss < best_loss:
             logger.info(
@@ -234,10 +235,10 @@ def get_all_samples(samples):
 def main(args):
 
     # Create a folder to save the model
-    os.makedirs("models", exist_ok=True)
+    os.makedirs(MODELS_PATH, exist_ok=True)
 
     # Plot folder
-    os.makedirs("plots", exist_ok=True)
+    os.makedirs(PLOTS_PATH, exist_ok=True)
 
     if args.data is None:
         files = load_files(RESULTS_PATH)
