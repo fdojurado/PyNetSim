@@ -41,13 +41,13 @@ keywords = [
 
 dependencies = [
     # 'setuptools==64',
-    'stable_baselines3[extra]==2.0.0a13',
     'matplotlib',
-    'docker',
     'networkx',
     'pandas',
     'rich',
-    'tomli'
+    'tomli',
+    'scikit-learn',
+    'torch'
 ]
 
 [project.urls]
