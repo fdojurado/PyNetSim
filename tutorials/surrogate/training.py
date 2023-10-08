@@ -184,7 +184,7 @@ def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_m
                 "membership": membership
             }
 
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(os.path.join(SELF_PATH, "data"), exist_ok=True)
     for name, data in normalized_samples.items():
         # with open(os.path.join("data", f"{name}.json"), "w") as f:
         with open(os.path.join(SELF_PATH, f"data/{name}.json"), "w") as f:
