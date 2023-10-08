@@ -322,10 +322,10 @@ def get_all_samples(samples):
 def main(args):
 
     # Create a folder to save the model
-    os.makedirs("models", exist_ok=True)
+    os.makedirs(MODELS_PATH, exist_ok=True)
 
     # Plot folder
-    os.makedirs("plots", exist_ok=True)
+    os.makedirs(os.path.join(SELF_PATH, "plots"), exist_ok=True)
 
     if args.data is None:
         files = load_files(RESULTS_PATH)
