@@ -116,7 +116,7 @@ def normalize_data(samples, normalized_names_values=LARGEST_WEIGHT, normalized_m
 
     os.makedirs(os.path.join(SELF_PATH, "data_classification"), exist_ok=True)
     for name, data in normalized_samples.items():
-        with open(os.path.join("data_classification", f"{name}.json"), "w") as f:
+        with open(os.path.join(SELF_PATH, f"data_classification/{name}.json"), "w") as f:
             json.dump(data, f)
 
     return normalized_samples
