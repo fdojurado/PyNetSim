@@ -8,6 +8,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
+from pynetsim.utils import PyNetSimLogger
 import matplotlib.pyplot as plt
 
 # Constants
@@ -29,6 +30,9 @@ NUM_CLUSTERS = 100
 # Print and plot intervals
 PRINT_EVERY = 1
 PLOT_EVERY = 10
+
+logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger = logger_utility.get_logger()
 
 
 class NetworkDataset(Dataset):
@@ -134,7 +138,7 @@ def load_files(data_dir):
 
 
 def load_samples(data_dir):
-    print(f"Loading samples from: {data_dir}")
+    logger.info(f"Loading samples from: {data_dir}")
     samples = {}
     for file in os.listdir(data_dir):
         if file == ".DS_Store":
@@ -148,15 +152,23 @@ def load_samples(data_dir):
     return samples
 
 
-def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
+def get_model(input_size, hidden_size, output_size, learning_rate=LEARNING_RATE, load_model=None):
     model = ClassificationModel(input_size, hidden_size, output_size)
 
     if load_model:
-        print(f"Loading model: {load_model}")
+        logger.info(f"Loading model: {load_model}")
         model.load_state_dict(torch.load(load_model))
 
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    return model, criterion, optimizer
+
+
+def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
+
+    model, criterion, optimizer = get_model(
+        input_size, hidden_size, output_size, learning_rate, load_model)
 
     best_loss = float("inf")
     train_losses = []
@@ -183,7 +195,7 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
         avg_val_loss = np.mean(validation_losses)
 
         if epoch % PRINT_EVERY == 0:
-            print(
+            logger.info(
                 f"Epoch [{epoch}/{num_epochs}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
 
         if epoch % PLOT_EVERY == 0:
@@ -195,7 +207,7 @@ def train_model(load_model, train_loader, test_loader, input_size, hidden_size, 
                 "plots", f"train_validation_loss_classification.png"))
 
         if avg_val_loss < best_loss:
-            print(
+            logger.info(
                 f"Epoch [{epoch}/{num_epochs}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
             )
             best_loss = avg_val_loss
@@ -257,7 +269,7 @@ def main(args):
     train_model(args.load, train_loader, test_loader, train_dataset.x.shape[1],
                 HIDDEN_SIZE, train_dataset.y.shape[1], NUM_EPOCHS, LEARNING_RATE, model_path)
 
-    print("Training completed.")
+    logger.info("Training completed.")
     sys.exit(0)
 
 

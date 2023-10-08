@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
+from pynetsim.utils import PyNetSimLogger
+from training_classification import NetworkDataset, load_samples, get_all_samples, get_model
 
 # Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -18,74 +20,8 @@ MODELS_PATH = os.path.join(SELF_PATH, "models")
 HIDDEN_SIZE = 512
 NUM_EPOCHS = 100
 
-
-class NetworkDataset(Dataset):
-    def __init__(self, x, y):
-        self.x = torch.from_numpy(x.astype(np.float32))
-        self.y = torch.from_numpy(y.astype(np.float32))
-        self.len = len(self.x)
-
-    def __len__(self):
-        return self.len
-
-    def __getitem__(self, idx):
-        return self.x[idx], self.y[idx]
-
-    @staticmethod
-    def collate_fn(batch):
-        x, y = zip(*batch)
-        x = torch.stack(x)
-        y = torch.stack(y)
-        return x, y
-
-
-class ClassificationModel(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(ClassificationModel, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.fc1 = nn.Linear(self.input_size, self.hidden_size)
-        self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc3 = nn.Linear(self.hidden_size, self.output_size)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        out = self.relu(out)
-        out = self.fc3(out)
-        out = self.sigmoid(out)
-        return out
-
-
-def load_samples():
-    samples = {}
-    data_dir = os.path.join(SELF_PATH, "data_classification")
-    for file in os.listdir(data_dir):
-        if file == ".DS_Store":
-            continue
-        with open(os.path.join(data_dir, file), "r") as f:
-            data = json.load(f)
-        # Remove single quotes and split by comma
-        name = tuple(float(x.replace("'", "")) for x in file.split(
-            ".json")[0].replace("(", "").replace(")", "").split(","))
-        samples[name] = data
-    return samples
-
-
-def get_all_samples(samples):
-    x = []
-    y = []
-    for key, sample in samples.items():
-        for round in range(1, len(sample)+1):
-            x_data = sample[str(round)]['x_data']
-            y_data = sample[str(round)]['y_data']
-            x.append(x_data)
-            y.append(y_data)
-    return x, y
+logger_utility = PyNetSimLogger(log_file="my_log.log", namespace=__name__)
+logger = logger_utility.get_logger()
 
 
 def closest_value(output):
@@ -100,12 +36,12 @@ def test_predicted_sample(encoder, x, y, output, print_output=False):
     correct = np.sum(y == output)
     total = np.prod(y.shape)
     if print_output:
-        print(f"Y: {y}")
-        print(f"predicted: {output}")
+        logger.info(f"Y: {y}")
+        logger.info(f"predicted: {output}")
         # Get the index where the values are equal
         index = np.where(y == output)
-        print(f"Index: {index}")
-        print(f"Correct: {correct}, Total: {total}")
+        logger.info(f"Index: {index}")
+        logger.info(f"Correct: {correct}, Total: {total}")
         input("Press Enter to continue...")
     return correct, total
 
@@ -123,8 +59,7 @@ def test_predicted_batch(encoder, x, y, output, print_output=False):
 
 
 def main(args):
-    print(f"Loading model: {args.model}")
-    samples = load_samples()
+    samples = load_samples(args.data)
     x, y = get_all_samples(samples)
     y = np.array(y)
     encoder = OneHotEncoder(sparse_output=False)
@@ -135,10 +70,10 @@ def main(args):
     test_dataset = NetworkDataset(X_test, y_test)
     test_loader = DataLoader(
         test_dataset, batch_size=args.batch, shuffle=False, collate_fn=test_dataset.collate_fn)
-    model = ClassificationModel(
-        test_dataset.x.shape[1], HIDDEN_SIZE, test_dataset.y.shape[1])
-    criterion = nn.BCELoss()
-    model.load_state_dict(torch.load(args.model))
+
+    model, criterion, _ = get_model(test_dataset.x.shape[1],
+                                    HIDDEN_SIZE, test_dataset.y.shape[1], 0, args.model)
+
     model.eval()
     losses = []
     avg_accuracy = []
@@ -156,12 +91,14 @@ def main(args):
                 continue
             acc = test_predicted_batch(encoder, X, y, output, args.print)
             avg_accuracy.append(acc)
-    print(f"Average Loss: {np.mean(losses)}")
-    print(f"Average Accuracy: {np.mean(avg_accuracy)}")
+    logger.info(f"Average Loss: {np.mean(losses)}")
+    logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d", "--data", help="Path to the training and testing folder", default=None)
     parser.add_argument(
         "-m", "--model", help="The model to use for testing", required=True
     )
