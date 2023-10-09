@@ -22,20 +22,20 @@ PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 
 # Configuration parameters
 HIDDEN_SIZE_ONE = 512
-HIDDEN_SIZE_TWO = 256
+HIDDEN_SIZE_TWO = 512
 OUTPUT_SIZE = 101
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-6
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
 NUM_EMBEDDINGS = 101
-EMBEDDING_DIM = 10
+EMBEDDING_DIM = 50
 NUMERICAL_DIM = 102
-WEIGHT_DECAY = 1e-3
-DROP_OUT = 0.3
+WEIGHT_DECAY = 1e-5
+DROP_OUT = 0.2
 
 # Data loader
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 TEST_SIZE = 0.2
 NUM_WORKERS = 4
 
@@ -376,7 +376,7 @@ def main(args):
 
     # Lets split the data into training and testing
     X_train, X_test, y_train, y_test = train_test_split(
-        np_x, np_y, test_size=TEST_SIZE, random_state=42, shuffle=True)
+        np_x, np_y, test_size=TEST_SIZE, random_state=42, shuffle=False)
 
     # Print the shape of the training and testing data
     # print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
