@@ -21,14 +21,20 @@ MODELS_PATH = os.path.join(SELF_PATH, "models")
 PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 
 # Configuration parameters
-BATCH_SIZE = 32
-INPUT_SIZE = 203
-HIDDEN_SIZE = 256
-OUTPUT_SIZE = 99
+HIDDEN_SIZE_ONE = 512
+HIDDEN_SIZE_TWO = 256
+OUTPUT_SIZE = 101
 LEARNING_RATE = 1e-4
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
+NUM_EMBEDDINGS = 101
+EMBEDDING_DIM = 10
+NUMERICAL_DIM = 102
+
+# Data loader
+BATCH_SIZE = 32
+TEST_SIZE = 0.2
 
 # Print and plot intervals
 PRINT_EVERY = 1
@@ -62,7 +68,7 @@ class NetworkDataset(Dataset):
 
 
 class MixedDataModel(nn.Module):
-    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim, output_dim):
+    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim_one, hidden_dim_two, output_dim):
         super(MixedDataModel, self).__init__()
 
         # Embedding layer for categorical data
@@ -74,24 +80,24 @@ class MixedDataModel(nn.Module):
 
         # Combined hidden layer
         self.hidden_layer = nn.Linear(
-            numerical_dim+embedding_dim, hidden_dim)
+            numerical_dim+embedding_dim, hidden_dim_one)
 
         # print(
         #     f"Size of the hidden layer, input: {numerical_dim+embedding_dim}, output: {hidden_dim}")
 
         # Add another hidden layer
-        self.hidden_layer2 = nn.Linear(hidden_dim, hidden_dim)
+        self.hidden_layer2 = nn.Linear(hidden_dim_one, hidden_dim_two)
 
         # print(f"Size of the hidden layer2, input: {hidden_dim}, output: {hidden_dim}")
 
         # Output layer
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        self.output_layer = nn.Linear(hidden_dim_two, output_dim)
 
         # print(f"Size of the output layer, input: {256}, output: {output_dim}")
 
         # Activation functions
         self.relu = nn.ReLU()
-        self.softmax = nn.LogSoftmax(dim=2)
+        self.softmax = nn.LogSoftmax(dim=1)
 
         # Dropout
         # self.dropout = nn.Dropout(p=0.2)
@@ -233,11 +239,12 @@ def load_samples(data_dir):
 
 
 def get_model(learning_rate=LEARNING_RATE, load_model=None):
-    model = MixedDataModel(num_embeddings=101,
-                           embedding_dim=50,
-                           numerical_dim=102,
-                           hidden_dim=512,
-                           output_dim=101)
+    model = MixedDataModel(num_embeddings=NUM_EMBEDDINGS,
+                           embedding_dim=EMBEDDING_DIM,
+                           numerical_dim=NUMERICAL_DIM,
+                           hidden_dim_one=HIDDEN_SIZE_ONE,
+                           hidden_dim_two=HIDDEN_SIZE_TWO,
+                           output_dim=OUTPUT_SIZE)
 
     if load_model:
         logger.info(f"Loading model: {load_model}")
@@ -249,7 +256,7 @@ def get_model(learning_rate=LEARNING_RATE, load_model=None):
     return model, criterion, optimizer
 
 
-def train_model(load_model, train_loader, test_loader, input_size, hidden_size, output_size, num_epochs, learning_rate, model_path=None):
+def train_model(load_model, train_loader, test_loader, num_epochs, learning_rate, model_path=None):
     # print(
     #     f"Input size: {input_size}, hidden size: {hidden_size}, output size: {output_size}")
 
@@ -321,7 +328,7 @@ def get_all_samples(samples):
             x.append(x_data)
             y.append(y_data)
             membership.append(pre_membership)
-            if len(x_data) != 102:
+            if len(x_data) != NUMERICAL_DIM:
                 raise (
                     f"Invalid x_data: {key}, {round}, length: {len(x_data)}")
 
@@ -366,7 +373,7 @@ def main(args):
 
     # Lets split the data into training and testing
     X_train, X_test, y_train, y_test = train_test_split(
-        np_x, np_y, test_size=0.2, random_state=42, shuffle=False)
+        np_x, np_y, test_size=TEST_SIZE, random_state=42, shuffle=True)
 
     # Print the shape of the training and testing data
     # print(f"Shape of the training data: {X_train.shape}, {y_train.shape}")
@@ -403,8 +410,8 @@ def main(args):
 
     # train_model(args.load, train_dataloader, test_dataloader, Training_DataSet.X.shape[1],
     #             HIDDEN_SIZE, Training_DataSet.y.shape[1], NUM_EPOCHS, LEARNING_RATE, model_path)
-    train_model(load_model=args.load, train_loader=train_dataloader, test_loader=test_dataloader, input_size=Training_DataSet.weights.shape[1],
-                hidden_size=HIDDEN_SIZE, output_size=Training_DataSet.y.shape[1], num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE, model_path=model_path)
+    train_model(load_model=args.load, train_loader=train_dataloader, test_loader=test_dataloader,
+                num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE, model_path=model_path)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ def test_predicted_batch(y, output_batch, print_output=False):
     correct, total = test_predicted_sample(
         y, output_batch, print_output)
     accuracy.append(correct/total * 100)
-    return np.mean(accuracy)
+    return np.mean(accuracy), np.min(accuracy)
 
 
 def main(args):
@@ -87,6 +87,7 @@ def main(args):
     model.eval()
     losses = []
     avg_accuracy = []
+    acc_min = 100
     with torch.no_grad():
         for input_data, categorical_data, target_data in test_loader:
             X = input_data
@@ -103,12 +104,18 @@ def main(args):
             losses.append(loss.item())
             if args.batch == 1:
                 correct, total = test_predicted_sample(y, output, args.print)
-                avg_accuracy.append(correct/total*100)
+                acc = correct/total * 100
+                avg_accuracy.append(acc)
+                if acc < acc_min:
+                    acc_min = acc
                 continue
-            acc = test_predicted_batch(y, output, args.print)
+            acc, acc_min_batch = test_predicted_batch(y, output, args.print)
             avg_accuracy.append(acc)
+            if acc_min_batch < acc_min:
+                acc_min = acc_min_batch
     logger.info(f"Average Loss: {np.mean(losses)}")
     logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
+    logger.info(f"Minimum correct: {acc_min}")
 
 
 if __name__ == "__main__":
