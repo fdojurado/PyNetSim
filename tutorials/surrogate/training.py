@@ -24,17 +24,20 @@ PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 HIDDEN_SIZE_ONE = 512
 HIDDEN_SIZE_TWO = 256
 OUTPUT_SIZE = 101
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
 NUM_EMBEDDINGS = 101
 EMBEDDING_DIM = 10
 NUMERICAL_DIM = 102
+WEIGHT_DECAY = 1e-3
+DROP_OUT = 0.3
 
 # Data loader
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 TEST_SIZE = 0.2
+NUM_WORKERS = 4
 
 # Print and plot intervals
 PRINT_EVERY = 1
@@ -100,7 +103,7 @@ class MixedDataModel(nn.Module):
         self.softmax = nn.LogSoftmax(dim=1)
 
         # Dropout
-        # self.dropout = nn.Dropout(p=0.2)
+        self.dropout = nn.Dropout(p=DROP_OUT)
 
     def forward(self, categorical_data, numerical_data):
         # print(f"Shape of / categorical data 0: {categorical_data.shape}")
@@ -134,7 +137,7 @@ class MixedDataModel(nn.Module):
         hidden_data = self.relu(hidden_data)
 
         # dropout
-        # hidden_data = self.dropout(hidden_data)
+        hidden_data = self.dropout(hidden_data)
 
         # Pass through hidden layer
         hidden_data = self.hidden_layer2(hidden_data)
@@ -143,7 +146,7 @@ class MixedDataModel(nn.Module):
         hidden_data = self.relu(hidden_data)
 
         # dropout
-        # hidden_data = self.dropout(hidden_data)
+        hidden_data = self.dropout(hidden_data)
 
         # Pass through output layer
         output_data = self.output_layer(hidden_data)
@@ -238,7 +241,7 @@ def load_samples(data_dir):
     return samples
 
 
-def get_model(learning_rate=LEARNING_RATE, load_model=None):
+def get_model(load_model=None):
     model = MixedDataModel(num_embeddings=NUM_EMBEDDINGS,
                            embedding_dim=EMBEDDING_DIM,
                            numerical_dim=NUMERICAL_DIM,
@@ -251,23 +254,23 @@ def get_model(learning_rate=LEARNING_RATE, load_model=None):
         model.load_state_dict(torch.load(load_model))
 
     criterion = nn.NLLLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
     return model, criterion, optimizer
 
 
-def train_model(load_model, train_loader, test_loader, num_epochs, learning_rate, model_path=None):
+def train_model(load_model, train_loader, test_loader, model_path=None):
     # print(
     #     f"Input size: {input_size}, hidden size: {hidden_size}, output size: {output_size}")
 
-    model, criterion, optimizer = get_model(learning_rate=learning_rate,
-                                            load_model=load_model)
+    model, criterion, optimizer = get_model(load_model=load_model)
 
     best_loss = float("inf")
     train_losses = []
     validation_losses = []
 
-    for epoch in range(num_epochs):
+    for epoch in range(NUM_EPOCHS):
         model.train()
         for input_data, categorical_data, target_data in train_loader:
             optimizer.zero_grad()
@@ -294,7 +297,7 @@ def train_model(load_model, train_loader, test_loader, num_epochs, learning_rate
 
         if epoch % PRINT_EVERY == 0:
             logger.info(
-                f"Epoch [{epoch}/{num_epochs}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
+                f"Epoch [{epoch}/{NUM_EPOCHS}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
 
         if epoch % PLOT_EVERY == 0:
             plt.figure()  # Create a new figure
@@ -306,7 +309,7 @@ def train_model(load_model, train_loader, test_loader, num_epochs, learning_rate
 
         if avg_val_loss < best_loss:
             logger.info(
-                f"Epoch [{epoch}/{num_epochs}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
+                f"Epoch [{epoch}/{NUM_EPOCHS}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
             )
             best_loss = avg_val_loss
             if model_path:
@@ -396,10 +399,10 @@ def main(args):
 
     # Lets create the dataloader
     train_dataloader = DataLoader(
-        Training_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Training_DataSet.collate_fn)
+        Training_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Training_DataSet.collate_fn, num_workers=NUM_WORKERS)
 
     test_dataloader = DataLoader(
-        Testing_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Testing_DataSet.collate_fn)
+        Testing_DataSet, batch_size=BATCH_SIZE, shuffle=True, collate_fn=Testing_DataSet.collate_fn, num_workers=NUM_WORKERS)
 
     logger.info(f"Lenght of the dataloader: {len(train_dataloader)}")
 
@@ -410,8 +413,8 @@ def main(args):
 
     # train_model(args.load, train_dataloader, test_dataloader, Training_DataSet.X.shape[1],
     #             HIDDEN_SIZE, Training_DataSet.y.shape[1], NUM_EPOCHS, LEARNING_RATE, model_path)
-    train_model(load_model=args.load, train_loader=train_dataloader, test_loader=test_dataloader,
-                num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE, model_path=model_path)
+    train_model(load_model=args.load, train_loader=train_dataloader,
+                test_loader=test_dataloader, model_path=model_path)
 
 
 if __name__ == "__main__":
