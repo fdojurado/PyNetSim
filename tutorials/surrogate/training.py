@@ -24,7 +24,7 @@ PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 HIDDEN_SIZE_ONE = 512
 HIDDEN_SIZE_TWO = 512
 OUTPUT_SIZE = 101
-LEARNING_RATE = 1e-6
+LEARNING_RATE = 1e-4
 NUM_EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
@@ -298,6 +298,13 @@ def train_model(load_model, train_loader, test_loader, model_path=None):
         if epoch % PRINT_EVERY == 0:
             logger.info(
                 f"Epoch [{epoch}/{NUM_EPOCHS}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
+            if avg_val_loss < best_loss:
+                logger.info(
+                    f"Epoch [{epoch}/{NUM_EPOCHS}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
+                )
+                best_loss = avg_val_loss
+                if model_path:
+                    torch.save(model.state_dict(), model_path)
 
         if epoch % PLOT_EVERY == 0:
             plt.figure()  # Create a new figure
@@ -306,14 +313,6 @@ def train_model(load_model, train_loader, test_loader, model_path=None):
             plt.legend()
             plt.savefig(os.path.join(
                 PLOTS_PATH, f"train_validation_loss_classification.png"))
-
-        if avg_val_loss < best_loss:
-            logger.info(
-                f"Epoch [{epoch}/{NUM_EPOCHS}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
-            )
-            best_loss = avg_val_loss
-            if model_path:
-                torch.save(model.state_dict(), model_path)
 
     return model
 
