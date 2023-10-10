@@ -21,15 +21,15 @@ MODELS_PATH = os.path.join(SELF_PATH, "models")
 PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 
 # Configuration parameters
-HIDDEN_SIZE_ONE = 512
-HIDDEN_SIZE_TWO = 512
+HIDDEN_SIZE = 256
+LSTM_HIDDEN = 256
 OUTPUT_SIZE = 101
 LEARNING_RATE = 1e-4
-NUM_EPOCHS = 5000
+NUM_EPOCHS = 1000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
 NUM_EMBEDDINGS = 101
-EMBEDDING_DIM = 50
+EMBEDDING_DIM = 30
 NUMERICAL_DIM = 102
 WEIGHT_DECAY = 1e-5
 DROP_OUT = 0.2
@@ -71,32 +71,25 @@ class NetworkDataset(Dataset):
 
 
 class MixedDataModel(nn.Module):
-    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim_one, hidden_dim_two, output_dim):
+    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim, lstm_hidden, output_dim):
         super(MixedDataModel, self).__init__()
 
         # Embedding layer for categorical data
         self.embedding_layer = nn.Embedding(
             num_embeddings=num_embeddings, embedding_dim=embedding_dim)
 
-        # print(
-        #     f"Size of the embedding layer, input: {num_embeddings}, output: {embedding_dim}")
+        # LSTM layer
+        self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
+                            num_layers=1, batch_first=True)
 
         # Combined hidden layer
-        self.hidden_layer = nn.Linear(
-            numerical_dim+embedding_dim, hidden_dim_one)
+        self.numerical_layer = nn.Linear(
+            numerical_dim, lstm_hidden)
 
-        # print(
-        #     f"Size of the hidden layer, input: {numerical_dim+embedding_dim}, output: {hidden_dim}")
-
-        # Add another hidden layer
-        self.hidden_layer2 = nn.Linear(hidden_dim_one, hidden_dim_two)
-
-        # print(f"Size of the hidden layer2, input: {hidden_dim}, output: {hidden_dim}")
+        self.hidden_layer = nn.Linear(lstm_hidden, hidden_dim)
 
         # Output layer
-        self.output_layer = nn.Linear(hidden_dim_two, output_dim)
-
-        # print(f"Size of the output layer, input: {256}, output: {output_dim}")
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
 
         # Activation functions
         self.relu = nn.ReLU()
@@ -110,22 +103,31 @@ class MixedDataModel(nn.Module):
         # print(f"First element of categorical data: {categorical_data[0]}")
         # Pass categorical data through embedding layer
         categorical_data = self.embedding_layer(categorical_data)
-        # print(f"Shape of / categorical data: {categorical_data.shape}")
+        # print(f"Shape of / categorical data 1: {categorical_data.shape}")
+
+        # Pass through LSTM layer
+        categorical_data, _ = self.lstm(categorical_data)
+        # print(f"Shape of / categorical data 2: {categorical_data.shape}")
         # Shape of categorical data: torch.Size([64, 99, 10])
         # print(f"First element of categorical data: {categorical_data[0]}")
 
         # print(f"Shape of numerical data 0: {numerical_data.shape}")
         # print(f"First element of numerical data: {numerical_data[0]}")
 
-        # Expand dimensions of numerical data to match the sequence length
-        numerical_data = numerical_data.unsqueeze(
-            1).expand(-1, categorical_data.size(1), -1)
-        # print(f"Shape of numerical data 0: {numerical_data.shape}")
+        # pass the numerical data through a linear layer
+        numerical_data = self.numerical_layer(numerical_data)
+
+        # print(f"Shape of numerical data 1: {numerical_data.shape}")
+
+        # Pass through the activation function
+        numerical_data = self.relu(numerical_data)
+
+        # print(f"Shape of numerical data 2: {numerical_data.shape}")
         # print(f"First element of numerical data: {numerical_data[0]}")
 
         # Concatenate all the data
         combined_data = torch.cat(
-            (categorical_data, numerical_data), dim=2)
+            (categorical_data, numerical_data.unsqueeze(1)), dim=1)
         # input(f"Shape of combined data: {combined_data.shape}")
         # Shape of combined data: torch.Size([1, 99, 201])
         # input(f"First element of combined data: {combined_data[0]}")
@@ -139,22 +141,11 @@ class MixedDataModel(nn.Module):
         # dropout
         hidden_data = self.dropout(hidden_data)
 
-        # Pass through hidden layer
-        hidden_data = self.hidden_layer2(hidden_data)
-
-        # Pass through the activation function
-        hidden_data = self.relu(hidden_data)
-
-        # dropout
-        hidden_data = self.dropout(hidden_data)
-
         # Pass through output layer
         output_data = self.output_layer(hidden_data)
 
         # Pass through the activation function
         output_data = self.softmax(output_data)
-
-        # input(f"Shape of output data: {output_data.shape}")
 
         return output_data
 
@@ -245,8 +236,8 @@ def get_model(load_model=None):
     model = MixedDataModel(num_embeddings=NUM_EMBEDDINGS,
                            embedding_dim=EMBEDDING_DIM,
                            numerical_dim=NUMERICAL_DIM,
-                           hidden_dim_one=HIDDEN_SIZE_ONE,
-                           hidden_dim_two=HIDDEN_SIZE_TWO,
+                           hidden_dim=HIDDEN_SIZE,
+                           lstm_hidden=LSTM_HIDDEN,
                            output_dim=OUTPUT_SIZE)
 
     if load_model:

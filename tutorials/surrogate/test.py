@@ -48,11 +48,11 @@ def test_predicted_batch(y, output_batch, print_output=False):
     # Loop through the batch [64, 100, 100]
     # We want to loop through the [1, 100, 100] and compare it with the y
     # for i in range(len(output_batch)):
-        # input(f"Output: {output_batch[i]}, shape: {output_batch[i].shape}")
+    # input(f"Output: {output_batch[i]}, shape: {output_batch[i].shape}")
     correct, total = test_predicted_sample(
         y, output_batch, print_output)
     accuracy.append(correct/total * 100)
-    return np.mean(accuracy), np.min(accuracy)
+    return accuracy
 
 
 def main(args):
@@ -87,7 +87,7 @@ def main(args):
     model.eval()
     losses = []
     avg_accuracy = []
-    acc_min = 100
+    avg_acc_min = []
     with torch.no_grad():
         for input_data, categorical_data, target_data in test_loader:
             X = input_data
@@ -106,16 +106,18 @@ def main(args):
                 correct, total = test_predicted_sample(y, output, args.print)
                 acc = correct/total * 100
                 avg_accuracy.append(acc)
-                if acc < acc_min:
-                    acc_min = acc
                 continue
-            acc, acc_min_batch = test_predicted_batch(y, output, args.print)
-            avg_accuracy.append(acc)
-            if acc_min_batch < acc_min:
-                acc_min = acc_min_batch
+            acc = test_predicted_batch(y, output, args.print)
+            avg_accuracy.append(np.mean(acc))
+            avg_acc_min.append(np.min(acc))
     logger.info(f"Average Loss: {np.mean(losses)}")
     logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
-    logger.info(f"Minimum correct: {acc_min}")
+    if args.batch > 1:
+        logger.info(f"Minimum Accuracy: {np.min(avg_acc_min)}")
+    else:
+        logger.info(f"Minimum Accuracy: {np.min(avg_accuracy)}")
+        logger.info(
+            f"Number of samples with minimum accuracy: {np.sum(np.array(avg_accuracy) == np.min(avg_accuracy))}")
 
 
 if __name__ == "__main__":
