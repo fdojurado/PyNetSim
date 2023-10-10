@@ -113,7 +113,7 @@ def main(args):
     logger.info(f"Average Loss: {np.mean(losses)}")
     logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
     if args.batch > 1:
-        logger.info(f"Minimum Accuracy: {np.min(avg_acc_min)}")
+        logger.info(f"Average Minimum Accuracy: {np.mean(avg_acc_min)}")
     else:
         logger.info(f"Minimum Accuracy: {np.min(avg_accuracy)}")
         logger.info(
