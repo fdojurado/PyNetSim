@@ -7,6 +7,7 @@ from pynetsim.leach.rl.leach_rl_loss import LEACH_RL_LOSS
 from pynetsim.leach.rl.leach_hrl import LEACH_HRL
 from pynetsim.network.simple_model import Simple
 from pynetsim.network.extended_model import Extended
+from pynetsim.leach.surrogate.surrogate import SURROGATE
 from pynetsim.leach.leach_milp.leach_ce_d import LEACH_CE_D
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.leach.leach_ce import LEACH_CE
@@ -36,7 +37,8 @@ PROTOCOLS = {
     "LEACH-R": LEACH_R,
     "LEACH-RT": LEACH_RT,
     "EC-LEACH": EC_LEACH,
-    "EE-LEACH": EE_LEACH
+    "EE-LEACH": EE_LEACH,
+    "Surrogate": SURROGATE
 }
 
 NETWORK_MODELS = {

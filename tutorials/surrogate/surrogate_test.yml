@@ -1,5 +1,6 @@
 name: example network
 surrogate:
+  lstm_arch: complex
   epochs: 1000
   hidden_dim: 256
   lstm_hidden: 512
