@@ -110,11 +110,11 @@ class NetworkConfiguration:
 
 
 # Surrogate defaults
-HIDDEN_SIZE_ONE = 512
-HIDDEN_SIZE_TWO = 512
-OUTPUT_SIZE = 101
-LEARNING_RATE = 1e-3
-NUM_EPOCHS = 5000
+HIDDEN_DIM = 512
+LSTM_HIDDEN = 512
+OUTPUT_DIM = 101
+LEARNING_RATE = 1e-6
+EPOCHS = 5000
 LARGEST_WEIGHT = 6
 NUM_CLUSTERS = 100
 NUM_EMBEDDINGS = 101
@@ -126,29 +126,22 @@ DROP_OUT = 0.2
 # Data loader
 BATCH_SIZE = 64
 TEST_RATIO = 0.2
-NUM_WORKERS = 4
+NUM_WORKERS = 1
 
 # Print and plot intervals
 PRINT_EVERY = 1
 PLOT_EVERY = 10
-PLOT_EVERY = 10000
 
 
 class SurrogateConfiguration:
     def __init__(self, surrogate_dict):
-        # Train or test
-        self.train = surrogate_dict.get('train', True)
         # Surrogate model
-        self.epochs = surrogate_dict.get('epochs', NUM_EPOCHS)
-        self.hidden_size_one = surrogate_dict.get(
-            'hidden_size_one', HIDDEN_SIZE_ONE)
-        self.hidden_size_two = surrogate_dict.get(
-            'hidden_size_two', HIDDEN_SIZE_TWO)
-        self.output_size = surrogate_dict.get('output_size', OUTPUT_SIZE)
-        self.learning_rate = surrogate_dict.get(
-            'learning_rate', LEARNING_RATE)
-        self.largest_weight = surrogate_dict.get(
-            'largest_weight', LARGEST_WEIGHT)
+        self.epochs = surrogate_dict.get('epochs', EPOCHS)
+        self.hidden_dim = surrogate_dict.get(
+            'hidden_dim', HIDDEN_DIM)
+        self.lstm_hidden = surrogate_dict.get(
+            'lstm_hidden', LSTM_HIDDEN)
+        self.output_dim = surrogate_dict.get('output_dim', OUTPUT_DIM)
         self.num_clusters = surrogate_dict.get(
             'num_clusters', NUM_CLUSTERS)
         self.num_embeddings = surrogate_dict.get(
@@ -160,18 +153,22 @@ class SurrogateConfiguration:
         self.weight_decay = surrogate_dict.get(
             'weight_decay', WEIGHT_DECAY)
         self.drop_out = surrogate_dict.get('drop_out', DROP_OUT)
-        # Data loader
         self.batch_size = surrogate_dict.get('batch_size', BATCH_SIZE)
+        self.learning_rate = surrogate_dict.get(
+            'learning_rate', LEARNING_RATE)
         self.test_ratio = surrogate_dict.get('test_ratio', TEST_RATIO)
+        self.largest_weight = surrogate_dict.get(
+            'largest_weight', LARGEST_WEIGHT)
         self.num_workers = surrogate_dict.get('num_workers', NUM_WORKERS)
+        self.load_model = surrogate_dict.get('load_model', False)
+        self.model_path = surrogate_dict.get('model_path', None)
+        self.generate_data = surrogate_dict.get('generate_data', False)
+        self.raw_data_folder = surrogate_dict.get('raw_data_folder', None)
+        self.data_folder = surrogate_dict.get('data_folder', None)
+        self.plots_folder = surrogate_dict.get('plots_folder', None)
         # Print and plot intervals
         self.print_every = surrogate_dict.get('print_every', PRINT_EVERY)
         self.plot_every = surrogate_dict.get('plot_every', PLOT_EVERY)
-        # Loss function
-        self.loss_function = surrogate_dict.get(
-            'loss_function', 'cross_entropy')
-        # load model?
-        self.load_model = surrogate_dict.get('load_model', False)
 
 
 class Configuration:
