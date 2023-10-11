@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-import logging
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
@@ -47,7 +46,7 @@ class NetworkDataset(Dataset):
 
 
 class MixedDataModel(nn.Module):
-    def __init__(self, embedding_dim, num_embeddings, numerical_dim, hidden_dim, lstm_hidden, output_dim, drop_out):
+    def __init__(self, lstm_arch, embedding_dim, num_embeddings, numerical_dim, hidden_dim, lstm_hidden, output_dim, drop_out):
         super(MixedDataModel, self).__init__()
 
         # Embedding layer for categorical data
@@ -55,8 +54,12 @@ class MixedDataModel(nn.Module):
             num_embeddings=num_embeddings, embedding_dim=embedding_dim)
 
         # LSTM layer
-        self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
-                            num_layers=2, batch_first=True, dropout=drop_out)
+        if lstm_arch == "simple":
+            self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
+                                num_layers=1, batch_first=True)
+        if lstm_arch == "complex":
+            self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
+                                num_layers=2, batch_first=True, dropout=drop_out)
 
         # Combined hidden layer
         self.numerical_layer = nn.Linear(
@@ -133,6 +136,7 @@ class SurrogateModel:
 
     def __init__(self, config):
         self.config = config
+        self.lstm_arch = config.surrogate.lstm_arch
         self.epochs = self.config.surrogate.epochs
         self.hidden_dim = self.config.surrogate.hidden_dim
         self.lstm_hidden = self.config.surrogate.lstm_hidden
@@ -156,6 +160,7 @@ class SurrogateModel:
         self.print_every = self.config.surrogate.print_every
         self.plot_every = self.config.surrogate.plot_every
         # print all the config values
+        logger.info(f"lstm_arch: {self.lstm_arch}")
         logger.info(f"epochs: {self.epochs}")
         logger.info(f"hidden_dim: {self.hidden_dim}")
         logger.info(f"lstm_hidden: {self.lstm_hidden}")
@@ -372,7 +377,8 @@ class SurrogateModel:
         return x, y, membership
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(num_embeddings=self.num_embeddings,
+        model = MixedDataModel(lstm_arch=self.lstm_arch,
+                               num_embeddings=self.num_embeddings,
                                embedding_dim=self.embedding_dim,
                                numerical_dim=self.numeral_dim,
                                hidden_dim=self.hidden_dim,

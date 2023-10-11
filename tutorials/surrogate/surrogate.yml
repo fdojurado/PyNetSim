@@ -1,5 +1,7 @@
 name: example network
 surrogate:
+  # We support two types of architectures: simple and complex
+  lstm_arch: simple
   epochs: 1000
   hidden_dim: 256
   lstm_hidden: 512

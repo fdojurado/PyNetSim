@@ -136,6 +136,7 @@ PLOT_EVERY = 10
 class SurrogateConfiguration:
     def __init__(self, surrogate_dict):
         # Surrogate model
+        self.lstm_arch = surrogate_dict.get('lstm_arch', "simple")
         self.epochs = surrogate_dict.get('epochs', EPOCHS)
         self.hidden_dim = surrogate_dict.get(
             'hidden_dim', HIDDEN_DIM)
