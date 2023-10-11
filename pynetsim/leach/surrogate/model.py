@@ -56,7 +56,7 @@ class MixedDataModel(nn.Module):
 
         # LSTM layer
         self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
-                            num_layers=1, batch_first=True)
+                            num_layers=2, batch_first=True, dropout=drop_out)
 
         # Combined hidden layer
         self.numerical_layer = nn.Linear(
@@ -97,6 +97,9 @@ class MixedDataModel(nn.Module):
 
         # Pass through the activation function
         numerical_data = self.relu(numerical_data)
+
+        # Dropout
+        numerical_data = self.dropout(numerical_data)
 
         # print(f"Shape of numerical data 2: {numerical_data.shape}")
         # print(f"First element of numerical data: {numerical_data[0]}")
@@ -467,24 +470,22 @@ class SurrogateModel:
             input("Press enter to continue")
         return correct, total
 
-    def test_predicted_batch(self, y, output_batch, print_output=False):
-        accuracy = []
-        correct, total = self.test_predicted_sample(
-            y, output_batch, print_output)
-        accuracy.append(correct/total * 100)
-        return accuracy
-
-    def test(self, print_output=False):
+    def test(self, batch: int = None, print_output=False):
         # Lets check if the path to the model exists
         if self.model_path is None:
             raise Exception("Please provide the path to the model")
 
         model, criterion, _ = self.get_model(load_model=True)
 
+        if batch is not None:
+            self.batch_size = batch
+            # recreate the dataloader
+            self.testing_dataloader = DataLoader(
+                self.testing_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
+
         model.eval()
         losses = []
         avg_accuracy = []
-        avg_acc_min = []
         with torch.no_grad():
             for input_data, categorical_data, target_data in self.testing_dataloader:
                 X = input_data
@@ -493,20 +494,12 @@ class SurrogateModel:
                                numerical_data=X)
                 loss = criterion(output, y)
                 losses.append(loss.item())
-                if self.batch_size == 1:
-                    correct, total = self.test_predicted_sample(
-                        y, output, print_output)
-                    acc = correct/total * 100
-                    avg_accuracy.append(acc)
-                    continue
-                acc = self.test_predicted_batch(y, output, print_output)
-                avg_accuracy.append(np.mean(acc))
-                avg_acc_min.append(np.min(acc))
+                correct, total = self.test_predicted_sample(
+                    y, output, print_output)
+                acc = correct/total * 100
+                avg_accuracy.append(acc)
         logger.info(f"Average Loss: {np.mean(losses)}")
         logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
-        if self.batch_size > 1:
-            logger.info(f"Average Accuracy Min: {np.mean(avg_acc_min)}")
-        else:
-            logger.info(f"Accuracy Min: {np.min(avg_accuracy)}")
-            logger.info(
-                f"Number of samples with minimum accuracy: {np.sum(np.array(avg_accuracy) == np.min(avg_accuracy))}")
+        logger.info(f"Accuracy Min: {np.min(avg_accuracy)}")
+        logger.info(
+            f"Number of samples with minimum accuracy: {np.sum(np.array(avg_accuracy) == np.min(avg_accuracy))}")

@@ -8,7 +8,7 @@ import os
 import argparse
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SELF_PATH, "surrogate.yml")
+CONFIG_FILE = os.path.join(SELF_PATH, "surrogate_test.yml")
 
 # -------------------- Create logger --------------------
 logger_utility = PyNetSimLogger(log_file="my_log.log")
@@ -24,14 +24,17 @@ def main(args):
     surrogate_model = SurrogateModel(config=config)
 
     # Train the surrogate model
-    surrogate_model.train()
-    # surrogate_model.test(print_output=True)
+    surrogate_model.test(batch=args.batch, print_output=args.print)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str,
                         help="Path to config file", default=CONFIG_FILE)
+    parser.add_argument("-b", "--batch", type=int,
+                        help="Batch size", default=64)
+    parser.add_argument("-p", "--print", type=bool,
+                        help="Print output", default=False)
     args = parser.parse_args()
     main(args)
     sys.exit(0)

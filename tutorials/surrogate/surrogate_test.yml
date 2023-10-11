@@ -18,7 +18,7 @@ surrogate:
   # This is the largest cluster id, which is 100
   num_workers: 4
   # Load model? If yes, then specify the path
-  load_model: False
+  load_model: True
   # Folders to save the model and the plots
   model_path: ./models/model.pt
   # Generate the data from the raw data
