@@ -1,28 +1,28 @@
 name: example network
 surrogate:
   # We support two types of architectures: simple and complex
-  lstm_arch: simple
+  lstm_arch: complex
   epochs: 1000
   hidden_dim: 256
   lstm_hidden: 512
   output_dim: 101
   num_clusters: 100
   num_embeddings: 101
-  embedding_dim: 30
+  embedding_dim: 50
   numerical_dim: 102
-  weight_decay: 0.00001
-  dropout: 0.2
+  weight_decay: 0.0001
+  drop_out: 0.5
   batch_size: 64
-  learning_rate: 0.0001
+  learning_rate: 0.000001
   test_ratio: 0.2
   # This is the largest weight value for alpha, beta, and gamma
   largest_weight: 6
   # This is the largest cluster id, which is 100
   num_workers: 4
   # Load model? If yes, then specify the path
-  load_model: False
+  load_model: True
   # Folders to save the model and the plots
-  model_path: ./models/model.pt
+  model_path: ./models/model_complex_extended.pt
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from

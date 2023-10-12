@@ -10,7 +10,7 @@ surrogate:
   embedding_dim: 30
   numerical_dim: 102
   weight_decay: 0.00001
-  dropout: 0.2
+  drop_out: 0.5
   batch_size: 64
   learning_rate: 0.0001
   test_ratio: 0.2
@@ -21,7 +21,7 @@ surrogate:
   # Load model? If yes, then specify the path
   load_model: True
   # Folders to save the model and the plots
-  model_path: ./models/model.pt
+  model_path: ./models/model_complex.pt
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from

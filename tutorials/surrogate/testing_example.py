@@ -24,7 +24,8 @@ def main(args):
     surrogate_model = SurrogateModel(config=config)
 
     # Train the surrogate model
-    surrogate_model.test(batch=args.batch, print_output=args.print)
+    surrogate_model.test(
+        batch=args.batch, print_output=args.print, weights=args.weights)
 
 
 if __name__ == "__main__":
@@ -33,8 +34,12 @@ if __name__ == "__main__":
                         help="Path to config file", default=CONFIG_FILE)
     parser.add_argument("-b", "--batch", type=int,
                         help="Batch size", default=64)
-    parser.add_argument("-p", "--print", type=bool,
-                        help="Print output", default=False)
+    parser.add_argument(
+        "-p", "--print", help="Print the output", action="store_true"
+    )
+    # List of weights
+    parser.add_argument("-w", "--weights", nargs="+", type=float,
+                        help="Weights", default=None)
     args = parser.parse_args()
     main(args)
     sys.exit(0)
