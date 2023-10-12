@@ -11,7 +11,7 @@ surrogate:
   embedding_dim: 30
   numerical_dim: 102
   weight_decay: 0.00001
-  dropout: 0.2
+  drop_out: 0.2
   batch_size: 64
   learning_rate: 0.0001
   test_ratio: 0.2

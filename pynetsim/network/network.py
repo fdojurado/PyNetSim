@@ -60,7 +60,7 @@ class Network:
                 max_distance = distance
         return max_distance
 
-    def mark_as_cluster_head(self, node, cluster_id):
+    def mark_as_cluster_head(self, node: Node, cluster_id: int):
         node.is_cluster_head = True
         node.cluster_id = cluster_id
 

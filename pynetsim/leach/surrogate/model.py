@@ -376,6 +376,25 @@ class SurrogateModel:
 
         return x, y, membership
 
+    def get_sample(self, samples, weights: tuple):
+        x = []
+        y = []
+        membership = []
+        for key, sample in samples.items():
+            if key == weights:
+                for round in range(1, len(sample)+1):
+                    x_data = sample[str(round)]['x_data']
+                    y_data = sample[str(round)]['y_data']
+                    pre_membership = sample[str(round)]['membership']
+                    x.append(x_data)
+                    y.append(y_data)
+                    membership.append(pre_membership)
+                    if len(x_data) != self.numeral_dim:
+                        raise (
+                            f"Invalid x_data: {key}, {round}, length: {len(x_data)}")
+
+        return x, y, membership
+
     def get_model(self, load_model=False):
         model = MixedDataModel(lstm_arch=self.lstm_arch,
                                num_embeddings=self.num_embeddings,
@@ -471,19 +490,42 @@ class SurrogateModel:
             logger.info(f"Predicted: {predicted}")
             # get the index where the values are equal
             index = np.where(y == predicted)
-            logger.info(f"Index: {index}")
+            logger.info(f"Correct index: {index}")
+            # get the index where the values are not equal
+            index = np.where(y != predicted)
+            logger.info(f"Incorrect index: {index}")
             logger.info(f"Correct: {correct}, Total: {total}")
             input("Press enter to continue")
         return correct, total
 
-    def test(self, batch: int = None, print_output=False):
+    def test(self, batch: int = None, print_output=False, weights: list = None):
         # Lets check if the path to the model exists
         if self.model_path is None:
             raise Exception("Please provide the path to the model")
 
         model, criterion, _ = self.get_model(load_model=True)
 
-        if batch is not None:
+        if weights is not None:
+            if batch is not None:
+                self.batch_size = batch
+            # Convert weights to tuple
+            weights = tuple(weights)
+            # Load the data
+            samples = self.load_data()
+            x, y, membership = self.get_sample(
+                samples, weights=weights)
+            # Convert to numpy
+            x = np.array(x)
+            y = np.array(y)
+            membership = np.array(membership)
+            self.testing_dataset = NetworkDataset(weights=x,
+                                                  current_membership=membership,
+                                                  y_membership=y)
+            # recreate the dataloader
+            self.testing_dataloader = DataLoader(
+                self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
+
+        elif batch is not None:
             self.batch_size = batch
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
