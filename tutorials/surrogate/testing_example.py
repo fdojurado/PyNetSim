@@ -23,7 +23,10 @@ def main(args):
     # Create the surrogate model
     surrogate_model = SurrogateModel(config=config)
 
-    # Train the surrogate model
+    # Initialize the surrogate model
+    surrogate_model.init()
+
+    # Test the surrogate model
     surrogate_model.test(
         batch=args.batch, print_output=args.print, weights=args.weights)
 

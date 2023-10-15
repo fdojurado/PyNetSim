@@ -167,6 +167,8 @@ class SurrogateModel:
         self.print_every = self.config.surrogate.print_every
         self.plot_every = self.config.surrogate.plot_every
         self.eval_every = self.config.surrogate.eval_every
+
+    def print_config(self):
         # print all the config values
         logger.info(f"lstm_arch: {self.lstm_arch}")
         logger.info(f"epochs: {self.epochs}")
@@ -192,9 +194,9 @@ class SurrogateModel:
         logger.info(f"print_every: {self.print_every}")
         logger.info(f"plot_every: {self.plot_every}")
         logger.info(f"eval_every: {self.eval_every}")
-        self.init()
 
     def init(self):
+        self.print_config()
         # Create the folder to save the model if it does not exist
         # os.makedirs(self.model_path, exist_ok=True)
 
