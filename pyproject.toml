@@ -32,11 +32,7 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
 ]
-keywords = [
-    "SDN-IoT",
-    "Internet of Things",
-    "Network Simulator"
-]
+keywords = ["LEACH", "Internet of Things", "Network Simulator"]
 # dynamic = ["dependencies"]
 
 dependencies = [
@@ -47,12 +43,13 @@ dependencies = [
     'rich',
     'tomli',
     'scikit-learn',
-    'torch'
+    'torch',
+    'yaml',
 ]
 
 [project.urls]
 "Documentation" = "https://github.com/fdojurado/pynetsim"
-"Source" =  "https://github.com/fdojurado/pynetsim"
+"Source" = "https://github.com/fdojurado/pynetsim"
 "Bug Tracker" = "https://github.com/fdojurado/pynetsim/issues"
 
 [tool.pytest.ini_options]
