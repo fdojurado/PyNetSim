@@ -37,6 +37,7 @@ keywords = ["LEACH", "Internet of Things", "Network Simulator"]
 
 dependencies = [
     # 'setuptools==64',
+    'stable-baselines3[extra]',
     'matplotlib',
     'networkx',
     'pandas',
