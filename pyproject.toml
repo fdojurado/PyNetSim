@@ -45,7 +45,8 @@ dependencies = [
     'tomli',
     'scikit-learn',
     'torch',
-    'pyyaml'
+    'pyyaml',
+    'pyomo'
 ]
 
 [project.urls]
