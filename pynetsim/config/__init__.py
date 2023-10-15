@@ -133,6 +133,7 @@ NUM_WORKERS = 1
 # Print and plot intervals
 PRINT_EVERY = 1
 PLOT_EVERY = 10
+EVAL_EVERY = 10
 
 
 class SurrogateConfiguration:
@@ -172,6 +173,7 @@ class SurrogateConfiguration:
         # Print and plot intervals
         self.print_every = surrogate_dict.get('print_every', PRINT_EVERY)
         self.plot_every = surrogate_dict.get('plot_every', PLOT_EVERY)
+        self.eval_every = surrogate_dict.get('eval_every', EVAL_EVERY)
 
 
 class Configuration:

@@ -3,17 +3,17 @@ surrogate:
   # We support two types of architectures: simple and complex
   lstm_arch: complex
   epochs: 1000
-  hidden_dim: 256
-  lstm_hidden: 512
-  output_dim: 101
+  hidden_dim: 404
+  lstm_hidden: 24
+  output_dim: 5
   num_clusters: 100
   num_embeddings: 101
-  embedding_dim: 50
+  embedding_dim: 12
   numerical_dim: 102
-  weight_decay: 0.0001
-  drop_out: 0.5
-  batch_size: 64
-  learning_rate: 0.000001
+  weight_decay: 0.00001
+  drop_out: 0.3
+  batch_size: 128
+  learning_rate: 0.0001
   test_ratio: 0.2
   # This is the largest weight value for alpha, beta, and gamma
   largest_weight: 6
@@ -22,7 +22,7 @@ surrogate:
   # Load model? If yes, then specify the path
   load_model: True
   # Folders to save the model and the plots
-  model_path: ./models/model_complex_extended.pt
+  model_path: ./models/model_complex_chs.pt
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from
@@ -32,3 +32,5 @@ surrogate:
   plots_folder: ./plots
   print_every: 1
   plot_every: 10
+  # This is the frequency to evaluate the model while training
+  eval_every: 5

@@ -1,7 +1,5 @@
 import os
-import sys
 import json
-import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,8 +7,8 @@ import matplotlib.pyplot as plt
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from rich.logging import RichHandler
 from pynetsim.utils import PyNetSimLogger
+from rich.progress import Progress
 
 # Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -60,12 +58,15 @@ class MixedDataModel(nn.Module):
         if lstm_arch == "complex":
             self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
                                 num_layers=2, batch_first=True, dropout=drop_out)
+        # Add another layer to enable concatenation with numerical data
+        self.lstm_hidden_layer = nn.Linear(
+            lstm_hidden, hidden_dim)
 
         # Combined hidden layer
         self.numerical_layer = nn.Linear(
-            numerical_dim, lstm_hidden)
+            numerical_dim, hidden_dim)
 
-        self.hidden_layer = nn.Linear(lstm_hidden, hidden_dim)
+        self.hidden_layer = nn.Linear(hidden_dim, hidden_dim)
 
         # Output layer
         self.output_layer = nn.Linear(hidden_dim, output_dim)
@@ -79,13 +80,19 @@ class MixedDataModel(nn.Module):
 
     def forward(self, categorical_data, numerical_data):
         # print(f"Shape of / categorical data 0: {categorical_data.shape}")
-        # print(f"First element of categorical data: {categorical_data[0]}")
+        # print(f"First element of categorical data: {categorical_data}")
         # Pass categorical data through embedding layer
         categorical_data = self.embedding_layer(categorical_data)
         # print(f"Shape of / categorical data 1: {categorical_data.shape}")
 
         # Pass through LSTM layer
         categorical_data, _ = self.lstm(categorical_data)
+
+        categorical_data = self.lstm_hidden_layer(categorical_data)
+
+        categorical_data = self.relu(categorical_data)
+
+        categorical_data = self.dropout(categorical_data)
         # print(f"Shape of / categorical data 2: {categorical_data.shape}")
         # Shape of categorical data: torch.Size([64, 99, 10])
         # print(f"First element of categorical data: {categorical_data[0]}")
@@ -112,7 +119,7 @@ class MixedDataModel(nn.Module):
             (categorical_data, numerical_data.unsqueeze(1)), dim=1)
         # input(f"Shape of combined data: {combined_data.shape}")
         # Shape of combined data: torch.Size([1, 99, 201])
-        # input(f"First element of combined data: {combined_data[0]}")
+        # print(f"First element of combined data: {combined_data[0]}")
 
         # Pass through hidden layer
         hidden_data = self.hidden_layer(combined_data)
@@ -159,6 +166,7 @@ class SurrogateModel:
         self.plots_folder = self.config.surrogate.plots_folder
         self.print_every = self.config.surrogate.print_every
         self.plot_every = self.config.surrogate.plot_every
+        self.eval_every = self.config.surrogate.eval_every
         # print all the config values
         logger.info(f"lstm_arch: {self.lstm_arch}")
         logger.info(f"epochs: {self.epochs}")
@@ -183,6 +191,7 @@ class SurrogateModel:
         logger.info(f"plots_folder: {self.plots_folder}")
         logger.info(f"print_every: {self.print_every}")
         logger.info(f"plot_every: {self.plot_every}")
+        logger.info(f"eval_every: {self.eval_every}")
         self.init()
 
     def init(self):
@@ -263,8 +272,10 @@ class SurrogateModel:
         # Load the data folder
         files = self.load_files(self.raw_data_folder)
         # Normalize the data
-        samples = self.normalize_data(files, normalized_names_values=self.largest_weight,
-                                      normalized_membership_values=1)
+        # samples = self.normalize_data(files, normalized_names_values=self.largest_weight,
+        #                               normalized_membership_values=1)
+        samples = self.normalize_data_cluster_heads(
+            files, normalized_names_values=self.largest_weight, normalized_membership_values=1)
 
         return samples
 
@@ -276,6 +287,71 @@ class SurrogateModel:
         samples = self.load_samples(self.data_folder)
 
         return samples
+
+    def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int):
+        normalized_samples = {}
+        for name, data in samples.items():
+            normalized_samples[name] = {}
+            max_rounds = len(data)
+
+            for round, stats in data.items():
+                round = int(round)
+                if round == max_rounds:
+                    continue
+
+                energy_levels = list(stats['energy_levels'].values())
+                membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
+                              for node_id, cluster_id in stats['membership'].items()]
+
+                # Remove the sink
+                # membership = membership[1:]
+
+                # Normalize the cluster ids
+                current_membership = membership
+
+                x_data = [value / normalized_names_values for value in name] + \
+                    energy_levels
+
+                next_round = round + 1
+                next_round_membership = [0 if cluster_id is None else int(
+                    cluster_id) / normalized_membership_values for _, cluster_id in data[str(next_round)]['membership'].items()]
+
+                # Get unique cluster ids without including 0
+                unique_cluster_ids = set(next_round_membership)
+                unique_cluster_ids.remove(0)
+                # Convert to list
+                unique_cluster_ids = list(unique_cluster_ids)
+                # Number of clusters
+                num_clusters = len(unique_cluster_ids)
+                if num_clusters < 5:
+                    # append 0s to make it 5 to the unique cluster ids
+                    for _ in range(5 - num_clusters):
+                        unique_cluster_ids.append(0)
+
+                # Normalize the cluster ids
+                next_round_membership = unique_cluster_ids
+
+                y_data = next_round_membership
+
+                assert all(-1 <= value <=
+                           1 for value in x_data), f"Invalid x_data: {x_data}"
+                assert all(
+                    0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
+                assert all(
+                    0 <= value <= self.num_clusters for value in membership), f"Invalid membership: {membership}"
+
+                normalized_samples[name][str(round)] = {
+                    "x_data": x_data,
+                    "y_data": y_data,
+                    "membership": current_membership
+                }
+
+        os.makedirs(self.data_folder, exist_ok=True)
+        for name, data in normalized_samples.items():
+            with open(os.path.join(self.data_folder, f"{name}.json"), "w") as f:
+                json.dump(data, f)
+
+        return normalized_samples
 
     def normalize_data(self, samples, normalized_names_values: int, normalized_membership_values: int):
         normalized_samples = {}
@@ -437,32 +513,39 @@ class SurrogateModel:
 
         for epoch in range(self.epochs):
             model.train()
-            for input_data, categorical_data, target_data in self.training_dataloader:
-                optimizer.zero_grad()
-                # print(f"Input data: {input_data}, {input_data.shape}")
-                # print(f"Target data: {target_data}, {target_data.shape}")
-                outputs = model(categorical_data=categorical_data,
-                                numerical_data=input_data)
-                # input(f"Outputs: {outputs}, {outputs.shape}")
-                loss = criterion(outputs, target_data)
-                loss.backward()
-                optimizer.step()
-                train_losses.append(loss.item())
-
-            model.eval()
-            with torch.no_grad():
-                for input_data, categorical_data, target_data in self.testing_dataloader:
+            with Progress() as progress:
+                task = progress.add_task(
+                    f"[cyan]Training (epoch {epoch}/{self.epochs})", total=len(self.training_dataloader))
+                for input_data, categorical_data, target_data in self.training_dataloader:
+                    optimizer.zero_grad()
+                    # print(f"Input data: {input_data}, {input_data.shape}")
+                    # print(
+                    #     f"Categorical data: {categorical_data}, {categorical_data.shape}")
+                    # print(f"Target data: {target_data}, {target_data.shape}")
                     outputs = model(categorical_data=categorical_data,
                                     numerical_data=input_data)
+                    # input(f"Outputs: {outputs}, {outputs.shape}")
                     loss = criterion(outputs, target_data)
-                    validation_losses.append(loss.item())
+                    loss.backward()
+                    optimizer.step()
+                    train_losses.append(loss.item())
+                    progress.update(task, advance=1)
 
             avg_train_loss = np.mean(train_losses)
-            avg_val_loss = np.mean(validation_losses)
 
             if epoch % self.print_every == 0:
                 logger.info(
-                    f"Epoch [{epoch}/{self.epochs}] Train Loss: {avg_train_loss:.4f} Validation Loss: {avg_val_loss:.4f}")
+                    f"Epoch [{epoch}/{self.epochs}] Train Loss: {avg_train_loss:.4f}")
+
+            if epoch % self.eval_every == 0:
+                model.eval()
+                with torch.no_grad():
+                    for input_data, categorical_data, target_data in self.testing_dataloader:
+                        outputs = model(categorical_data=categorical_data,
+                                        numerical_data=input_data)
+                        loss = criterion(outputs, target_data)
+                        validation_losses.append(loss.item())
+                avg_val_loss = np.mean(validation_losses)
                 if avg_val_loss < best_loss:
                     logger.info(
                         f"Epoch [{epoch}/{self.epochs}] Validation Loss Improved: {best_loss:.4f} -> {avg_val_loss:.4f}"
