@@ -23,50 +23,31 @@ logger = logger_utility.get_logger()
 
 
 class NetworkDataset(Dataset):
-    def __init__(self, weights, current_membership, y_membership):
-        self.weights = torch.from_numpy(weights.astype(np.float32))
-        self.X = torch.from_numpy(current_membership.astype(np.int64))
-        self.y = torch.from_numpy(y_membership.astype(np.int64))
-        self.len = weights.shape[0]
+    def __init__(self, x, y):
+        self.X = torch.from_numpy(x.astype(np.float32))
+        self.y = torch.from_numpy(y.astype(np.float32))
+        self.len = x.shape[0]
+        print(f"len: {self.len}")
+        logger.info(f"X: {self.X.shape}, y: {self.y.shape}")
 
     def __len__(self):
         return self.len
 
     def __getitem__(self, idx):
-        return self.weights[idx], self.X[idx], self.y[idx]
+        return self.X[idx], self.y[idx]
 
     # Support batching
     def collate_fn(self, batch):
-        weights = torch.stack([x[0] for x in batch])
-        X = torch.stack([x[1] for x in batch])
-        y = torch.stack([x[2] for x in batch])
-        return weights, X, y
+        X = torch.stack([x[0] for x in batch])
+        y = torch.stack([x[1] for x in batch])
+        return X, y
 
 
 class MixedDataModel(nn.Module):
-    def __init__(self, lstm_arch, embedding_dim, num_embeddings, numerical_dim, hidden_dim, lstm_hidden, output_dim, drop_out):
+    def __init__(self, input_dim, hidden_dim, output_dim, drop_out):
         super(MixedDataModel, self).__init__()
 
-        # Embedding layer for categorical data
-        self.embedding_layer = nn.Embedding(
-            num_embeddings=num_embeddings, embedding_dim=embedding_dim)
-
-        # LSTM layer
-        if lstm_arch == "simple":
-            self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
-                                num_layers=1, batch_first=True)
-        if lstm_arch == "complex":
-            self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=lstm_hidden,
-                                num_layers=2, batch_first=True, dropout=drop_out)
-        # Add another layer to enable concatenation with numerical data
-        self.lstm_hidden_layer = nn.Linear(
-            lstm_hidden, hidden_dim)
-
-        # Combined hidden layer
-        self.numerical_layer = nn.Linear(
-            numerical_dim, hidden_dim)
-
-        self.hidden_layer = nn.Linear(hidden_dim, hidden_dim)
+        self.hidden_layer = nn.Linear(input_dim, hidden_dim)
 
         # Output layer
         self.output_layer = nn.Linear(hidden_dim, output_dim)
@@ -78,51 +59,13 @@ class MixedDataModel(nn.Module):
         # Dropout
         self.dropout = nn.Dropout(p=drop_out)
 
-    def forward(self, categorical_data, numerical_data):
-        # print(f"Shape of / categorical data 0: {categorical_data.shape}")
-        # print(f"First element of categorical data: {categorical_data}")
-        # Pass categorical data through embedding layer
-        categorical_data = self.embedding_layer(categorical_data)
-        # print(f"Shape of / categorical data 1: {categorical_data.shape}")
+    def forward(self, input_data):
 
-        # Pass through LSTM layer
-        categorical_data, _ = self.lstm(categorical_data)
-
-        categorical_data = self.lstm_hidden_layer(categorical_data)
-
-        categorical_data = self.relu(categorical_data)
-
-        categorical_data = self.dropout(categorical_data)
-        # print(f"Shape of / categorical data 2: {categorical_data.shape}")
-        # Shape of categorical data: torch.Size([64, 99, 10])
-        # print(f"First element of categorical data: {categorical_data[0]}")
-
-        # print(f"Shape of numerical data 0: {numerical_data.shape}")
-        # print(f"First element of numerical data: {numerical_data[0]}")
-
-        # pass the numerical data through a linear layer
-        numerical_data = self.numerical_layer(numerical_data)
-
-        # print(f"Shape of numerical data 1: {numerical_data.shape}")
-
-        # Pass through the activation function
-        numerical_data = self.relu(numerical_data)
-
-        # Dropout
-        numerical_data = self.dropout(numerical_data)
-
-        # print(f"Shape of numerical data 2: {numerical_data.shape}")
-        # print(f"First element of numerical data: {numerical_data[0]}")
-
-        # Concatenate all the data
-        combined_data = torch.cat(
-            (categorical_data, numerical_data.unsqueeze(1)), dim=1)
-        # input(f"Shape of combined data: {combined_data.shape}")
-        # Shape of combined data: torch.Size([1, 99, 201])
-        # print(f"First element of combined data: {combined_data[0]}")
-
+        # print(f"Input shape: {input_data.shape}")
         # Pass through hidden layer
-        hidden_data = self.hidden_layer(combined_data)
+        hidden_data = self.hidden_layer(input_data)
+
+        # print(f"Hidden shape: {hidden_data.shape}")
 
         # Pass through the activation function
         hidden_data = self.relu(hidden_data)
@@ -135,6 +78,8 @@ class MixedDataModel(nn.Module):
 
         # Pass through the activation function
         output_data = self.softmax(output_data)
+
+        # print(f"Output shape: {output_data.shape}")
 
         return output_data
 
@@ -213,18 +158,13 @@ class SurrogateModel:
         logger.info(f"Number of samples: {len(samples)}")
 
         # Split the data into training and testing
-        X_train_weights, X_train_current_membership, Y_train, X_test_weights, X_test_current_membership, Y_test = self.split_data(
-            samples)
+        X_train, X_test, Y_train, Y_test = self.split_data(samples)
 
         # Create the training dataset
-        self.training_dataset = NetworkDataset(weights=X_train_weights,
-                                               current_membership=X_train_current_membership,
-                                               y_membership=Y_train)
+        self.training_dataset = NetworkDataset(x=X_train, y=Y_train)
 
         # Create the testing dataset
-        self.testing_dataset = NetworkDataset(weights=X_test_weights,
-                                              current_membership=X_test_current_membership,
-                                              y_membership=Y_test)
+        self.testing_dataset = NetworkDataset(x=X_test, y=Y_test)
 
         # Create the training dataloader
         self.training_dataloader = DataLoader(
@@ -238,9 +178,7 @@ class SurrogateModel:
         # Get all the samples
         x, y, membership = self.get_all_samples(samples)
         np_weights = np.array(x)
-        np_weights_size = np_weights.shape
         np_current_membership = np.array(membership)
-        np_current_membership_size = np_current_membership.shape
         np_y = np.array(y)
 
         # Concatenate the weights and current_membership
@@ -254,15 +192,7 @@ class SurrogateModel:
         X_train, X_test, y_train, y_test = train_test_split(
             np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=False)
 
-        # Lets unpack the weights and current_membership
-        X_train_weights = X_train[:, :np_weights_size[1]]
-        X_train_current_membership = X_train[:, np_weights_size[1]:]
-        Y_train = y_train
-        X_test_weights = X_test[:, :np_weights_size[1]]
-        X_test_current_membership = X_test[:, np_weights_size[1]:]
-        Y_test = y_test
-
-        return X_train_weights, X_train_current_membership, Y_train, X_test_weights, X_test_current_membership, Y_test
+        return X_train, X_test, y_train, y_test
 
     def generate_data(self):
         if self.raw_data_folder is None:
@@ -309,7 +239,8 @@ class SurrogateModel:
                 # membership = membership[1:]
 
                 # Normalize the cluster ids
-                current_membership = membership
+                current_membership = [
+                    cluster_id / normalized_membership_values for cluster_id in membership]
 
                 x_data = [value / normalized_names_values for value in name] + \
                     energy_levels
@@ -474,12 +405,8 @@ class SurrogateModel:
         return x, y, membership
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(lstm_arch=self.lstm_arch,
-                               num_embeddings=self.num_embeddings,
-                               embedding_dim=self.embedding_dim,
-                               numerical_dim=self.numeral_dim,
+        model = MixedDataModel(input_dim=202,
                                hidden_dim=self.hidden_dim,
-                               lstm_hidden=self.lstm_hidden,
                                output_dim=self.output_dim,
                                drop_out=self.drop_out)
 
@@ -497,7 +424,7 @@ class SurrogateModel:
             # Lets make sure that the folder to save the model exists
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-        criterion = nn.NLLLoss()
+        criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
 
@@ -518,14 +445,14 @@ class SurrogateModel:
             with Progress() as progress:
                 task = progress.add_task(
                     f"[cyan]Training (epoch {epoch}/{self.epochs})", total=len(self.training_dataloader))
-                for input_data, categorical_data, target_data in self.training_dataloader:
+                for input_data, target_data in self.training_dataloader:
                     optimizer.zero_grad()
-                    # print(f"Input data: {input_data}, {input_data.shape}")
+                    # print(f"Input shape: {input_data.shape}")
+                    # print(f"Target shape: {target_data.shape}")
                     # print(
                     #     f"Categorical data: {categorical_data}, {categorical_data.shape}")
                     # print(f"Target data: {target_data}, {target_data.shape}")
-                    outputs = model(categorical_data=categorical_data,
-                                    numerical_data=input_data)
+                    outputs = model(input_data=input_data)
                     # input(f"Outputs: {outputs}, {outputs.shape}")
                     loss = criterion(outputs, target_data)
                     loss.backward()
@@ -542,9 +469,8 @@ class SurrogateModel:
             if epoch % self.eval_every == 0:
                 model.eval()
                 with torch.no_grad():
-                    for input_data, categorical_data, target_data in self.testing_dataloader:
-                        outputs = model(categorical_data=categorical_data,
-                                        numerical_data=input_data)
+                    for input_data, target_data in self.testing_dataloader:
+                        outputs = model(input_data=input_data)
                         loss = criterion(outputs, target_data)
                         validation_losses.append(loss.item())
                 avg_val_loss = np.mean(validation_losses)
@@ -567,6 +493,8 @@ class SurrogateModel:
         return model
 
     def test_predicted_sample(self, y, output, print_output=False):
+        print(f"Y: {y}")
+        print(f"Output: {output}")
         _, predicted = torch.max(output.data, 1)
         correct = (predicted == y).sum().item()
         total = np.prod(y.shape)
@@ -620,11 +548,10 @@ class SurrogateModel:
         losses = []
         avg_accuracy = []
         with torch.no_grad():
-            for input_data, categorical_data, target_data in self.testing_dataloader:
+            for input_data, target_data in self.testing_dataloader:
                 X = input_data
                 y = target_data
-                output = model(categorical_data=categorical_data,
-                               numerical_data=X)
+                output = model(input_data=X)
                 loss = criterion(output, y)
                 losses.append(loss.item())
                 correct, total = self.test_predicted_sample(

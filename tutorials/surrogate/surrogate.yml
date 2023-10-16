@@ -1,15 +1,15 @@
 name: example network
 surrogate:
   # We support two types of architectures: simple and complex
-  lstm_arch: complex
+  # lstm_arch: complex
   epochs: 1000
-  hidden_dim: 404
-  lstm_hidden: 24
+  hidden_dim: 512
+  # lstm_hidden: 24
   output_dim: 5
   num_clusters: 100
   num_embeddings: 101
-  embedding_dim: 12
-  numerical_dim: 102
+  # embedding_dim: 12
+  # numerical_dim: 102
   weight_decay: 0.00001
   drop_out: 0.3
   batch_size: 128
@@ -26,10 +26,10 @@ surrogate:
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from
-  raw_data_folder: /Users/ffjla/PyNetSim/tutorials/results
+  raw_data_folder: /Users/fernando/PyNetSim/tutorials/results
   # Path to the data, if it is not provided, then this folder is used to save the data
-  data_folder: ./data
-  plots_folder: ./plots
+  data_folder: /Users/fernando/PyNetSim/tutorials/surrogate/data
+  plots_folder: /Users/fernando/PyNetSim/tutorials/surrogate/plots
   print_every: 1
   plot_every: 10
   # This is the frequency to evaluate the model while training
