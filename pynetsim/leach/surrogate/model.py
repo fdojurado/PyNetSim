@@ -44,42 +44,57 @@ class NetworkDataset(Dataset):
 
 
 class MixedDataModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, drop_out):
+    def __init__(self, input_dim, hidden_dim, num_classes, num_labels, drop_out):
         super(MixedDataModel, self).__init__()
+        self.num_classes = num_classes
+        self.num_labels = num_labels
 
         self.hidden_layer = nn.Linear(input_dim, hidden_dim)
 
         # Output layer
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        self.output_layer = nn.Linear(
+            hidden_dim, self.num_classes*self.num_labels)
 
         # Activation functions
         self.relu = nn.ReLU()
-        self.softmax = nn.LogSoftmax(dim=1)
+        self.sigmoid = nn.Sigmoid()  # Sigmoid for multi-label classification
 
         # Dropout
-        self.dropout = nn.Dropout(p=drop_out)
+        # self.dropout = nn.Dropout(p=drop_out)
 
     def forward(self, input_data):
 
         # print(f"Input shape: {input_data.shape}")
+        # [128, 202]
+        # We want to extend the input_data to [128, 101, 202]
+        input_data = input_data.unsqueeze(1)
+        # print(f"Input shape2: {input_data.shape}")
+        # [128, 1, 202]
+
         # Pass through hidden layer
         hidden_data = self.hidden_layer(input_data)
 
         # print(f"Hidden shape: {hidden_data.shape}")
+        # [128, 512]
 
         # Pass through the activation function
         hidden_data = self.relu(hidden_data)
 
         # dropout
-        hidden_data = self.dropout(hidden_data)
+        # hidden_data = self.dropout(hidden_data)
 
         # Pass through output layer
         output_data = self.output_layer(hidden_data)
 
-        # Pass through the activation function
-        output_data = self.softmax(output_data)
+        # Reshape the output to [128, 101, 5]
+        output_data = output_data.view(-1, self.num_labels, self.num_classes)
 
-        # print(f"Output shape: {output_data.shape}")
+        # print(f"Output shape0: {output_data.shape}")
+
+        # Pass through the activation function
+        output_data = self.sigmoid(output_data)
+
+        # input(f"Output shape: {output_data.shape}")
 
         return output_data
 
@@ -180,6 +195,13 @@ class SurrogateModel:
         np_weights = np.array(x)
         np_current_membership = np.array(membership)
         np_y = np.array(y)
+
+        # Lets one hot encode the y
+        # print(f"np_y: {np_y[0]}")
+        np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
+        # print(f"np_y: {np_y.shape}")
+        # print first row
+        # print(f"np_y encoded: {np_y[0]}")
 
         # Concatenate the weights and current_membership
         np_x = np.concatenate(
@@ -407,7 +429,8 @@ class SurrogateModel:
     def get_model(self, load_model=False):
         model = MixedDataModel(input_dim=202,
                                hidden_dim=self.hidden_dim,
-                               output_dim=self.output_dim,
+                               num_classes=101,
+                               num_labels=5,
                                drop_out=self.drop_out)
 
         if self.load_model:
@@ -424,9 +447,9 @@ class SurrogateModel:
             # Lets make sure that the folder to save the model exists
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCELoss()
         optimizer = torch.optim.Adam(
-            model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+            model.parameters(), lr=self.learning_rate)
 
         return model, criterion, optimizer
 
@@ -493,9 +516,15 @@ class SurrogateModel:
         return model
 
     def test_predicted_sample(self, y, output, print_output=False):
-        print(f"Y: {y}")
-        print(f"Output: {output}")
-        _, predicted = torch.max(output.data, 1)
+        # print(f"Y: {y}")
+        # Convert one hot encoded to categorical
+        y = torch.argmax(y[0], dim=1)
+        # print(f"Y: {y}")
+        # print(f"Output: {output}")
+        # _, predicted = torch.max(output.data, 1)
+        # print(f"Predicted: {predicted}")
+        _, predicted = torch.max(output.data[0], 1)
+        # print(f"Predicted 1: {predicted}")
         correct = (predicted == y).sum().item()
         total = np.prod(y.shape)
         if print_output:
