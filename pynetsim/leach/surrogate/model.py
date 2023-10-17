@@ -556,13 +556,21 @@ class SurrogateModel:
             samples = self.load_data()
             x, y, membership = self.get_sample(
                 samples, weights=weights)
-            # Convert to numpy
-            x = np.array(x)
-            y = np.array(y)
-            membership = np.array(membership)
-            self.testing_dataset = NetworkDataset(weights=x,
-                                                  current_membership=membership,
-                                                  y_membership=y)
+            np_weights = np.array(x)
+            np_current_membership = np.array(membership)
+            np_y = np.array(y)
+
+            # Lets one hot encode the y
+            # print(f"np_y: {np_y[0]}")
+            np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
+            # print(f"np_y: {np_y.shape}")
+            # print first row
+            # print(f"np_y encoded: {np_y[0]}")
+
+            # Concatenate the weights and current_membership
+            np_x = np.concatenate(
+                (np_weights, np_current_membership), axis=1)
+            self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
                 self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
