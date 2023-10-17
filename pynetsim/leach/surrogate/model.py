@@ -201,9 +201,6 @@ class SurrogateModel:
         # Lets one hot encode the y
         # print(f"np_y: {np_y[0]}")
         np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
-        # print(f"np_y: {np_y.shape}")
-        # print first row
-        # print(f"np_y encoded: {np_y[0]}")
 
         # Concatenate the weights and current_membership
         np_x = np.concatenate(
@@ -296,7 +293,7 @@ class SurrogateModel:
 
                 next_round = round + 1
                 next_round_membership = [0 if cluster_id is None else int(
-                    cluster_id) / normalized_membership_values for _, cluster_id in data[str(next_round)]['membership'].items()]
+                    cluster_id) for _, cluster_id in data[str(next_round)]['membership'].items()]
 
                 # Remove the sink
                 next_round_membership = next_round_membership[1:]
@@ -321,7 +318,7 @@ class SurrogateModel:
                 assert all(-1 <= value <=
                            1 for value in x_data), f"Invalid x_data: {x_data}"
                 assert all(
-                    0 <= value <= 1 for value in y_data), f"Invalid y_data: {y_data}"
+                    0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
                 assert all(
                     0 <= value <= 1 for value in current_membership), f"Invalid current_membership: {current_membership}"
                 assert all(
@@ -554,11 +551,8 @@ class SurrogateModel:
         return model
 
     def test_predicted_sample(self, y, output, print_output=False):
-        # print(f"Y: {y}")
         # Convert one hot encoded to categorical
         y = torch.argmax(y[0], dim=1)
-        # print(f"Y: {y}")
-        # print(f"Output: {output}")
         # _, predicted = torch.max(output.data, 1)
         # print(f"Predicted: {predicted}")
         _, predicted = torch.max(output.data[0], 1)
