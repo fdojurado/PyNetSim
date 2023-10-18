@@ -191,12 +191,11 @@ class SurrogateModel:
 
     def split_data(self, samples):
         # Get all the samples
-        x, y, membership, prev_chs = self.get_all_samples(samples)
+        x, y, prev_x = self.get_all_samples(samples)
         # print shapes
-        np_weights = np.array(x)
-        np_current_membership = np.array(membership)
+        np_x = np.array(x)
         np_y = np.array(y)
-        np_prev_chs = np.array(prev_chs)
+        np_prev_x = np.array(prev_x)
 
         # Lets one hot encode the y
         # print(f"np_y: {np_y[0]}")
@@ -204,7 +203,7 @@ class SurrogateModel:
 
         # Concatenate the weights and current_membership
         np_x = np.concatenate(
-            (np_weights, np_current_membership, np_prev_chs), axis=1)
+            (np_x, np_prev_x), axis=1)
 
         if self.test_ratio is None:
             raise Exception("Please provide the test ratio")
@@ -244,6 +243,56 @@ class SurrogateModel:
 
         return samples
 
+    def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int):
+        energy_levels = list(stats['energy_levels'].values())
+        assert all(-1 <= value <=
+                   1 for value in energy_levels), f"Invalid energy levels: {energy_levels}"
+        membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
+                      for _, cluster_id in stats['membership'].items()]
+        # Remove the sink
+        membership = membership[1:]
+        assert all(
+            0 <= value <= 1 for value in membership), f"Invalid membership: {membership}"
+
+        # Get the remaining energy
+        remaining_energy = stats['remaining_energy']/100
+        assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
+
+        # Get the alive nodes
+        alive_nodes = stats['alive_nodes']/100
+        assert 0 <= alive_nodes <= 1, f"Invalid alive nodes: {alive_nodes}"
+
+        # Get the number of cluster heads
+        num_cluster_heads = stats['num_cluster_heads']/5
+        assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
+
+        # Get control packets energy
+        control_packets_energy = stats['control_packets_energy']/5
+        assert 0 <= control_packets_energy <= 1, f"Invalid control packets energy: {control_packets_energy}"
+
+        # Get control packets bits
+        control_pkt_bits = stats['control_pkt_bits']/1e8
+        assert 0 <= control_pkt_bits <= 1, f"Invalid control packets bits: {control_pkt_bits}"
+
+        # Get the pkts sent to bs
+        pkts_sent_to_bs = stats['pkts_sent_to_bs']/1e3
+        assert 0 <= pkts_sent_to_bs <= 1, f"Invalid pkts sent to bs: {pkts_sent_to_bs}"
+
+        # Get the pkts received by bs
+        pkts_recv_by_bs = stats['pkts_recv_by_bs']/1e3
+        assert 0 <= pkts_recv_by_bs <= 1, f"Invalid pkts recv by bs: {pkts_recv_by_bs}"
+
+        # Get the energy dissipated
+        energy_dissipated = stats['energy_dissipated']/100
+        assert 0 <= energy_dissipated <= 1, f"Invalid energy dissipated: {energy_dissipated}"
+
+        x_data = [value / normalized_names_values for value in name] + \
+            energy_levels + [remaining_energy, alive_nodes, num_cluster_heads,
+                             control_packets_energy, control_pkt_bits, pkts_sent_to_bs, pkts_recv_by_bs, energy_dissipated] + \
+            membership
+
+        return x_data
+
     def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int):
         normalized_samples = {}
         for name, data in samples.items():
@@ -255,41 +304,16 @@ class SurrogateModel:
                 if round == max_rounds or round == 1:
                     continue
 
-                energy_levels = list(stats['energy_levels'].values())
-                membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
-                              for node_id, cluster_id in stats['membership'].items()]
+                rnd_data = self.get_round_data(
+                    name, stats, normalized_names_values, normalized_membership_values)
 
-                # Remove the sink
-                membership = membership[1:]
-
-                # Normalize the cluster ids
-                current_membership = membership
-
-                # Get the previous round cluster ids
-                previous_round = round - 1
-                previous_round_membership = [0 if cluster_id is None else int(
-                    cluster_id) / normalized_membership_values for _, cluster_id in data[str(previous_round)]['membership'].items()]
-
-                # Remove the sink
-                previous_round_membership = previous_round_membership[1:]
-
-                # Get unique cluster ids
-                unique_cluster_ids = set(previous_round_membership)
-                # Remove 0 if it exists
-                unique_cluster_ids.discard(0)
-                # Convert to list
-                unique_cluster_ids = list(unique_cluster_ids)
-                # Number of clusters
-                num_clusters = len(unique_cluster_ids)
-                if num_clusters < 5:
-                    # append 0s to make it 5 to the unique cluster ids
-                    for _ in range(5 - num_clusters):
-                        unique_cluster_ids.append(0)
-
-                previous_round_cluster_ids = unique_cluster_ids
-
-                x_data = [value / normalized_names_values for value in name] + \
-                    energy_levels
+                # Get all previous round x_data
+                if round >= 3:
+                    prev_x_data = normalized_samples[name][str(
+                        round-1)]['prev_x_data']
+                else:
+                    prev_x_data = self.get_round_data(
+                        name, data[str(round-1)], normalized_names_values, normalized_membership_values)
 
                 next_round = round + 1
                 next_round_membership = [0 if cluster_id is None else int(
@@ -299,36 +323,37 @@ class SurrogateModel:
                 next_round_membership = next_round_membership[1:]
 
                 # Get unique cluster ids without including 0
-                unique_cluster_ids = set(next_round_membership)
-                unique_cluster_ids.discard(0)
-                # Convert to list
-                unique_cluster_ids = list(unique_cluster_ids)
-                # Number of clusters
-                num_clusters = len(unique_cluster_ids)
-                if num_clusters < 5:
-                    # append 0s to make it 5 to the unique cluster ids
-                    for _ in range(5 - num_clusters):
-                        unique_cluster_ids.append(0)
+                # unique_cluster_ids = set(next_round_membership)
+                # unique_cluster_ids.discard(0)
+                # # Convert to list
+                # unique_cluster_ids = list(unique_cluster_ids)
+                # # Number of clusters
+                # num_clusters = len(unique_cluster_ids)
+                # if num_clusters < 5:
+                #     # append 0s to make it 5 to the unique cluster ids
+                #     for _ in range(5 - num_clusters):
+                #         unique_cluster_ids.append(0)
+
+                # # Sort the cluster ids in ascending order
+                # unique_cluster_ids.sort()
+
+                # input(f"Unique cluster ids: {unique_cluster_ids}")
 
                 # Normalize the cluster ids
-                next_round_membership = unique_cluster_ids
+                # next_round_membership = unique_cluster_ids
 
                 y_data = next_round_membership
 
                 assert all(-1 <= value <=
-                           1 for value in x_data), f"Invalid x_data: {x_data}"
+                           1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
                 assert all(
                     0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
-                assert all(
-                    0 <= value <= 1 for value in current_membership), f"Invalid current_membership: {current_membership}"
-                assert all(
-                    0 <= value <= 1 for value in previous_round_cluster_ids), f"Invalid previous_round_cluster_ids: {previous_round_cluster_ids}"
 
                 normalized_samples[name][str(round)] = {
-                    "x_data": x_data,
+                    "x_data": rnd_data,
+                    "prev_x_data": prev_x_data,
                     "y_data": y_data,
-                    "previous_ch": previous_round_cluster_ids,
-                    "membership": current_membership
+                    # "membership": current_membership
                 }
 
         os.makedirs(self.data_folder, exist_ok=True)
@@ -420,52 +445,48 @@ class SurrogateModel:
 
     def get_all_samples(self, samples):
         # Get the samples in the form of weights, current_membership, y_membership
-        x = []
-        y = []
-        previous_ch = []
-        membership = []
+        # "x_data": rnd_data,
+        # "prev_x_data": prev_x_data,
+        # "y_data": y_data,
+        x_data_list = []
+        prev_x_data_list = []
+        y_data_list = []
         for key, sample in samples.items():
             for round in range(1, len(sample)+1):
                 if round == 1:
                     continue
                 x_data = sample[str(round)]['x_data']
+                prev_x_data = sample[str(round)]['prev_x_data']
                 y_data = sample[str(round)]['y_data']
-                previous_ch_data = sample[str(round)]['previous_ch']
-                pre_membership = sample[str(round)]['membership']
-                x.append(x_data)
-                y.append(y_data)
-                previous_ch.append(previous_ch_data)
-                membership.append(pre_membership)
-                if len(x_data) != self.numeral_dim:
-                    raise (
-                        f"Invalid x_data: {key}, {round}, length: {len(x_data)}")
+                x_data_list.append(x_data)
+                prev_x_data_list.append(prev_x_data)
+                y_data_list.append(y_data)
 
-        return x, y, membership, previous_ch
+        return x_data_list, y_data_list, prev_x_data_list
 
     def get_sample(self, samples, weights: tuple):
-        x = []
-        y = []
-        membership = []
+        x_data_list = []
+        prev_x_data_list = []
+        y_data_list = []
         for key, sample in samples.items():
             if key == weights:
                 for round in range(1, len(sample)+1):
+                    if round == 1:
+                        continue
                     x_data = sample[str(round)]['x_data']
+                    prev_x_data = sample[str(round)]['prev_x_data']
                     y_data = sample[str(round)]['y_data']
-                    pre_membership = sample[str(round)]['membership']
-                    x.append(x_data)
-                    y.append(y_data)
-                    membership.append(pre_membership)
-                    if len(x_data) != self.numeral_dim:
-                        raise (
-                            f"Invalid x_data: {key}, {round}, length: {len(x_data)}")
+                    x_data_list.append(x_data)
+                    prev_x_data_list.append(prev_x_data)
+                    y_data_list.append(y_data)
 
-        return x, y, membership
+        return x_data_list, y_data_list, prev_x_data_list
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(input_dim=206,
+        model = MixedDataModel(input_dim=418,
                                hidden_dim=self.hidden_dim,
                                num_classes=101,
-                               num_labels=5,
+                               num_labels=99,
                                drop_out=self.drop_out)
 
         if self.load_model:
@@ -560,7 +581,7 @@ class SurrogateModel:
         correct = (predicted == y).sum().item()
         total = np.prod(y.shape)
         if print_output:
-            logger.info(f"Y: {y}")
+            logger.info(f"Y: {y}, chs: {np.unique(y)}")
             logger.info(f"Predicted: {predicted}")
             # get the index where the values are equal
             index = np.where(y == predicted)
@@ -586,22 +607,19 @@ class SurrogateModel:
             weights = tuple(weights)
             # Load the data
             samples = self.load_data()
-            x, y, membership = self.get_sample(
+            x, y, prev_x = self.get_sample(
                 samples, weights=weights)
-            np_weights = np.array(x)
-            np_current_membership = np.array(membership)
+            np_x = np.array(x)
             np_y = np.array(y)
+            np_prev_x = np.array(prev_x)
 
             # Lets one hot encode the y
             # print(f"np_y: {np_y[0]}")
             np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
-            # print(f"np_y: {np_y.shape}")
-            # print first row
-            # print(f"np_y encoded: {np_y[0]}")
 
             # Concatenate the weights and current_membership
             np_x = np.concatenate(
-                (np_weights, np_current_membership), axis=1)
+                (np_x, np_prev_x), axis=1)
             self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
@@ -619,6 +637,7 @@ class SurrogateModel:
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
                 X = input_data
+                # logger.info(f"X: {X}")
                 y = target_data
                 output = model(input_data=X)
                 loss = criterion(output, y)

@@ -32,6 +32,7 @@ class SURROGATE:
 
     def run(self):
         logger.info(f"Running {self.name}...")
+        self.metrics = {}
         self.model, _, _ = self.surrogate_model.get_model()
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
@@ -50,57 +51,84 @@ class SURROGATE:
             self.run_with_plotting(
                 num_rounds)
 
-    def create_input_data(self):
-        # We need to get alpha, beta, gamma, and energy levels for all nodes
-        # We need to get alpha, beta, gamma for all nodes
+    def get_network_metrics(self):
+
         weights = [self.alpha/self.largest_weight, self.beta /
                    self.largest_weight, self.gamma/self.largest_weight]
-        w_np = np.array(weights)
+
+        assert all(
+            0 <= w <= 1 for w in weights), f"Incorrect weights: {weights}"
+
         # logger.info(f"Weights: {w_np}, shape: {w_np.shape}")
         # print all energy levels
         # for node in self.network:
         #     logger.info(f"Node {node.node_id} energy level: {node.remaining_energy}")
         # We need to get energy levels for all nodes
-        energy_levels = np.array(
-            [node.remaining_energy for node in self.network if node.node_id != 1])
+        energy_levels = [
+            node.remaining_energy for node in self.network if node.node_id != 1]
+        assert all(-1 <= e <=
+                   1 for e in energy_levels), f"Incorrect energy levels: {energy_levels}"
         # logger.info(
         #     f"Energy levels: {energy_levels}, shape: {energy_levels.shape}")
+        remaining_energy = self.network.remaining_energy()/100
+        assert 0 <= remaining_energy <= 1, f"Incorrect remaining energy: {remaining_energy}"
+
+        alive_nodes = self.network.alive_nodes()/100
+        assert 0 <= alive_nodes <= 1, f"Incorrect alive nodes: {alive_nodes}"
+
+        num_chs = self.network.num_cluster_heads()/5
+        assert 0 <= num_chs <= 1, f"Incorrect num_chs: {num_chs}"
+
+        control_packets_energy = self.network.control_packets_energy()/5
+        assert 0 <= control_packets_energy <= 1, f"Incorrect control_packets_energy: {control_packets_energy}"
+
+        control_pkt_bits = self.network.control_pkt_bits()/1e8
+        assert 0 <= control_pkt_bits <= 1, f"Incorrect control_pkt_bits: {control_pkt_bits}"
+
+        pkts_sent_to_bs = self.network.pkts_sent_to_bs()/1e3
+        assert 0 <= pkts_sent_to_bs <= 1, f"Incorrect pkts_sent_to_bs: {pkts_sent_to_bs}"
+
+        pkts_recv_by_bs = self.network.pkts_recv_by_bs()/1e3
+        assert 0 <= pkts_recv_by_bs <= 1, f"Incorrect pkts_recv_by_bs: {pkts_recv_by_bs}"
+
+        energy_dissipated = self.network.energy_dissipated()/100
+        assert 0 <= energy_dissipated <= 1, f"Incorrect energy_dissipated: {energy_dissipated}"
 
         # We need to get the current membership of all nodes, this involves in getting the
         # cluster id of all nodes.
-        cluster_ids = np.array(
-            [0 if node.cluster_id is None else node.cluster_id for node in self.network])
+        cluster_ids = [0 if node.cluster_id is None else node.cluster_id /
+                       100 for node in self.network if node.node_id != 1]
+        assert all(
+            0 <= c <= 1 for c in cluster_ids), f"Incorrect cluster ids: {cluster_ids}"
 
-        # logger.info(f"Cluster ids: {cluster_ids}, shape: {cluster_ids.shape}")
-        # Add a zero to the start of the cluster ids
-        cluster_ids = np.insert(cluster_ids, 0, 0)
+        x_data = weights + energy_levels + [remaining_energy, alive_nodes, num_chs, control_packets_energy,
+                                            control_pkt_bits, pkts_sent_to_bs, pkts_recv_by_bs, energy_dissipated] + cluster_ids
 
-        # logger.info(f"Cluster ids: {cluster_ids}, shape: {cluster_ids.shape}")
+        return x_data
 
-        # Now we concatenate weights, and energy levels
-        input_data = np.concatenate((w_np, energy_levels))
-        # logger.info(f"Input data: {input_data}, shape: {input_data.shape}")
+    def save_metrics(self, round):
+        network_metrics = self.get_network_metrics()
+        self.metrics[round] = network_metrics
 
-        return input_data, cluster_ids
-
-    def predict_cluster_assignments(self):
+    def predict_cluster_heads(self, round):
+        logger.info(f"Predicting cluster heads for round {round}...")
         # Before we can predict the cluster assignments, we need to create the input data
         # for the surrogate model.
-        numerical_data, categorical_data = self.create_input_data()
-        # logger.info(
-        #     f"Shapes of numerical and categorical data: {numerical_data.shape}, {categorical_data.shape}")
-        # Convert the numerical data to a tensor
-        numerical_data = torch.from_numpy(numerical_data.astype(np.float32))
-        # Convert the categorical data to a tensor
-        categorical_data = torch.from_numpy(categorical_data.astype(np.int64))
-        # Unsqueeze the numerical data
-        numerical_data = numerical_data.unsqueeze(0)
-        # Unsqueeze the categorical data
-        categorical_data = categorical_data.unsqueeze(0)
+        x_data = self.metrics[round - 1]
+        # logger.info(f"X data: {x_data}")
+        # Get the previous round metrics
+        prev_x_data = self.metrics[round - 2]
+        # logger.info(f"Previous X data: {prev_x_data}")
+        # Convert to numpy array
+        np_x = np.array(x_data)
+        np_prev_x = np.array(prev_x_data)
+        # Concatenate the two arrays
+        np_x = np.concatenate((np_x, np_prev_x))
         # print shapes
-        # logger.info(
-        #     f"Shapes of numerical and categorical data: {numerical_data.shape}, {categorical_data.shape}")
-        # Now we can predict the cluster assignments
+        # Convert the numerical data to a tensor
+        x_data_tensor = torch.from_numpy(np_x.astype(np.float32))
+        # unsqueeze the tensor
+        x_data_tensor = x_data_tensor.unsqueeze(0)
 
         self.model.eval()
         # logger.info(
@@ -108,15 +136,102 @@ class SURROGATE:
         with torch.no_grad():
             # logger.info(
             #     f"Categorical data: {categorical_data}, shape: {categorical_data.shape}")
-            output = self.model(categorical_data=categorical_data,
-                           numerical_data=numerical_data)
+            output = self.model(x_data_tensor)
             # logger.info(f"Output: {output}, shape: {output.shape}")
-            _, predicted_assignments = torch.max(output, dim=1)
-            # logger.info(
-            #     f"Predicted cluster assignments: {predicted_assignments}")
+            _, predicted_assignments = torch.max(output.data[0], 1)
+            logger.info(
+                f"Predicted cluster heads: {predicted_assignments}")
         # Convert the predicted assignments to a numpy array
         predicted_assignments = predicted_assignments.numpy()
-        return predicted_assignments[0]
+        print(f"Predicted cluster heads: {predicted_assignments}")
+        return predicted_assignments
+
+    def set_clusters(self, cluster_assignments):
+        print(f"Cluster assignments: {cluster_assignments}")
+        # Get unique cluster ids
+        unique_cluster_ids = np.unique(cluster_assignments)
+        print(
+            f"Unique cluster ids: {unique_cluster_ids}, len: {len(unique_cluster_ids)}")
+        # See how many times each cluster id appears in the cluster assignments
+        cluster_id_counts = np.bincount(cluster_assignments)
+        print(
+            f"Cluster id counts: {cluster_id_counts}, len: {len(cluster_id_counts)}")
+        # Lets create a dictionary of cluster ids and their counts
+        cluster_id_counts_dict = {}
+        for unique_cluster_id in unique_cluster_ids:
+            cluster_id_counts_dict[unique_cluster_id] = cluster_id_counts[unique_cluster_id]
+        print(f"Cluster id counts: {cluster_id_counts_dict}")
+        # Lets sort the dictionary by the counts
+        sorted_cluster_id_counts_dict = {k: v for k, v in sorted(
+            cluster_id_counts_dict.items(), key=lambda item: item[1], reverse=True)}
+        print(
+            f"Sorted cluster id counts: {sorted_cluster_id_counts_dict}, len: {len(sorted_cluster_id_counts_dict)}")
+        # Remove nodes from the cluster_id_counts_dict that have their energy below the network average remaining energy
+        network_avg_energy = self.network.average_remaining_energy()
+        print(f"Network average energy: {network_avg_energy}")
+        # loop through the cluster_id_counts_dict and remove nodes that have their energy below the network average remaining energy
+        final_cluster_id = {}
+        for cluster_id, count in sorted_cluster_id_counts_dict.items():
+            node = self.network.get_node(cluster_id)
+            if node.remaining_energy < network_avg_energy:
+                continue
+            final_cluster_id[cluster_id] = count
+        print(
+            f"Sorted cluster id counts after removing nodes with energy below the network average energy: {final_cluster_id}, len: {len(final_cluster_id)}")
+        # Lets set the cluster heads which are the first self.max_chs in the final_cluster_id
+        cluster_heads = list(final_cluster_id.keys())[
+            :int(self.max_chs)]
+        print(f"Cluster heads: {cluster_heads}")
+        # Lets get those cluster heads that were not selected
+        cluster_heads_not_selected = list(final_cluster_id.keys())[
+            int(self.max_chs):]
+        print(f"Cluster heads not selected: {cluster_heads_not_selected}")
+        for node in self.network:
+            if node.node_id in cluster_heads and node.node_id != 1:
+                self.network.mark_as_cluster_head(node, node.node_id)
+        # Assign the cluster ids to the nodes
+        for node in self.network:
+            if node.node_id == 1:
+                continue
+            if node.remaining_energy < 0:
+                node.cluster_id = 0
+                continue
+            if node.node_id not in cluster_heads:
+                self.network.mark_as_non_cluster_head(node)
+                cluster_head_id = int(cluster_assignments[node.node_id-2])
+                if cluster_head_id in cluster_heads_not_selected:
+                    print(
+                        f"Node {node.node_id} is assigned to a cluster head {cluster_head_id} that was not selected.")
+                    # Select the closest cluster head
+                    min_distance = 10000
+                    ch_id = -1
+                    for ch in cluster_heads:
+                        # Calculate the distance between the node and the cluster head
+                        distance = self.network.distance_between_nodes(
+                            self.network.get_node(node.node_id), self.network.get_node(ch))
+                        if distance < min_distance:
+                            min_distance = distance
+                            ch_id = ch
+                    cluster_head_id = int(ch_id)
+                    print(
+                        f"Node {node.node_id} is assigned to cluster head {cluster_head_id}")
+                cluster_head = self.network.get_node(cluster_head_id)
+                node.cluster_id = cluster_head_id
+                node.dst_to_cluster_head = self.network.distance_between_nodes(
+                    node, cluster_head)
+        # for node in self.network:
+        #     if self.network.should_skip_node(node):
+        #         continue
+        #     if node.node_id in cluster_assignments:
+        #         self.network.mark_as_cluster_head(node, node.node_id)
+
+    def print_clusters(self):
+        # Print cluster assignments
+        for node in self.network:
+            if self.network.should_skip_node(node):
+                continue
+            logger.info(
+                f"Node {node.node_id} cluster head: {node.cluster_id}")
 
     def generate_initial_cluster_assignments(self):
         # Select num_chs cluster heads from the network
@@ -148,203 +263,23 @@ class SURROGATE:
                 node.dst_to_cluster_head = self.network.distance_between_nodes(
                     node, cluster_head)
 
-    def create_model(self, cluster_heads, alive_nodes):
-        model = pyo.ConcreteModel()
-
-        # Decision variables
-        model.x = pyo.Var(cluster_heads, within=pyo.Binary)
-        model.y = pyo.Var(alive_nodes, cluster_heads, within=pyo.Binary)
-        # model.abs_load_balancing = pyo.Var()
-
-        model.cluster_heads = pyo.Set(initialize=cluster_heads)
-        model.nodes = pyo.Set(initialize=alive_nodes)
-
-        # Parameter representing the distance between nodes
-        distances = {i: {j: self.network.distance_between_nodes(
-            self.network.get_node(i), self.network.get_node(j)) for j in model.nodes} for i in model.nodes}
-
-        model.distances = pyo.Param(
-            model.nodes, model.nodes, initialize=lambda model, i, j: distances[i][j], mutable=False)
-
-        # Energy spent by a node when transmitting to a cluster head
-        energy_spent_non_ch = {i: {j: leach_milp.energy_spent_non_ch(
-            self.network, i, j) for j in model.cluster_heads} for i in model.nodes}
-
-        model.energy_spent_non_ch = pyo.Param(
-            model.nodes, model.cluster_heads, initialize=lambda model, i, j: energy_spent_non_ch[i][j], mutable=False)
-
-        # Energy spent by a cluster head when transmitting to the sink
-        energy_spent_ch_tx = {i: leach_milp.energy_spent_ch(
-            self.network, i) for i in model.cluster_heads}
-
-        model.energy_spent_ch_tx = pyo.Param(
-            model.cluster_heads, initialize=lambda model, i: energy_spent_ch_tx[i], mutable=False)
-
-        model.energy_spent_ch_rx_per_node = pyo.Param(
-            initialize=leach_milp.calculate_energy_ch_rx_per_node(self.network), mutable=False)
-
-        # Objective function
-        model.OBJ = pyo.Objective(
-            sense=pyo.minimize, rule=self.objective_function)
-
-        def assignment_rule(model, i):
-            return sum(model.y[i, j] for j in model.cluster_heads) == 1
-
-        # Ensure that each node is assigned to one cluster
-        model.node_cluster = pyo.Constraint(
-            model.nodes, rule=assignment_rule)
-
-        def cluster_heads_limit_rule(model):
-            return sum(model.x[j] for j in model.cluster_heads) == self.max_chs
-
-        # Ensure that the number of selected cluster heads does not exceed a predefined limit
-        model.cluster_heads_limit = pyo.Constraint(
-            rule=cluster_heads_limit_rule)
-
-        def consistency_rule(model, i, j):
-            return model.y[i, j] <= model.x[j]
-
-        # Constraint: Ensure y_ij is consistent with x_j
-        model.consistency_constraint = pyo.Constraint(
-            model.nodes, model.cluster_heads, rule=consistency_rule)
-
-        return model
-
-    def objective_function(self, model):
-        expr = self.alpha * sum(model.energy_spent_non_ch[node, other_node] * model.y[node, other_node]
-                                for node in model.nodes for other_node in model.cluster_heads)
-
-        expr += self.beta * sum(model.energy_spent_ch_tx[cluster_head] * model.x[cluster_head]
-                                for cluster_head in model.cluster_heads)
-
-        # Energy spent by a cluster head when receiving from a node
-        for cluster_head in model.cluster_heads:
-            num_nodes = sum(model.y[node, cluster_head]
-                            for node in model.nodes)
-            energy_spent_ch_rx = num_nodes * model.energy_spent_ch_rx_per_node
-            expr += self.gamma * energy_spent_ch_rx
-
-        return expr
-
-    def choose_cluster_heads(self, cluster_assignments):
-        alive_nodes = [node.node_id for node in self.network if not self.network.should_skip_node(
-            node) and self.network.alive(node)]
-
-        # Check if cluster assignments is empty
-        if len(cluster_assignments) == 0:
-            # Potential cluster heads
-            cluster_ids = [node for node in alive_nodes if self.network.get_node(
-                node).remaining_energy >= self.threshold_energy]
-        else:
-            cluster_ids = np.unique(cluster_assignments)
-            # Remove node id 0
-            cluster_ids = cluster_ids[cluster_ids != 0]
-            # Convert cluster ids to int
-            cluster_ids = [int(cluster_id) for cluster_id in cluster_ids]
-
-        model = self.create_model(cluster_ids, alive_nodes)
-
-        # Solve the problem
-        solver = pyo.SolverFactory('glpk')
-        results = solver.solve(model)
-
-        chs = []
-        # cluster heads assignment
-        node_cluster_head = {}
-        if results.solver.status == pyo.SolverStatus.ok and results.solver.termination_condition == pyo.TerminationCondition.optimal:
-            # Access the optimal objective value
-            # optimal_objective_value = pyo.value(model.OBJ)
-            # print(f"Optimal Objective Value: {optimal_objective_value}")
-            # print(f"x: {model.x.pprint()}")
-            # print the optimal solution
-            for node in model.cluster_heads:
-                if pyo.value(model.x[node]) == 1:
-                    chs.append(node)
-                    # print(f"Node {node} is a cluster head.")
-            # print nodes assigned to each cluster head
-            for node in model.nodes:
-                for cluster_head in model.cluster_heads:
-                    if pyo.value(model.y[node, cluster_head]) == 1:
-                        node_cluster_head[node] = cluster_head
-                        pass
-
-        # Lets check if the nodes are assigned to a cluster head that is the closest to them
-        # for node in model.nodes:
-        #     if node not in chs:
-        #         min_distance = 10000
-        #         ch_distance = 10000
-        #         ch_id = -1
-        #         ch_assigned = -1
-        #         for ch in chs:
-        #             # Calculate the distance between the node and the cluster head
-        #             distance = self.network.distance_between_nodes(
-        #                 self.network.get_node(node), self.network.get_node(ch))
-        #             if distance < min_distance:
-        #                 min_distance = distance
-        #                 ch_id = ch
-        #             if pyo.value(model.y[node, ch]) == 1:
-        #                 ch_distance = model.distances[node, ch]
-        #                 ch_assigned = ch
-        #                 break
-        #         if ch_id != ch_assigned and min_distance != ch_distance:
-        #             raise Exception(
-        #                 f"Node {node} is not assigned to the closest cluster head. Assigned to {ch_assigned}, but closest is {ch_id}.")
-
-        # Display the objective function value
-        # input(f"Objective Function Value: {model.OBJ()}")
-        return chs, node_cluster_head
-
-    def create_clusters(self, cluster_assignments):
-        # Get the unique cluster ids, they are the cluster heads
-        cluster_ids = np.unique(cluster_assignments)
-        # Remove node id 0
-        cluster_ids = cluster_ids[cluster_ids != 0]
-        # Convert cluster ids to int
-        cluster_ids = [int(cluster_id) for cluster_id in cluster_ids]
-        logger.info(f"Predicted cluster ids: {cluster_ids}")
-        # Check which cluster heads has the energy above the threshold
-        energy_th = self.network.average_remaining_energy()
-        logger.info(f"Energy threshold: {energy_th}")
-        # Get the cluster heads that has the energy above the threshold
-        cluster_ids = [
-            cluster_id for cluster_id in cluster_ids if self.network.get_node(cluster_id).remaining_energy >= energy_th]
-        logger.info(f"Cluster ids above threshold: {cluster_ids}")
-        # Sort the cluster ids by their remaining energy
-        cluster_ids = sorted(
-            cluster_ids, key=lambda cluster_id: self.network.get_node(cluster_id).remaining_energy, reverse=True)
-        logger.info(f"Sorted cluster ids: {cluster_ids}")
-        # print all nodes that have the energy above the threshold
-        nodes_above_threshold = []
-        for node in self.network:
-            if self.network.should_skip_node(node):
-                continue
-            if node.remaining_energy >= energy_th:
-                nodes_above_threshold.append(node.node_id)
-        logger.info(f"Nodes above threshold: {nodes_above_threshold}")
+    def generate_initial_cluster_assignments_two(self):
+        chs = [6, 95, 67, 57, 90]
         # Mark them as cluster heads
-        for cluster_id in cluster_ids:
+        for cluster_id in chs:
             node = self.network.get_node(cluster_id)
             self.network.mark_as_cluster_head(node, cluster_id)
-        # Create clusters
+        cluster_assignments = {
+            "2": 6, "3": 95, "4": 67, "5": 95, "6": 6, "7": 57, "8": 90, "9": 95, "10": 67, "11": 57, "12": 67, "13": 57, "14": 95, "15": 6, "16": 95, "17": 90, "18": 95, "19": 57, "20": 57, "21": 57, "22": 6, "23": 90, "24": 6, "25": 6, "26": 57, "27": 57, "28": 90, "29": 6, "30": 90, "31": 95, "32": 95, "33": 95, "34": 57, "35": 95, "36": 67, "37": 95, "38": 57, "39": 95, "40": 67, "41": 90, "42": 95, "43": 90, "44": 90, "45": 95, "46": 57, "47": 57, "48": 95, "49": 57, "50": 90, "51": 67, "52": 67, "53": 6, "54": 95, "55": 57, "56": 90, "57": 57, "58": 90, "59": 6, "60": 6, "61": 95, "62": 95, "63": 57, "64": 90, "65": 57, "66": 6, "67": 67, "68": 67, "69": 90, "70": 67, "71": 90, "72": 95, "73": 57, "74": 95, "75": 95, "76": 95, "77": 6, "78": 6, "79": 57, "80": 57, "81": 57, "82": 6, "83": 90, "84": 95, "85": 57, "86": 90, "87": 67, "88": 6, "89": 57, "90": 90, "91": 67, "92": 57, "93": 67, "94": 57, "95": 95, "96": 57, "97": 95, "98": 67, "99": 67, "100": 57
+        }
         for node in self.network:
-            if self.network.should_skip_node(node):
-                continue
-            cluster_id = int(cluster_assignments[node.node_id])
-            if cluster_id != 0:
-                ch = self.network.get_node(cluster_id)
+            if node.node_id not in chs and node.node_id != 1:
+                self.network.mark_as_non_cluster_head(node)
+                cluster_head_id = cluster_assignments[str(node.node_id)]
+                cluster_head = self.network.get_node(cluster_head_id)
+                node.cluster_id = cluster_head_id
                 node.dst_to_cluster_head = self.network.distance_between_nodes(
-                    node, ch)
-                node.cluster_id = cluster_id
-            else:
-                # Get the closest cluster head
-                distances = {
-                    ch.node_id: self.network.distance_between_nodes(node, ch)
-                    for ch in self.network if ch.is_cluster_head
-                }
-                cluster_id = min(distances, key=distances.get)
-                min_distance = distances[cluster_id]
-                node.dst_to_cluster_head = min_distance
-                node.cluster_id = cluster_id
+                    node, cluster_head)
 
     def evaluate_round(self, round):
         round += 1
@@ -358,21 +293,26 @@ class SURROGATE:
 
             # We need to get the initial cluster assignments
             self.generate_initial_cluster_assignments()
-        else:
-            self.threshold_energy = self.network.average_remaining_energy()
-            # Create cluster assignments predicted by the surrogate model
-            cluster_assignments = self.predict_cluster_assignments()
+        elif round == 2:
             for node in self.network:
                 self.network.mark_as_non_cluster_head(node)
-            # create cluster
-            chs, node_cluster_head = self.choose_cluster_heads(
-                cluster_assignments)
-            leach_milp.update_cluster_heads(self.network, chs)
-            leach_milp.update_chs_to_nodes(self.network, node_cluster_head)
+
+            # We need to get the initial cluster assignments
+            self.generate_initial_cluster_assignments_two()
+        else:
+            # Create cluster assignments predicted by the surrogate model
+            cluster_assignments = self.predict_cluster_heads(round=round)
+            for node in self.network:
+                self.network.mark_as_non_cluster_head(node)
+            self.set_clusters(cluster_assignments)
+            # self.network.create_clusters()
+            self.print_clusters()
             # print(f"Cluster heads at round {round}: {chs}")
             # print(f"Cluster assignments at round {round}: {node_cluster_head}")
+        # Save the metrics
         self.net_model.dissipate_energy(round=round)
-        # input("Press enter to continue...")
+        self.save_metrics(round=round)
+        input("Press enter to continue...")
         return round
 
     def run_without_plotting(self, num_rounds):
