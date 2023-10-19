@@ -40,7 +40,7 @@ network:
   model: extended
   protocol:
     name: Surrogate
-    init_energy: 0.1
+    init_energy: 0.05
     rounds: 8000
   width: 100
   height: 100
