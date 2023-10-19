@@ -310,7 +310,7 @@ class SurrogateModel:
                 # Get all previous round x_data
                 if round >= 3:
                     prev_x_data = normalized_samples[name][str(
-                        round-1)]['prev_x_data']
+                        round-1)]['x_data']
                 else:
                     prev_x_data = self.get_round_data(
                         name, data[str(round-1)], normalized_names_values, normalized_membership_values)
