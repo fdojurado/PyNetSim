@@ -60,17 +60,11 @@ class SURROGATE:
         assert all(
             0 <= w <= 1 for w in weights), f"Incorrect weights: {weights}"
 
-        # logger.info(f"Weights: {w_np}, shape: {w_np.shape}")
-        # print all energy levels
-        # for node in self.network:
-        #     logger.info(f"Node {node.node_id} energy level: {node.remaining_energy}")
-        # We need to get energy levels for all nodes
         energy_levels = [
             node.remaining_energy for node in self.network if node.node_id != 1]
         assert all(-1 <= e <=
                    1 for e in energy_levels), f"Incorrect energy levels: {energy_levels}"
-        # logger.info(
-        #     f"Energy levels: {energy_levels}, shape: {energy_levels.shape}")
+
         remaining_energy = self.network.remaining_energy()/100
         assert 0 <= remaining_energy <= 1, f"Incorrect remaining energy: {remaining_energy}"
 
@@ -95,8 +89,6 @@ class SURROGATE:
         energy_dissipated = self.network.energy_dissipated()/100
         assert 0 <= energy_dissipated <= 1, f"Incorrect energy_dissipated: {energy_dissipated}"
 
-        # We need to get the current membership of all nodes, this involves in getting the
-        # cluster id of all nodes.
         cluster_ids = [0 if node.cluster_id is None else node.cluster_id /
                        100 for node in self.network if node.node_id != 1]
         assert all(
@@ -113,8 +105,6 @@ class SURROGATE:
 
     def predict_cluster_heads(self, round):
         logger.info(f"Predicting cluster heads for round {round}...")
-        # Before we can predict the cluster assignments, we need to create the input data
-        # for the surrogate model.
         if round == 1:
             self.save_metrics(round-1)
             # input(f"X data: {x_data}")
@@ -248,11 +238,6 @@ class SURROGATE:
                     cluster_head = self.network.get_node(cluster_head_id)
                     node.dst_to_cluster_head = self.network.distance_between_nodes(
                         node, cluster_head)
-        # for node in self.network:
-        #     if self.network.should_skip_node(node):
-        #         continue
-        #     if node.node_id in cluster_assignments:
-        #         self.network.mark_as_cluster_head(node, node.node_id)
 
     def print_clusters(self):
         # Print cluster assignments
@@ -262,54 +247,6 @@ class SURROGATE:
             logger.info(
                 f"Node {node.node_id} cluster head: {node.cluster_id}")
 
-    def generate_initial_cluster_assignments(self):
-        # Select num_chs cluster heads from the network
-        # chs = np.random.choice(
-        #     [node.node_id for node in self.network if node.node_id != 1], size=int(self.num_chs), replace=False)
-        # logger.info(f"Cluster heads: {chs}")
-        # # convert chs to int
-        # chs = [int(ch) for ch in chs]
-        # # Set them as cluster heads
-        # for node_id in chs:
-        #     node = self.network.get_node(node_id)
-        #     self.network.mark_as_cluster_head(node, node_id)
-        # # Create clusters
-        # self.network.create_clusters()
-        chs = [2, 14, 98, 21, 58]
-        # Mark them as cluster heads
-        for cluster_id in chs:
-            node = self.network.get_node(cluster_id)
-            self.network.mark_as_cluster_head(node, cluster_id)
-        cluster_assignments = {
-            "2": 2, "3": 14, "4": 98, "5": 21, "6": 2, "7": 21, "8": 14, "9": 14, "10": 98, "11": 21, "12": 98, "13": 21, "14": 14, "15": 2, "16": 14, "17": 14, "18": 14, "19": 21, "20": 21, "21": 21, "22": 2, "23": 58, "24": 2, "25": 2, "26": 21, "27": 21, "28": 58, "29": 2, "30": 58, "31": 14, "32": 21, "33": 14, "34": 21, "35": 14, "36": 98, "37": 14, "38": 21, "39": 14, "40": 2, "41": 58, "42": 14, "43": 58, "44": 14, "45": 14, "46": 21, "47": 21, "48": 14, "49": 21, "50": 58, "51": 98, "52": 98, "53": 2, "54": 14, "55": 21, "56": 58, "57": 21, "58": 58, "59": 2, "60": 2, "61": 14, "62": 21, "63": 21, "64": 14, "65": 21, "66": 2, "67": 98, "68": 98, "69": 14, "70": 98, "71": 14, "72": 14, "73": 21, "74": 21, "75": 14, "76": 14, "77": 2, "78": 2, "79": 21, "80": 21, "81": 21, "82": 2, "83": 14, "84": 14, "85": 21, "86": 58, "87": 98, "88": 2, "89": 21, "90": 58, "91": 98, "92": 21, "93": 98, "94": 21, "95": 14, "96": 21, "97": 14, "98": 98, "99": 98, "100": 21
-        }
-        for node in self.network:
-            if node.node_id not in chs and node.node_id != 1:
-                self.network.mark_as_non_cluster_head(node)
-                cluster_head_id = cluster_assignments[str(node.node_id)]
-                cluster_head = self.network.get_node(cluster_head_id)
-                node.cluster_id = cluster_head_id
-                node.dst_to_cluster_head = self.network.distance_between_nodes(
-                    node, cluster_head)
-
-    def generate_initial_cluster_assignments_two(self):
-        chs = [6, 95, 67, 57, 90]
-        # Mark them as cluster heads
-        for cluster_id in chs:
-            node = self.network.get_node(cluster_id)
-            self.network.mark_as_cluster_head(node, cluster_id)
-        cluster_assignments = {
-            "2": 6, "3": 95, "4": 67, "5": 95, "6": 6, "7": 57, "8": 90, "9": 95, "10": 67, "11": 57, "12": 67, "13": 57, "14": 95, "15": 6, "16": 95, "17": 90, "18": 95, "19": 57, "20": 57, "21": 57, "22": 6, "23": 90, "24": 6, "25": 6, "26": 57, "27": 57, "28": 90, "29": 6, "30": 90, "31": 95, "32": 95, "33": 95, "34": 57, "35": 95, "36": 67, "37": 95, "38": 57, "39": 95, "40": 67, "41": 90, "42": 95, "43": 90, "44": 90, "45": 95, "46": 57, "47": 57, "48": 95, "49": 57, "50": 90, "51": 67, "52": 67, "53": 6, "54": 95, "55": 57, "56": 90, "57": 57, "58": 90, "59": 6, "60": 6, "61": 95, "62": 95, "63": 57, "64": 90, "65": 57, "66": 6, "67": 67, "68": 67, "69": 90, "70": 67, "71": 90, "72": 95, "73": 57, "74": 95, "75": 95, "76": 95, "77": 6, "78": 6, "79": 57, "80": 57, "81": 57, "82": 6, "83": 90, "84": 95, "85": 57, "86": 90, "87": 67, "88": 6, "89": 57, "90": 90, "91": 67, "92": 57, "93": 67, "94": 57, "95": 95, "96": 57, "97": 95, "98": 67, "99": 67, "100": 57
-        }
-        for node in self.network:
-            if node.node_id not in chs and node.node_id != 1:
-                self.network.mark_as_non_cluster_head(node)
-                cluster_head_id = cluster_assignments[str(node.node_id)]
-                cluster_head = self.network.get_node(cluster_head_id)
-                node.cluster_id = cluster_head_id
-                node.dst_to_cluster_head = self.network.distance_between_nodes(
-                    node, cluster_head)
-
     def evaluate_round(self, round):
         round += 1
         print(f"Round {round}")
@@ -317,25 +254,11 @@ class SURROGATE:
         self.max_chs = int(self.network.alive_nodes() *
                            self.config.network.protocol.cluster_head_percentage) + 1
 
-        # if round == 1:
-        #     for node in self.network:
-        #         self.network.mark_as_non_cluster_head(node)
-
-        #     # We need to get the initial cluster assignments
-        #     self.generate_initial_cluster_assignments()
-        # elif round == 2:
-        #     for node in self.network:
-        #         self.network.mark_as_non_cluster_head(node)
-
-        # We need to get the initial cluster assignments
-        # self.generate_initial_cluster_assignments_two()
-        # else:
         # Create cluster assignments predicted by the surrogate model
         cluster_assignments = self.predict_cluster_heads(round=round)
         for node in self.network:
             self.network.mark_as_non_cluster_head(node)
         self.set_clusters(cluster_assignments)
-        # self.network.create_clusters()
         # self.print_clusters()
         # print(f"Cluster heads at round {round}: {chs}")
         # print(f"Cluster assignments at round {round}: {node_cluster_head}")
