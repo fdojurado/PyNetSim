@@ -22,14 +22,14 @@ surrogate:
   # Load model? If yes, then specify the path
   load_model: True
   # Folders to save the model and the plots
-  model_path: /Users/fernando/PyNetSim/tutorials/surrogate/models/model_complex_chs.pt
+  model_path: /Users/ffjla/PyNetSim/tutorials/surrogate/models/model_complex_chs_past.pt
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from
-  raw_data_folder: /Users/fernando/PyNetSim/tutorials/results
+  raw_data_folder: /Users/ffjla/PyNetSim/tutorials/results
   # Path to the data, if it is not provided, then this folder is used to save the data
-  data_folder: /Users/fernando/PyNetSim/tutorials/surrogate/data
-  plots_folder: /Users/fernando/PyNetSim/tutorials/surrogate/plots
+  data_folder: /Users/ffjla/PyNetSim/tutorials/surrogate/data
+  plots_folder: /Users/ffjla/PyNetSim/tutorials/surrogate/plots
   print_every: 1
   plot_every: 10
   # This is the frequency to evaluate the model while training
