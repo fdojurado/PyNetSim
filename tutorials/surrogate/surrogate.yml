@@ -22,7 +22,7 @@ surrogate:
   # Load model? If yes, then specify the path
   load_model: True
   # Folders to save the model and the plots
-  model_path: ./models/model_complex_chs.pt
+  model_path: /Users/ffjla/OneDrive - Danmarks Tekniske Universitet/Postdoc/DTU/research/LEACH-based/model_complex_chs_past.pt
   # Generate the data from the raw data
   generate_data: False
   # Path to the raw data to generate the data from
