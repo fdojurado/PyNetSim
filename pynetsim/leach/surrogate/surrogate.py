@@ -31,7 +31,8 @@ class SURROGATE:
         self.surrogate_model = SurrogateModel(config=self.config)
 
     def run(self):
-        logger.info(f"Running {self.name}...")
+        logger.info(
+            f"Running {self.name} with alpha: {self.alpha}, beta: {self.beta}, gamma: {self.gamma}")
         self.metrics = {}
         self.model, _, _ = self.surrogate_model.get_model()
         num_rounds = self.config.network.protocol.rounds
@@ -111,23 +112,37 @@ class SURROGATE:
         self.metrics[round] = network_metrics
 
     def predict_cluster_heads(self, round):
-        # logger.info(f"Predicting cluster heads for round {round}...")
+        logger.info(f"Predicting cluster heads for round {round}...")
         # Before we can predict the cluster assignments, we need to create the input data
         # for the surrogate model.
+        if round == 1:
+            self.save_metrics(round-1)
+            # input(f"X data: {x_data}")
         x_data = self.metrics[round - 1]
-        # logger.info(f"X data: {x_data}")
-        # Get the previous round metrics
-        prev_x_data = self.metrics[round - 2]
-        # logger.info(f"Previous X data: {prev_x_data}")
+        # print(f"X data: {x_data}")
+        prev_x_data = []
+        for prev_round in range(round-2, round-12, -1):
+            # input(f"Round: {round}, prev round: {prev_round}")
+            if prev_round < 0:
+                prev_round_data = [0 for _ in range(len(x_data))]
+            else:
+                prev_round_data = self.metrics[prev_round]
+            prev_x_data += prev_round_data
         # Convert to numpy array
         np_x = np.array(x_data)
+        # print(f"X data: {np_x}, shape: {np_x.shape}")
         np_prev_x = np.array(prev_x_data)
+        # print(f"Prev X data: {np_prev_x}, shape: {np_prev_x.shape}")
         # Concatenate the two arrays
         np_x = np.concatenate((np_x, np_prev_x))
         # print(f"X data: {np_x}, shape: {np_x.shape}")
         # print shapes
         # Convert the numerical data to a tensor
         x_data_tensor = torch.from_numpy(np_x.astype(np.float32))
+        # Print the X every 209 elements in the array
+        # for i in range(0, len(x_data_tensor), 209):
+        #     print(f"X data {i/209}: {x_data_tensor[i:i+209]}")
+        # print(f"X data tensor: {x_data_tensor.tolist()}, shape: {x_data_tensor.shape}")
         # unsqueeze the tensor
         x_data_tensor = x_data_tensor.unsqueeze(0)
 
@@ -302,28 +317,28 @@ class SURROGATE:
         self.max_chs = int(self.network.alive_nodes() *
                            self.config.network.protocol.cluster_head_percentage) + 1
 
-        if round == 1:
-            for node in self.network:
-                self.network.mark_as_non_cluster_head(node)
+        # if round == 1:
+        #     for node in self.network:
+        #         self.network.mark_as_non_cluster_head(node)
 
-            # We need to get the initial cluster assignments
-            self.generate_initial_cluster_assignments()
-        elif round == 2:
-            for node in self.network:
-                self.network.mark_as_non_cluster_head(node)
+        #     # We need to get the initial cluster assignments
+        #     self.generate_initial_cluster_assignments()
+        # elif round == 2:
+        #     for node in self.network:
+        #         self.network.mark_as_non_cluster_head(node)
 
-            # We need to get the initial cluster assignments
-            self.generate_initial_cluster_assignments_two()
-        else:
-            # Create cluster assignments predicted by the surrogate model
-            cluster_assignments = self.predict_cluster_heads(round=round)
-            for node in self.network:
-                self.network.mark_as_non_cluster_head(node)
-            self.set_clusters(cluster_assignments)
-            # self.network.create_clusters()
-            # self.print_clusters()
-            # print(f"Cluster heads at round {round}: {chs}")
-            # print(f"Cluster assignments at round {round}: {node_cluster_head}")
+        # We need to get the initial cluster assignments
+        # self.generate_initial_cluster_assignments_two()
+        # else:
+        # Create cluster assignments predicted by the surrogate model
+        cluster_assignments = self.predict_cluster_heads(round=round)
+        for node in self.network:
+            self.network.mark_as_non_cluster_head(node)
+        self.set_clusters(cluster_assignments)
+        # self.network.create_clusters()
+        # self.print_clusters()
+        # print(f"Cluster heads at round {round}: {chs}")
+        # print(f"Cluster assignments at round {round}: {node_cluster_head}")
         # Save the metrics
         self.net_model.dissipate_energy(round=round)
         self.save_metrics(round=round)

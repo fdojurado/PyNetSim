@@ -7,15 +7,20 @@ import os
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
+from pynetsim.utils import PyNetSimLogger
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
+
+# -------------------- Create logger --------------------
+logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger = logger_utility.get_logger()
 
 
 def main():
     # Load config
     config = load_config(CONFIG_FILE)
-    print(f"config: {config}")
+    logger.info(f"Loading config from {CONFIG_FILE}")
 
     network = Network(config=config)
     network_model = NETWORK_MODELS[config.network.model](

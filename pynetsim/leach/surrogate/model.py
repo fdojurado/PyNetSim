@@ -210,7 +210,7 @@ class SurrogateModel:
 
         # Lets split the data into training and testing
         X_train, X_test, y_train, y_test = train_test_split(
-            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=False)
+            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=True)
 
         # print shapes
         logger.info(f"X_train: {X_train.shape}, X_test: {X_test.shape}")
@@ -299,21 +299,82 @@ class SurrogateModel:
             normalized_samples[name] = {}
             max_rounds = len(data)
 
+            # We need to set the data for the initial round
+            rnd_data = [value / normalized_names_values for value in name] + \
+                [0.05 for _ in range(99)] + \
+                [0.05] + \
+                [0.99] + \
+                [0] + \
+                [0] + \
+                [0] + \
+                [0] + \
+                [0] + \
+                [0] + \
+                [0 for _ in range(99)]
+
+            prev_x_data = []
+            for prev_round in range(-1, -11, -1):
+                if prev_round < 1:
+                    prev_round_data = [0 for _ in range(len(rnd_data))]
+                prev_x_data += prev_round_data
+
+            next_round_membership = [0 if cluster_id is None else int(
+                cluster_id) for _, cluster_id in data[str(1)]['membership'].items()]
+
+            # Remove the sink
+            next_round_membership = next_round_membership[1:]
+
+            y_data = next_round_membership
+
+            assert all(-1 <= value <=
+                       1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
+            assert all(
+                0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
+
+            normalized_samples[name][str(0)] = {
+                "x_data": rnd_data,
+                "prev_x_data": prev_x_data,
+                "y_data": y_data,
+                # "membership": current_membership
+            }
+            # if name == (3.3, 0.9, 1.7):
+            #     input("init normalized_samples")
+            #     print(f"init normalized_samples: {normalized_samples[name]}")
+
             for round, stats in data.items():
                 round = int(round)
-                if round == max_rounds or round == 1:
+                # if name == (3.3, 0.9, 1.7):
+                #     print(f"round: {round}")
+                if round == max_rounds:
                     continue
 
                 rnd_data = self.get_round_data(
                     name, stats, normalized_names_values, normalized_membership_values)
+                # if name == (3.3, 0.9, 1.7):
+                #     input(f"rnd_data: {rnd_data}")
 
-                # Get all previous round x_data
-                if round >= 3:
-                    prev_x_data = normalized_samples[name][str(
-                        round-1)]['x_data']
-                else:
-                    prev_x_data = self.get_round_data(
-                        name, data[str(round-1)], normalized_names_values, normalized_membership_values)
+                # Lets attached 10 past experiences
+                prev_x_data = []
+                for prev_round in range(round-1, round-11, -1):
+                    # if name == (3.3, 0.9, 1.7):
+                    #     print(f"prev_round: {prev_round}")
+                    if prev_round < 0:
+                        # if name == (3.3, 0.9, 1.7):
+                        #     print("prev_round < 0")
+                        prev_round_data = [0 for _ in range(len(rnd_data))]
+                        # if name == (3.3, 0.9, 1.7):
+                        #     print(f"prev_round: {prev_round_data}")
+                    else:
+                        # if name == (3.3, 0.9, 1.7):
+                        #     print("prev_round >= 0")
+                        prev_round_data = normalized_samples[name][str(
+                            prev_round)]['x_data']
+                        # if name == (3.3, 0.9, 1.7):
+                        #     input(f"prev_round_data: {prev_round_data}")
+                    prev_x_data += prev_round_data
+
+                # if name == (3.3, 0.9, 1.7):
+                #     input(f"prev_x_data: {prev_x_data}")
 
                 next_round = round + 1
                 next_round_membership = [0 if cluster_id is None else int(
@@ -348,6 +409,9 @@ class SurrogateModel:
                            1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
                 assert all(
                     0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
+                # if name == (3.3, 0.9, 1.7):
+                #     print(f"Saving normalized data for {name} round {round}")
+                #     input("Press enter to continue...")
 
                 normalized_samples[name][str(round)] = {
                     "x_data": rnd_data,
@@ -452,9 +516,9 @@ class SurrogateModel:
         prev_x_data_list = []
         y_data_list = []
         for key, sample in samples.items():
-            for round in range(1, len(sample)+1):
-                if round == 1:
-                    continue
+            for round in range(0, len(sample)):
+                # if round == 1:
+                #     continue
                 x_data = sample[str(round)]['x_data']
                 prev_x_data = sample[str(round)]['prev_x_data']
                 y_data = sample[str(round)]['y_data']
@@ -470,9 +534,9 @@ class SurrogateModel:
         y_data_list = []
         for key, sample in samples.items():
             if key == weights:
-                for round in range(1, len(sample)+1):
-                    if round == 1:
-                        continue
+                for round in range(0, len(sample)):
+                    # if round == 1:
+                    #     continue
                     x_data = sample[str(round)]['x_data']
                     prev_x_data = sample[str(round)]['prev_x_data']
                     y_data = sample[str(round)]['y_data']
@@ -483,7 +547,7 @@ class SurrogateModel:
         return x_data_list, y_data_list, prev_x_data_list
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(input_dim=418,
+        model = MixedDataModel(input_dim=2299,
                                hidden_dim=self.hidden_dim,
                                num_classes=101,
                                num_labels=99,
@@ -582,7 +646,7 @@ class SurrogateModel:
         total = np.prod(y.shape)
         if print_output:
             logger.info(f"Y: {y}, chs: {np.unique(y)}")
-            logger.info(f"Predicted: {predicted}")
+            logger.info(f"Predicted: {predicted}, chs: {np.unique(predicted)}")
             # get the index where the values are equal
             index = np.where(y == predicted)
             logger.info(f"Correct index: {index}")
@@ -594,6 +658,7 @@ class SurrogateModel:
         return correct, total
 
     def test(self, batch: int = None, print_output=False, weights: list = None):
+        logger.info(f"Testing with batch size: {batch}, weights: {weights}")
         # Lets check if the path to the model exists
         if self.model_path is None:
             raise Exception("Please provide the path to the model")
@@ -637,7 +702,10 @@ class SurrogateModel:
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
                 X = input_data
-                # logger.info(f"X: {X}")
+                # Print the X every 209 elements in the array
+                # temp = X[0]
+                # for i in range(0, len(temp), 209):
+                #     print(f"X {i/209}: {temp[i:i+209]}")
                 y = target_data
                 output = model(input_data=X)
                 loss = criterion(output, y)
