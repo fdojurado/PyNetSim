@@ -3,7 +3,7 @@ surrogate:
   # We support two types of architectures: simple and complex
   # lstm_arch: complex
   epochs: 1000
-  hidden_dim: 1000
+  hidden_dim: 4600
   # lstm_hidden: 24
   output_dim: 5
   num_clusters: 100
