@@ -84,7 +84,7 @@ def main():
             network, network_model)
         # Generate a random initial energy for each node.
         for node in network_copy:
-            random_energy = random.uniform(0, 1)
+            random_energy = random.uniform(0, 0.1)
             node.remaining_energy = random_energy
         # Lets create the object of the LEACH-CE-E protocol.
         leach_ce_e = LEACH_CE_E(network_copy, network_model_copy,
