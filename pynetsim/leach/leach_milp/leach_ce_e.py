@@ -171,7 +171,7 @@ class LEACH_CE_E:
         return chs, node_cluster_head
 
     def run(self):
-        print("Running LEACH-CE-D...")
+        print(f"Running {self.name}...")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
 

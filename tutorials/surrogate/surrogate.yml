@@ -18,6 +18,7 @@ surrogate:
   # This is the largest weight value for alpha, beta, and gamma
   largest_weight: 10
   largest_energy_level: 4
+  max_dst_to_ch: 100
   # This is the largest cluster id, which is 100
   num_workers: 4
   # Load model? If yes, then specify the path

@@ -80,16 +80,19 @@ def main():
 
     for combo in combinations:
         print(f"Combo: {combo}")
-        network_copy, network_model_copy = leach_milp.copy_network(
-            network, network_model)
+        network = Network(config=config)
+        network_model = NETWORK_MODELS[config.network.model](
+            config=config, network=network)
+        network.set_model(network_model)
         # Generate a random initial energy for each node.
-        for node in network_copy:
+        for node in config.network.nodes:
             random_energy = random.uniform(0, 0.1)
-            node.remaining_energy = random_energy
+            node.energy = random_energy
+        network.initialize()
         # Lets create the object of the LEACH-CE-E protocol.
-        leach_ce_e = LEACH_CE_E(network_copy, network_model_copy,
+        leach_ce_e = LEACH_CE_E(network, network_model,
                                 alpha=combo[0], beta=combo[1], gamma=combo[2])
-        network_copy.stats.name = f"LEACH-CE-E_{combo[0]}_{combo[1]}_{combo[2]}"
+        network.stats.name = f"LEACH-CE-E_{combo[0]}_{combo[1]}_{combo[2]}"
         # Lets run the protocol.
         leach_ce_e.run()
 

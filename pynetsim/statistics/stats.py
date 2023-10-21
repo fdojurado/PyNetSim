@@ -16,7 +16,7 @@ class Statistics(object):
                         num_cluster_heads, pdr, plr,
                         control_packets_energy, control_pkt_bits, pkts_sent_to_bs,
                         energy_dissipated, pkts_recv_by_bs, membership,
-                        energy_levels, cluster_heads):
+                        energy_levels, cluster_heads, dst_to_cluster_head):
 
         self._round_stats[round] = {
             'remaining_energy': remaining_energy,
@@ -32,7 +32,8 @@ class Statistics(object):
             'pkts_recv_by_bs': pkts_recv_by_bs,
             'membership': membership,
             'energy_levels': energy_levels,
-            'cluster_heads': cluster_heads
+            'cluster_heads': cluster_heads,
+            'dst_to_cluster_head': dst_to_cluster_head
         }
 
     # This function is called when a round is finished, so we generate the
@@ -55,9 +56,11 @@ class Statistics(object):
             membership[node.node_id] = node.cluster_id
         # Put the energy level of each node excluding the sink
         energy_levels = {}
+        dst_to_cluster_head = {}
         for node in self.network:
             if node.node_id != 1:
                 energy_levels[node.node_id] = node.remaining_energy
+                dst_to_cluster_head[node.node_id] = node.dst_to_cluster_head
         # Put the cluster heads at this round
         cluster_heads = self.network.get_cluster_head_ids()
 
@@ -66,7 +69,8 @@ class Statistics(object):
                              plr, control_packets_energy,
                              control_pkt_bits, pkts_sent_to_bs,
                              energy_dissipated, pkts_recv_by_bs,
-                             membership, energy_levels, cluster_heads)
+                             membership, energy_levels, cluster_heads,
+                             dst_to_cluster_head)
 
     @property
     def name(self):

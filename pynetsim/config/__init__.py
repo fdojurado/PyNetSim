@@ -119,6 +119,7 @@ LEARNING_RATE = 1e-6
 EPOCHS = 5000
 LARGEST_WEIGHT = 6
 LARGEST_ENERGY_LEVEL = 4
+MAX_DST_TO_CH = 200
 NUM_CLUSTERS = 100
 NUM_EMBEDDINGS = 101
 EMBEDDING_DIM = 30
@@ -166,6 +167,8 @@ class SurrogateConfiguration:
             'largest_weight', LARGEST_WEIGHT)
         self.largest_energy_level = surrogate_dict.get(
             'largest_energy_level', LARGEST_ENERGY_LEVEL)
+        self.max_dst_to_ch = surrogate_dict.get(
+            'max_dst_to_ch', MAX_DST_TO_CH)
         self.num_workers = surrogate_dict.get('num_workers', NUM_WORKERS)
         self.load_model = surrogate_dict.get('load_model', False)
         self.model_path = surrogate_dict.get('model_path', None)

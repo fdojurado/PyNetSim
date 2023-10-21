@@ -446,6 +446,8 @@ class Network:
             node.is_cluster_head = False
         # Register callback to the network model
         self.model.register_round_complete_callback(self.round_callback)
+        # Call the round_callback to initialize the stats at round 0
+        self.round_callback(0)
         return True
 
     def plot_network(self):
