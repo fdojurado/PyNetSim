@@ -78,6 +78,11 @@ def main():
 
     print(f"Shape of combinations: {len(combinations)}")
 
+    # Generate a random initial energy for each node.
+    for node in network:
+        random_energy = random.uniform(0, 2)
+        node.remaining_energy = random_energy
+
     for combo in combinations:
         print(f"Combo: {combo}")
         network_copy, network_model_copy = leach_milp.copy_network(
