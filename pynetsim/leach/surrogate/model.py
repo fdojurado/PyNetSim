@@ -118,6 +118,7 @@ class SurrogateModel:
         self.learning_rate = self.config.surrogate.learning_rate
         self.test_ratio = self.config.surrogate.test_ratio
         self.largest_weight = self.config.surrogate.largest_weight
+        self.largest_energy_level = self.config.surrogate.largest_energy_level
         self.num_workers = self.config.surrogate.num_workers
         self.load_model = self.config.surrogate.load_model
         self.model_path = self.config.surrogate.model_path
@@ -145,6 +146,7 @@ class SurrogateModel:
         logger.info(f"learning_rate: {self.learning_rate}")
         logger.info(f"test_ratio: {self.test_ratio}")
         logger.info(f"largest_weight: {self.largest_weight}")
+        logger.info(f"largest_energy_level: {self.largest_energy_level}")
         logger.info(f"num_workers: {self.num_workers}")
         logger.info(f"load_model: {self.load_model}")
         logger.info(f"model_path: {self.model_path}")
@@ -230,7 +232,8 @@ class SurrogateModel:
         # samples = self.normalize_data(files, normalized_names_values=self.largest_weight,
         #                               normalized_membership_values=1)
         samples = self.normalize_data_cluster_heads(
-            files, normalized_names_values=self.largest_weight, normalized_membership_values=100)
+            files, normalized_names_values=self.largest_weight, normalized_membership_values=100,
+            normalized_energy_values=self.largest_energy_level)
 
         return samples
 
@@ -243,8 +246,10 @@ class SurrogateModel:
 
         return samples
 
-    def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int):
+    def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int, normalized_energy_values: int):
         energy_levels = list(stats['energy_levels'].values())
+        energy_levels = [
+            value / normalized_energy_values for value in energy_levels]
         assert all(-1 <= value <=
                    1 for value in energy_levels), f"Invalid energy levels: {energy_levels}"
         membership = [0 if cluster_id is None else int(cluster_id) / normalized_membership_values
@@ -255,7 +260,7 @@ class SurrogateModel:
             0 <= value <= 1 for value in membership), f"Invalid membership: {membership}"
 
         # Get the remaining energy
-        remaining_energy = stats['remaining_energy']/100
+        remaining_energy = stats['remaining_energy']/200
         assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
 
         # Get the alive nodes
@@ -267,7 +272,7 @@ class SurrogateModel:
         assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
 
         # Get control packets energy
-        control_packets_energy = stats['control_packets_energy']/5
+        control_packets_energy = stats['control_packets_energy']/10
         assert 0 <= control_packets_energy <= 1, f"Invalid control packets energy: {control_packets_energy}"
 
         # Get control packets bits
@@ -283,7 +288,7 @@ class SurrogateModel:
         assert 0 <= pkts_recv_by_bs <= 1, f"Invalid pkts recv by bs: {pkts_recv_by_bs}"
 
         # Get the energy dissipated
-        energy_dissipated = stats['energy_dissipated']/100
+        energy_dissipated = stats['energy_dissipated']/200
         assert 0 <= energy_dissipated <= 1, f"Invalid energy dissipated: {energy_dissipated}"
 
         x_data = [value / normalized_names_values for value in name] + \
@@ -293,7 +298,8 @@ class SurrogateModel:
 
         return x_data
 
-    def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int):
+    def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int,
+                                     normalized_energy_values: int):
         normalized_samples = {}
         for name, data in samples.items():
             normalized_samples[name] = {}
@@ -349,7 +355,7 @@ class SurrogateModel:
                     continue
 
                 rnd_data = self.get_round_data(
-                    name, stats, normalized_names_values, normalized_membership_values)
+                    name, stats, normalized_names_values, normalized_membership_values, normalized_energy_values)
                 # if name == (3.3, 0.9, 1.7):
                 #     input(f"rnd_data: {rnd_data}")
 

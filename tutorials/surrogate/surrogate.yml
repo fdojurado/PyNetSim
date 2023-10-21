@@ -16,7 +16,8 @@ surrogate:
   learning_rate: 0.001
   test_ratio: 0.2
   # This is the largest weight value for alpha, beta, and gamma
-  largest_weight: 6
+  largest_weight: 10
+  largest_energy_level: 4
   # This is the largest cluster id, which is 100
   num_workers: 4
   # Load model? If yes, then specify the path
