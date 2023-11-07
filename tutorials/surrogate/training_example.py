@@ -1,7 +1,7 @@
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
 from pynetsim.utils import PyNetSimLogger
-from pynetsim.leach.surrogate.model import SurrogateModel
+from pynetsim.leach.surrogate.regression_model import SurrogateModel
 
 import sys
 import os
