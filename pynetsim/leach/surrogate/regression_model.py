@@ -25,10 +25,9 @@ logger = logger_utility.get_logger()
 
 class NetworkDataset(Dataset):
     def __init__(self, x, y):
-        self.X = x
-        self.y = y
+        self.X = torch.from_numpy(x.astype(np.float32))
+        self.y = torch.from_numpy(y.astype(np.float32))
         self.len = x.shape[0]
-        # print(f"len: {self.len}")
         logger.info(f"X: {self.X.shape}, y: {self.y.shape}")
 
     def __len__(self):
@@ -45,21 +44,40 @@ class NetworkDataset(Dataset):
 
 
 class PolynomialModel(nn.Module):
-    def __init__(self, degree):
+    def __init__(self, degree, num_weights, hidden_dim=10):
         super(PolynomialModel, self).__init__()
         self._degree = degree
-        self.linear = nn.Linear(self._degree, 1)
+        self.ply = nn.Linear(self._degree, hidden_dim)
+        self.weight = nn.Linear(num_weights, hidden_dim)
+        self.output = nn.Linear(hidden_dim * 2, 1)
 
-    def forward(self, x):
-        # print(f"forward: {x}, {x.shape}")
-        features = self._polynomial_features(x)
-        # print(f"features: {features}, {features.shape}")
-        return self.linear(features)
+        # activation function
+        self.relu = nn.ReLU()
 
-    def _polynomial_features(self, x):
-        # x = x.unsqueeze(1)
+    def forward(self, weight, round):
+        features = self._polynomial_features(round)
+        features = self.ply(features)
+
+        # activation function
+        features = self.relu(features)
+
+        # Weights layer
+        weight = self.weight(weight)
+
+        # activation function
+        weight = self.relu(weight)
+
+        # concatenate the features and weights
+        features = torch.cat([features, weight], 1)
+
+        # output layer
+        features = self.output(features)
+
+        return features
+
+    def _polynomial_features(self, round):
         # print(f"_polynomial_features: {x}, {x.shape}")
-        return torch.cat([x ** i for i in range(1, self._degree + 1)], 1)
+        return torch.cat([round ** i for i in range(1, self._degree + 1)], 1)
 
 
 class SurrogateModel:
@@ -124,37 +142,214 @@ class SurrogateModel:
     def init(self):
         logger.info("Initializing the regression model")
         self.print_config()
-        # Create the folder to save the model if it does not exist
-        # os.makedirs(self.model_path, exist_ok=True)
+        # Create the folder to save the plots
+        os.makedirs(self.plots_folder, exist_ok=True)
 
-        x = torch.linspace(-math.pi, math.pi, steps=20, dtype=torch.float)
-        cubic_y = x ** 3 + 2 * x ** 2 - 3 * x + 5
-        sine_y = torch.sin(x)
+        # if data_path is not provided, then we need to generate the data
+        if self.config.surrogate.generate_data:
+            samples = self.generate_data()
+        else:
+            # Load the data
+            samples = self.load_data()
 
-        x = x.reshape(-1, 1)
-        cubic_y = cubic_y.reshape(-1, 1)
-        sine_y = sine_y.reshape(-1, 1)
+        logger.info(f"Number of samples: {len(samples)}")
 
-        # Lets split the data into training and testing
-        X_train, X_test, y_train, y_test = train_test_split(
-            x, sine_y, test_size=self.test_ratio, random_state=42, shuffle=True)
+        # x = torch.linspace(-math.pi, math.pi, steps=20, dtype=torch.float)
+        # cubic_y = x ** 3 + 2 * x ** 2 - 3 * x + 5
+        # sine_y = torch.sin(x)
 
+        # x = x.reshape(-1, 1)
+        # cubic_y = cubic_y.reshape(-1, 1)
+        # sine_y = sine_y.reshape(-1, 1)
+
+        # Split the data into training and testing
+        X_train, X_test, Y_train, Y_test = self.split_data(samples)
         # Create the training dataset
-        self.training_dataset = NetworkDataset(x=X_train, y=y_train)
+        self.training_dataset = NetworkDataset(x=X_train, y=Y_train)
 
         # Create the training dataloader
         self.training_dataloader = DataLoader(
             self.training_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.training_dataset.collate_fn, num_workers=self.num_workers)
 
         # Create the testing dataset
-        self.testing_dataset = NetworkDataset(x=X_test, y=y_test)
+        self.testing_dataset = NetworkDataset(x=X_test, y=Y_test)
 
         # Create the testing dataloader
         self.testing_dataloader = DataLoader(
             self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
 
+    def split_data(self, samples):
+        # Get all the samples
+        x, y, prev_x, round = self.get_all_samples(samples)
+        # print shapes
+        np_x = np.array(x)
+        np_y = np.array(y)
+        np_prev_x = np.array(prev_x)
+        np_round = np.array(round)
+        # unsqueeze the np_round
+        np_round = np.expand_dims(np_round, axis=1)
+        print(
+            f"np_x: {np_x.shape}, np_y: {np_y.shape}, np_prev_x: {np_prev_x.shape}, np_round: {np_round.shape}")
+
+        # concatenate the x and prev_x
+        np_x = np.concatenate((np_x, np_prev_x, np_round), axis=1)
+
+        if self.test_ratio is None:
+            raise Exception("Please provide the test ratio")
+
+        # Lets split the data into training and testing
+        X_train, X_test, y_train, y_test = train_test_split(
+            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=False)
+
+        # print shapes
+        logger.info(f"X_train: {X_train.shape}, X_test: {X_test.shape}")
+
+        return X_train, X_test, y_train, y_test
+
+    def get_all_samples(self, samples):
+        x_data_list = []
+        prev_x_data_list = []
+        y_data_list = []
+        round_list = []
+        for key, sample in samples.items():
+            for round in range(0, len(sample)):
+                # if round == 1:
+                #     continue
+                x_data = sample[str(round)]['x_data']
+                prev_x_data = sample[str(round)]['prev_x_data']
+                y_data = sample[str(round)]['y_data']
+                round = sample[str(round)]['round']
+                x_data_list.append(x_data)
+                prev_x_data_list.append(prev_x_data)
+                y_data_list.append(y_data)
+                round_list.append(round)
+
+        return x_data_list, y_data_list, prev_x_data_list, round_list
+
+    def get_sample(self, samples, weights: tuple):
+        x_data_list = []
+        prev_x_data_list = []
+        y_data_list = []
+        for key, sample in samples.items():
+            if key == weights:
+                for round in range(0, len(sample)):
+                    # if round == 1:
+                    #     continue
+                    x_data = sample[str(round)]['x_data']
+                    prev_x_data = sample[str(round)]['prev_x_data']
+                    y_data = sample[str(round)]['y_data']
+                    x_data_list.append(x_data)
+                    prev_x_data_list.append(prev_x_data)
+                    y_data_list.append(y_data)
+
+        return x_data_list, y_data_list, prev_x_data_list
+
+    def load_samples(self, data_dir):
+        logger.info(f"Loading samples from: {data_dir}")
+        samples = {}
+        for file in os.listdir(data_dir):
+            if file == ".DS_Store":
+                continue
+            with open(os.path.join(data_dir, file), "r") as f:
+                data = json.load(f)
+            # Remove single quotes and split by comma
+            name = tuple(float(x.replace("'", "")) for x in file.split(
+                ".json")[0].replace("(", "").replace(")", "").split(","))
+            samples[name] = data
+        return samples
+
+    def load_data(self):
+        if self.data_folder is None:
+            raise Exception(
+                "Please provide the path to the data folder to load the data")
+        # Load the data folder
+        samples = self.load_samples(self.data_folder)
+
+        return samples
+
+    def load_files(self, data_dir):
+        samples = {}
+        for file in os.listdir(data_dir):
+            if file.startswith("LEACH-CE-E_") and not file.endswith("extended.json"):
+                name_parts = file.split("_")[1:]
+                name_parts[-1] = name_parts[-1].split(".json")[0]
+                name = tuple(name_parts)
+                name = tuple(float(part.replace("'", ""))
+                             for part in name_parts)
+
+                with open(os.path.join(data_dir, file), "r") as f:
+                    data = json.load(f)
+                samples[name] = data
+        return samples
+
+    def get_round_data(self, name, stats, normalized_names_values: int):
+        # Get the remaining energy
+        remaining_energy = stats['remaining_energy']/200
+        assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
+
+        # Get the alive nodes
+        alive_nodes = stats['alive_nodes']/100
+        assert 0 <= alive_nodes <= 1, f"Invalid alive nodes: {alive_nodes}"
+
+        # Get the number of cluster heads
+        num_cluster_heads = stats['num_cluster_heads']/5
+        assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
+
+        x_data = [value / normalized_names_values for value in name] + \
+            [remaining_energy, num_cluster_heads]
+
+        return x_data, alive_nodes
+
+    def generate_data(self):
+        if self.raw_data_folder is None:
+            raise Exception(
+                "Please provide the path to the raw data folder to generate the data")
+        if self.data_folder is None:
+            raise Exception(
+                "Please provide the path to save the generated data")
+        # Load the data folder
+        files = self.load_files(self.raw_data_folder)
+
+        normalized_samples = {}
+        for name, data in files.items():
+            normalized_samples[name] = {}
+            max_rounds = len(data)
+
+            for round, stats in data.items():
+                round = int(round)
+                if round == max_rounds-1:
+                    continue
+
+                rnd_data, y_data = self.get_round_data(
+                    name, stats, self.largest_weight)
+
+                prev_x_data = []
+                for prev_round in range(round-1, round-11, -1):
+                    if prev_round < 0:
+                        prev_round_data = [0 for _ in range(len(rnd_data)-3)]
+                    else:
+                        prev_round_data = normalized_samples[name][str(
+                            prev_round)]['x_data']
+                        # Remove the first 3 elements
+                        prev_round_data = prev_round_data[3:]
+                    prev_x_data += prev_round_data
+
+                normalized_samples[name][str(round)] = {
+                    'x_data': rnd_data,
+                    'prev_x_data': prev_x_data,
+                    'y_data': y_data,
+                    'round': round
+                }
+
+        os.makedirs(self.data_folder, exist_ok=True)
+        for name, data in normalized_samples.items():
+            with open(os.path.join(self.data_folder, f"{name}.json"), "w") as f:
+                json.dump(data, f)
+
+        return normalized_samples
+
     def get_model(self, load_model=False):
-        model = PolynomialModel(degree=3)
+        model = PolynomialModel(degree=3, num_weights=25, hidden_dim=100)
 
         if self.load_model:
             if self.model_path is None:
@@ -195,10 +390,16 @@ class SurrogateModel:
                     optimizer.zero_grad()
                     # print(f"Input shape: {input_data.shape}")
                     # print(f"Target shape: {target_data.shape}")
+                    weight_data = input_data[:, :-1]
+                    round_data = input_data[:, -1:]
+                    target_data = target_data.unsqueeze(1)
+                    # print(f"Weight data: {weight_data}, {weight_data.shape}")
+                    # print(f"Round data: {round_data}, {round_data.shape}")
+                    # print(f"Target data: {target_data}, {target_data.shape}")
                     # print(
                     #     f"Categorical data: {categorical_data}, {categorical_data.shape}")
                     # print(f"Target data: {target_data}, {target_data.shape}")
-                    outputs = model(x=input_data)
+                    outputs = model(weight=weight_data, round=round_data)
                     # input(f"Outputs: {outputs}, {outputs.shape}")
                     loss = criterion(outputs, target_data)
                     loss.backward()
@@ -216,7 +417,10 @@ class SurrogateModel:
                 model.eval()
                 with torch.no_grad():
                     for input_data, target_data in self.testing_dataloader:
-                        outputs = model(x=input_data)
+                        weight_data = input_data[:, :-1]
+                        round_data = input_data[:, -1:]
+                        target_data = target_data.unsqueeze(1)
+                        outputs = model(weight=weight_data, round=round_data)
                         loss = criterion(outputs, target_data)
                         validation_losses.append(loss.item())
                 avg_val_loss = np.mean(validation_losses)
