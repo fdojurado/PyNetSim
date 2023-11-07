@@ -119,6 +119,7 @@ class SurrogateModel:
         self.test_ratio = self.config.surrogate.test_ratio
         self.largest_weight = self.config.surrogate.largest_weight
         self.largest_energy_level = self.config.surrogate.largest_energy_level
+        self.max_dst_to_ch = self.config.surrogate.max_dst_to_ch
         self.num_workers = self.config.surrogate.num_workers
         self.load_model = self.config.surrogate.load_model
         self.model_path = self.config.surrogate.model_path
@@ -233,7 +234,7 @@ class SurrogateModel:
         #                               normalized_membership_values=1)
         samples = self.normalize_data_cluster_heads(
             files, normalized_names_values=self.largest_weight, normalized_membership_values=100,
-            normalized_energy_values=self.largest_energy_level)
+            normalized_energy_values=self.largest_energy_level, normalized_dst_to_ch_values=self.max_dst_to_ch)
 
         return samples
 
@@ -246,7 +247,8 @@ class SurrogateModel:
 
         return samples
 
-    def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int, normalized_energy_values: int):
+    def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int,
+                       normalized_energy_values: int, normalized_dst_to_ch_values: int):
         energy_levels = list(stats['energy_levels'].values())
         energy_levels = [
             value / normalized_energy_values for value in energy_levels]
@@ -263,6 +265,12 @@ class SurrogateModel:
         remaining_energy = stats['remaining_energy']/200
         assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
 
+        # Get distance to cluster head
+        dst_to_cluster_head = [
+            value / normalized_dst_to_ch_values for value in stats['dst_to_cluster_head'].values()]
+        assert all(0 <= value <=
+                   1 for value in dst_to_cluster_head), f"Invalid dst to cluster head: {dst_to_cluster_head}"
+
         # Get the alive nodes
         alive_nodes = stats['alive_nodes']/100
         assert 0 <= alive_nodes <= 1, f"Invalid alive nodes: {alive_nodes}"
@@ -272,90 +280,50 @@ class SurrogateModel:
         assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
 
         # Get control packets energy
-        control_packets_energy = stats['control_packets_energy']/10
-        assert 0 <= control_packets_energy <= 1, f"Invalid control packets energy: {control_packets_energy}"
+        # control_packets_energy = stats['control_packets_energy']/10
+        # assert 0 <= control_packets_energy <= 1, f"Invalid control packets energy: {control_packets_energy}"
 
         # Get control packets bits
-        control_pkt_bits = stats['control_pkt_bits']/1e8
-        assert 0 <= control_pkt_bits <= 1, f"Invalid control packets bits: {control_pkt_bits}"
+        # control_pkt_bits = stats['control_pkt_bits']/1e8
+        # assert 0 <= control_pkt_bits <= 1, f"Invalid control packets bits: {control_pkt_bits}"
 
         # Get the pkts sent to bs
-        pkts_sent_to_bs = stats['pkts_sent_to_bs']/1e3
-        assert 0 <= pkts_sent_to_bs <= 1, f"Invalid pkts sent to bs: {pkts_sent_to_bs}"
+        # pkts_sent_to_bs = stats['pkts_sent_to_bs']/1e3
+        # assert 0 <= pkts_sent_to_bs <= 1, f"Invalid pkts sent to bs: {pkts_sent_to_bs}"
 
         # Get the pkts received by bs
-        pkts_recv_by_bs = stats['pkts_recv_by_bs']/1e3
-        assert 0 <= pkts_recv_by_bs <= 1, f"Invalid pkts recv by bs: {pkts_recv_by_bs}"
+        # pkts_recv_by_bs = stats['pkts_recv_by_bs']/1e3
+        # assert 0 <= pkts_recv_by_bs <= 1, f"Invalid pkts recv by bs: {pkts_recv_by_bs}"
 
         # Get the energy dissipated
-        energy_dissipated = stats['energy_dissipated']/200
-        assert 0 <= energy_dissipated <= 1, f"Invalid energy dissipated: {energy_dissipated}"
+        # energy_dissipated = stats['energy_dissipated']/200
+        # assert 0 <= energy_dissipated <= 1, f"Invalid energy dissipated: {energy_dissipated}"
 
         x_data = [value / normalized_names_values for value in name] + \
-            energy_levels + [remaining_energy, alive_nodes, num_cluster_heads,
-                             control_packets_energy, control_pkt_bits, pkts_sent_to_bs, pkts_recv_by_bs, energy_dissipated] + \
+            energy_levels + \
+            dst_to_cluster_head + \
+            [remaining_energy, alive_nodes, num_cluster_heads] + \
             membership
+        #  control_packets_energy, control_pkt_bits, pkts_sent_to_bs, pkts_recv_by_bs, energy_dissipated] + \
 
         return x_data
 
     def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int,
-                                     normalized_energy_values: int):
+                                     normalized_energy_values: int, normalized_dst_to_ch_values: int):
         normalized_samples = {}
         for name, data in samples.items():
             normalized_samples[name] = {}
             max_rounds = len(data)
 
-            # We need to set the data for the initial round
-            rnd_data = [value / normalized_names_values for value in name] + \
-                [0.05 for _ in range(99)] + \
-                [0.05] + \
-                [0.99] + \
-                [0] + \
-                [0] + \
-                [0] + \
-                [0] + \
-                [0] + \
-                [0] + \
-                [0 for _ in range(99)]
-
-            prev_x_data = []
-            for prev_round in range(-1, -11, -1):
-                if prev_round < 1:
-                    prev_round_data = [0 for _ in range(len(rnd_data))]
-                prev_x_data += prev_round_data
-
-            next_round_membership = [0 if cluster_id is None else int(
-                cluster_id) for _, cluster_id in data[str(1)]['membership'].items()]
-
-            # Remove the sink
-            next_round_membership = next_round_membership[1:]
-
-            y_data = next_round_membership
-
-            assert all(-1 <= value <=
-                       1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
-            assert all(
-                0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
-
-            normalized_samples[name][str(0)] = {
-                "x_data": rnd_data,
-                "prev_x_data": prev_x_data,
-                "y_data": y_data,
-                # "membership": current_membership
-            }
-            # if name == (3.3, 0.9, 1.7):
-            #     input("init normalized_samples")
-            #     print(f"init normalized_samples: {normalized_samples[name]}")
-
             for round, stats in data.items():
                 round = int(round)
                 # if name == (3.3, 0.9, 1.7):
                 #     print(f"round: {round}")
-                if round == max_rounds:
+                if round == max_rounds-1:
                     continue
 
                 rnd_data = self.get_round_data(
-                    name, stats, normalized_names_values, normalized_membership_values, normalized_energy_values)
+                    name, stats, normalized_names_values, normalized_membership_values, normalized_energy_values, normalized_dst_to_ch_values)
                 # if name == (3.3, 0.9, 1.7):
                 #     input(f"rnd_data: {rnd_data}")
 
@@ -367,7 +335,7 @@ class SurrogateModel:
                     if prev_round < 0:
                         # if name == (3.3, 0.9, 1.7):
                         #     print("prev_round < 0")
-                        prev_round_data = [0 for _ in range(len(rnd_data))]
+                        prev_round_data = [0 for _ in range(len(rnd_data)-3)]
                         # if name == (3.3, 0.9, 1.7):
                         #     print(f"prev_round: {prev_round_data}")
                     else:
@@ -375,6 +343,8 @@ class SurrogateModel:
                         #     print("prev_round >= 0")
                         prev_round_data = normalized_samples[name][str(
                             prev_round)]['x_data']
+                        # Remove the first 3 elements
+                        prev_round_data = prev_round_data[3:]
                         # if name == (3.3, 0.9, 1.7):
                         #     input(f"prev_round_data: {prev_round_data}")
                     prev_x_data += prev_round_data
@@ -553,7 +523,7 @@ class SurrogateModel:
         return x_data_list, y_data_list, prev_x_data_list
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(input_dim=2299,
+        model = MixedDataModel(input_dim=3303,
                                hidden_dim=self.hidden_dim,
                                num_classes=101,
                                num_labels=99,

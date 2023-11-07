@@ -25,9 +25,11 @@ class SURROGATE:
         self.config = network.config
         self.network = network
         self.largest_weight = self.config.surrogate.largest_weight
-        self.alpha = 3.3
-        self.beta = 0.9
-        self.gamma = 1.7
+        self.largest_energy_level = self.config.surrogate.largest_energy_level
+        self.max_dst_to_ch = self.config.surrogate.max_dst_to_ch
+        self.alpha = 9.932691359618374
+        self.beta = 2.557698035476832
+        self.gamma = 1.5478955284708817
         self.surrogate_model = SurrogateModel(config=self.config)
 
     def run(self):
@@ -61,12 +63,23 @@ class SURROGATE:
             0 <= w <= 1 for w in weights), f"Incorrect weights: {weights}"
 
         energy_levels = [
-            node.remaining_energy for node in self.network if node.node_id != 1]
+            node.remaining_energy/self.largest_energy_level for node in self.network if node.node_id != 1]
         assert all(-1 <= e <=
                    1 for e in energy_levels), f"Incorrect energy levels: {energy_levels}"
 
-        remaining_energy = self.network.remaining_energy()/100
+        cluster_ids = [0 if node.cluster_id is None else node.cluster_id /
+                       100 for node in self.network if node.node_id != 1]
+        assert all(
+            0 <= c <= 1 for c in cluster_ids), f"Incorrect cluster ids: {cluster_ids}"
+
+        remaining_energy = self.network.remaining_energy()/200
         assert 0 <= remaining_energy <= 1, f"Incorrect remaining energy: {remaining_energy}"
+
+        # Get distance to cluster head
+        dst_to_ch = [node.dst_to_cluster_head /
+                     self.max_dst_to_ch for node in self.network if node.node_id != 1]
+        assert all(
+            0 <= d <= 1 for d in dst_to_ch), f"Incorrect dst_to_ch: {dst_to_ch}"
 
         alive_nodes = self.network.alive_nodes()/100
         assert 0 <= alive_nodes <= 1, f"Incorrect alive nodes: {alive_nodes}"
@@ -74,28 +87,24 @@ class SURROGATE:
         num_chs = self.network.num_cluster_heads()/5
         assert 0 <= num_chs <= 1, f"Incorrect num_chs: {num_chs}"
 
-        control_packets_energy = self.network.control_packets_energy()/5
-        assert 0 <= control_packets_energy <= 1, f"Incorrect control_packets_energy: {control_packets_energy}"
+        # control_packets_energy = self.network.control_packets_energy()/10
+        # assert 0 <= control_packets_energy <= 1, f"Incorrect control_packets_energy: {control_packets_energy}"
 
-        control_pkt_bits = self.network.control_pkt_bits()/1e8
-        assert 0 <= control_pkt_bits <= 1, f"Incorrect control_pkt_bits: {control_pkt_bits}"
+        # control_pkt_bits = self.network.control_pkt_bits()/1e8
+        # assert 0 <= control_pkt_bits <= 1, f"Incorrect control_pkt_bits: {control_pkt_bits}"
 
-        pkts_sent_to_bs = self.network.pkts_sent_to_bs()/1e3
-        assert 0 <= pkts_sent_to_bs <= 1, f"Incorrect pkts_sent_to_bs: {pkts_sent_to_bs}"
+        # pkts_sent_to_bs = self.network.pkts_sent_to_bs()/1e3
+        # assert 0 <= pkts_sent_to_bs <= 1, f"Incorrect pkts_sent_to_bs: {pkts_sent_to_bs}"
 
-        pkts_recv_by_bs = self.network.pkts_recv_by_bs()/1e3
-        assert 0 <= pkts_recv_by_bs <= 1, f"Incorrect pkts_recv_by_bs: {pkts_recv_by_bs}"
+        # pkts_recv_by_bs = self.network.pkts_recv_by_bs()/1e3
+        # assert 0 <= pkts_recv_by_bs <= 1, f"Incorrect pkts_recv_by_bs: {pkts_recv_by_bs}"
 
-        energy_dissipated = self.network.energy_dissipated()/100
-        assert 0 <= energy_dissipated <= 1, f"Incorrect energy_dissipated: {energy_dissipated}"
+        # energy_dissipated = self.network.energy_dissipated()/200
+        # assert 0 <= energy_dissipated <= 1, f"Incorrect energy_dissipated: {energy_dissipated}"
 
-        cluster_ids = [0 if node.cluster_id is None else node.cluster_id /
-                       100 for node in self.network if node.node_id != 1]
-        assert all(
-            0 <= c <= 1 for c in cluster_ids), f"Incorrect cluster ids: {cluster_ids}"
-
-        x_data = weights + energy_levels + [remaining_energy, alive_nodes, num_chs, control_packets_energy,
-                                            control_pkt_bits, pkts_sent_to_bs, pkts_recv_by_bs, energy_dissipated] + cluster_ids
+        x_data = weights + energy_levels + dst_to_ch + \
+            [remaining_energy, alive_nodes, num_chs] + \
+            cluster_ids
 
         return x_data
 
@@ -114,9 +123,11 @@ class SURROGATE:
         for prev_round in range(round-2, round-12, -1):
             # input(f"Round: {round}, prev round: {prev_round}")
             if prev_round < 0:
-                prev_round_data = [0 for _ in range(len(x_data))]
+                prev_round_data = [0 for _ in range(len(x_data)-3)]
             else:
                 prev_round_data = self.metrics[prev_round]
+                # Remove the first 3 elements from the list
+                prev_round_data = prev_round_data[3:]
             prev_x_data += prev_round_data
         # Convert to numpy array
         np_x = np.array(x_data)
@@ -130,8 +141,8 @@ class SURROGATE:
         # Convert the numerical data to a tensor
         x_data_tensor = torch.from_numpy(np_x.astype(np.float32))
         # Print the X every 209 elements in the array
-        # for i in range(0, len(x_data_tensor), 209):
-        #     print(f"X data {i/209}: {x_data_tensor[i:i+209]}")
+        for i in range(0, len(x_data_tensor), 209):
+            print(f"X data {i/209}: {x_data_tensor[i:i+209]}")
         # print(f"X data tensor: {x_data_tensor.tolist()}, shape: {x_data_tensor.shape}")
         # unsqueeze the tensor
         x_data_tensor = x_data_tensor.unsqueeze(0)
@@ -265,7 +276,7 @@ class SURROGATE:
         # Save the metrics
         self.net_model.dissipate_energy(round=round)
         self.save_metrics(round=round)
-        # input("Press enter to continue...")
+        input("Press enter to continue...")
         return round
 
     def run_without_plotting(self, num_rounds):
