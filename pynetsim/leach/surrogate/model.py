@@ -262,7 +262,7 @@ class SurrogateModel:
             0 <= value <= 1 for value in membership), f"Invalid membership: {membership}"
 
         # Get the remaining energy
-        remaining_energy = stats['remaining_energy']/200
+        remaining_energy = stats['remaining_energy']/400
         assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
 
         # Get distance to cluster head
@@ -317,40 +317,30 @@ class SurrogateModel:
 
             for round, stats in data.items():
                 round = int(round)
-                # if name == (3.3, 0.9, 1.7):
-                #     print(f"round: {round}")
                 if round == max_rounds-1:
                     continue
 
                 rnd_data = self.get_round_data(
                     name, stats, normalized_names_values, normalized_membership_values, normalized_energy_values, normalized_dst_to_ch_values)
-                # if name == (3.3, 0.9, 1.7):
-                #     input(f"rnd_data: {rnd_data}")
 
                 # Lets attached 10 past experiences
                 prev_x_data = []
-                for prev_round in range(round-1, round-11, -1):
-                    # if name == (3.3, 0.9, 1.7):
-                    #     print(f"prev_round: {prev_round}")
-                    if prev_round < 0:
-                        # if name == (3.3, 0.9, 1.7):
-                        #     print("prev_round < 0")
-                        prev_round_data = [0 for _ in range(len(rnd_data)-3)]
-                        # if name == (3.3, 0.9, 1.7):
-                        #     print(f"prev_round: {prev_round_data}")
-                    else:
-                        # if name == (3.3, 0.9, 1.7):
-                        #     print("prev_round >= 0")
-                        prev_round_data = normalized_samples[name][str(
-                            prev_round)]['x_data']
-                        # Remove the first 3 elements
-                        prev_round_data = prev_round_data[3:]
-                        # if name == (3.3, 0.9, 1.7):
-                        #     input(f"prev_round_data: {prev_round_data}")
-                    prev_x_data += prev_round_data
+                prev_round = round - 1
+                # for prev_round in range(round-1, round-11, -1):
+                if prev_round < 0:
+                    prev_round_data = [1] * 99
+                    prev_round_data += [1] * 99
+                    prev_round_data += [1]
+                    prev_round_data += [1]
+                    prev_round_data += [1]
+                    prev_round_data += [1] * 99
 
-                # if name == (3.3, 0.9, 1.7):
-                #     input(f"prev_x_data: {prev_x_data}")
+                else:
+                    prev_round_data = normalized_samples[name][str(
+                        prev_round)]['x_data']
+                    # Remove the first 3 elements
+                    prev_round_data = prev_round_data[3:]
+                prev_x_data = [0]
 
                 next_round = round + 1
                 next_round_membership = [0 if cluster_id is None else int(
@@ -359,35 +349,12 @@ class SurrogateModel:
                 # Remove the sink
                 next_round_membership = next_round_membership[1:]
 
-                # Get unique cluster ids without including 0
-                # unique_cluster_ids = set(next_round_membership)
-                # unique_cluster_ids.discard(0)
-                # # Convert to list
-                # unique_cluster_ids = list(unique_cluster_ids)
-                # # Number of clusters
-                # num_clusters = len(unique_cluster_ids)
-                # if num_clusters < 5:
-                #     # append 0s to make it 5 to the unique cluster ids
-                #     for _ in range(5 - num_clusters):
-                #         unique_cluster_ids.append(0)
-
-                # # Sort the cluster ids in ascending order
-                # unique_cluster_ids.sort()
-
-                # input(f"Unique cluster ids: {unique_cluster_ids}")
-
-                # Normalize the cluster ids
-                # next_round_membership = unique_cluster_ids
-
                 y_data = next_round_membership
 
                 assert all(-1 <= value <=
                            1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
                 assert all(
                     0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
-                # if name == (3.3, 0.9, 1.7):
-                #     print(f"Saving normalized data for {name} round {round}")
-                #     input("Press enter to continue...")
 
                 normalized_samples[name][str(round)] = {
                     "x_data": rnd_data,
@@ -523,7 +490,7 @@ class SurrogateModel:
         return x_data_list, y_data_list, prev_x_data_list
 
     def get_model(self, load_model=False):
-        model = MixedDataModel(input_dim=3303,
+        model = MixedDataModel(input_dim=304,
                                hidden_dim=self.hidden_dim,
                                num_classes=101,
                                num_labels=99,

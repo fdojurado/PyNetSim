@@ -51,9 +51,15 @@ class PolynomialModel(nn.Module):
         self.weight = nn.Linear(num_weights, hidden_dim)
         self.output = nn.Linear(hidden_dim, 1)
 
+        # activation function
+        self.relu = nn.ReLU()
+
     def forward(self, input_weight):
         # Weights layer
         weight = self.weight(input_weight)
+
+        # Activation function
+        weight = self.relu(weight)
 
         # output layer
         features = self.output(weight)
@@ -153,30 +159,23 @@ class SurrogateModel:
 
         # Create the testing dataloader
         self.testing_dataloader = DataLoader(
-            self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
+            self.testing_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
 
     def split_data(self, samples):
         # Get all the samples
-        x, y, prev_x, round = self.get_all_samples(samples)
+        x, y = self.get_all_samples(samples)
         # print shapes
         np_x = np.array(x)
         np_y = np.array(y)
-        np_prev_x = np.array(prev_x)
-        np_round = np.array(round)
-        # unsqueeze the np_round
-        np_round = np.expand_dims(np_round, axis=1)
         print(
-            f"np_x: {np_x.shape}, np_y: {np_y.shape}, np_prev_x: {np_prev_x.shape}, np_round: {np_round.shape}")
-
-        # concatenate the x and prev_x
-        np_x = np.concatenate((np_x, np_prev_x, np_round), axis=1)
+            f"np_x: {np_x.shape}, np_y: {np_y.shape}")
 
         if self.test_ratio is None:
             raise Exception("Please provide the test ratio")
 
         # Lets split the data into training and testing
         X_train, X_test, y_train, y_test = train_test_split(
-            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=False)
+            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=True)
 
         # print shapes
         logger.info(f"X_train: {X_train.shape}, X_test: {X_test.shape}")
@@ -185,44 +184,26 @@ class SurrogateModel:
 
     def get_all_samples(self, samples):
         x_data_list = []
-        prev_x_data_list = []
         y_data_list = []
-        round_list = []
         for key, sample in samples.items():
-            for round in range(0, len(sample)):
-                # if round == 1:
-                #     continue
-                x_data = sample[str(round)]['x_data']
-                prev_x_data = sample[str(round)]['prev_x_data']
-                y_data = sample[str(round)]['y_data']
-                round = sample[str(round)]['round']
-                x_data_list.append(x_data)
-                prev_x_data_list.append(prev_x_data)
-                y_data_list.append(y_data)
-                round_list.append(round)
+            x_data = sample['x_data']
+            y_data = sample['y_data']
+            x_data_list.append(x_data)
+            y_data_list.append(y_data)
 
-        return x_data_list, y_data_list, prev_x_data_list, round_list
+        return x_data_list, y_data_list
 
     def get_sample(self, samples, weights: tuple):
         x_data_list = []
-        prev_x_data_list = []
         y_data_list = []
-        round_list = []
         for key, sample in samples.items():
             if key == weights:
-                for round in range(0, len(sample)):
-                    # if round == 1:
-                    #     continue
-                    x_data = sample[str(round)]['x_data']
-                    prev_x_data = sample[str(round)]['prev_x_data']
-                    y_data = sample[str(round)]['y_data']
-                    round = sample[str(round)]['round']
-                    x_data_list.append(x_data)
-                    prev_x_data_list.append(prev_x_data)
-                    y_data_list.append(y_data)
-                    round_list.append(round)
+                x_data = sample['x_data']
+                y_data = sample['y_data']
+                x_data_list.append(x_data)
+                y_data_list.append(y_data)
 
-        return x_data_list, y_data_list, prev_x_data_list, round_list
+        return x_data_list, y_data_list
 
     def load_samples(self, data_dir):
         logger.info(f"Loading samples from: {data_dir}")
@@ -264,16 +245,8 @@ class SurrogateModel:
 
     def get_round_data(self, name, stats, normalized_names_values: int, normalized_energy_values: int):
         # Get the remaining energy
-        remaining_energy = stats['remaining_energy']/200
+        remaining_energy = stats['remaining_energy']/400
         assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
-
-        # Get the alive nodes
-        alive_nodes = stats['alive_nodes']/100
-        assert 0 <= alive_nodes <= 1, f"Invalid alive nodes: {alive_nodes}"
-
-        # Get the number of cluster heads
-        num_cluster_heads = stats['num_cluster_heads']/5
-        assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
 
         # Get the energy levels
         energy_levels = list(stats['energy_levels'].values())
@@ -283,9 +256,9 @@ class SurrogateModel:
                    1 for value in energy_levels), f"Invalid energy levels: {energy_levels}"
 
         x_data = [value / normalized_names_values for value in name] + \
-            [remaining_energy, num_cluster_heads]
+            [remaining_energy] + energy_levels
 
-        return x_data, alive_nodes, energy_levels
+        return x_data
 
     def generate_data(self):
         if self.raw_data_folder is None:
@@ -300,49 +273,20 @@ class SurrogateModel:
         normalized_samples = {}
         for name, data in files.items():
             normalized_samples[name] = {}
-            max_rounds = len(data)
 
+            # Get the time when the first node dies
             for round, stats in data.items():
-                round = int(round)
-                if round == max_rounds-1:
-                    continue
+                if stats['alive_nodes'] < 99:
+                    first_node_dies = round
+                    break
+            # File name
+            x_data = self.get_round_data(
+                name, data['0'], self.largest_weight, self.largest_energy_level)
 
-                rnd_data, y_data, energy_levels = self.get_round_data(
-                    name, stats, self.largest_weight, self.largest_energy_level)
-
-                prev_x_data = []
-                prev_round = round-1
-                # for prev_round in range(round-1, round-11, -1):
-                if prev_round < 0:
-                    prev_round_data = [1] * 2
-                    # Add the previous energy levels
-                    prev_round_data += [1] * 99
-                    # Add the previous alive nodes
-                    prev_round_data += [y_data]
-                    # Add the previous round
-                    prev_round_data += [-1]
-                else:
-                    prev_round_data = normalized_samples[name][str(
-                        prev_round)]['x_data']
-                    # Remove the first 3 elements
-                    prev_round_data = prev_round_data[3:]
-                    # Add the previous energy levels
-                    prev_round_data += normalized_samples[name][str(
-                        prev_round)]['energy_levels']
-                    # Add the previous alive nodes
-                    prev_round_data += [normalized_samples[name][str(
-                        prev_round)]['y_data']]
-                    # Add the previous round
-                    prev_round_data += [prev_round]
-                prev_x_data += prev_round_data
-
-                normalized_samples[name][str(round)] = {
-                    'x_data': rnd_data,
-                    'prev_x_data': prev_x_data,
-                    'y_data': y_data,
-                    'round': round/10000,
-                    'energy_levels': energy_levels
-                }
+            normalized_samples[name] = {
+                'x_data': x_data,
+                'y_data': first_node_dies
+            }
 
         os.makedirs(self.data_folder, exist_ok=True)
         for name, data in normalized_samples.items():
@@ -352,7 +296,7 @@ class SurrogateModel:
         return normalized_samples
 
     def get_model(self, load_model=False):
-        model = PolynomialModel(num_weights=109,
+        model = PolynomialModel(num_weights=103,
                                 hidden_dim=self.hidden_dim)
 
         if self.load_model:
@@ -368,8 +312,8 @@ class SurrogateModel:
             logger.info(f"Creating new model")
             # Lets make sure that the folder to save the model exists
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-
-        criterion = nn.MSELoss()
+        # Huber loss
+        criterion = nn.SmoothL1Loss()
         optimizer = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate)
 
@@ -459,17 +403,11 @@ class SurrogateModel:
             weights = tuple(weights)
             # Load the data
             samples = self.load_data()
-            x, y, prev_x, round = self.get_sample(
+            x, y = self.get_sample(
                 samples, weights=weights)
             np_x = np.array(x)
             np_y = np.array(y)
-            np_prev_x = np.array(prev_x)
-            np_round = np.array(round)
-            # unsqueeze the np_round
-            np_round = np.expand_dims(np_round, axis=1)
 
-            # Concatenate the weights and current_membership
-            np_x = np.concatenate((np_x, np_prev_x, np_round), axis=1)
             self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
@@ -496,9 +434,12 @@ class SurrogateModel:
                 predictions.append(outputs.squeeze())
         logger.info(f"Average Loss: {np.mean(losses)}")
         if print_output:
+            # Create a bar plot for both target and predictions
+            # The two bars should be next to each other
             plt.figure()
-            plt.plot(target, label="Target")
-            plt.plot(predictions, label="Predictions")
+            plt.bar(0, target, label="Target")
+            plt.bar(2, predictions,
+                    label="Predictions")
             plt.legend()
             plt.savefig(os.path.join(
                 self.plots_folder, f"target_predictions.png"))
