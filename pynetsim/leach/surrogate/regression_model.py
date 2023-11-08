@@ -44,40 +44,25 @@ class NetworkDataset(Dataset):
 
 
 class PolynomialModel(nn.Module):
-    def __init__(self, degree, num_weights, hidden_dim=10):
+    def __init__(self, num_weights, hidden_dim):
         super(PolynomialModel, self).__init__()
-        self._degree = degree
-        self.ply = nn.Linear(self._degree, hidden_dim)
+        # self._degree = degree
+        # self.ply = nn.Linear(self._degree, hidden_dim)
         self.weight = nn.Linear(num_weights, hidden_dim)
-        self.output = nn.Linear(hidden_dim * 2, 1)
+        self.output = nn.Linear(hidden_dim, 1)
 
-        # activation function
-        self.relu = nn.ReLU()
-
-    def forward(self, weight, round):
-        features = self._polynomial_features(round)
-        features = self.ply(features)
-
-        # activation function
-        features = self.relu(features)
-
+    def forward(self, input_weight):
         # Weights layer
-        weight = self.weight(weight)
-
-        # activation function
-        weight = self.relu(weight)
-
-        # concatenate the features and weights
-        features = torch.cat([features, weight], 1)
+        weight = self.weight(input_weight)
 
         # output layer
-        features = self.output(features)
+        features = self.output(weight)
 
         return features
 
-    def _polynomial_features(self, round):
-        # print(f"_polynomial_features: {x}, {x.shape}")
-        return torch.cat([round ** i for i in range(1, self._degree + 1)], 1)
+    # def _polynomial_features(self, round):
+    #     # print(f"_polynomial_features: {x}, {x.shape}")
+    #     return torch.cat([round ** i for i in range(1, self._degree + 1)], 1)
 
 
 class SurrogateModel:
@@ -154,14 +139,6 @@ class SurrogateModel:
 
         logger.info(f"Number of samples: {len(samples)}")
 
-        # x = torch.linspace(-math.pi, math.pi, steps=20, dtype=torch.float)
-        # cubic_y = x ** 3 + 2 * x ** 2 - 3 * x + 5
-        # sine_y = torch.sin(x)
-
-        # x = x.reshape(-1, 1)
-        # cubic_y = cubic_y.reshape(-1, 1)
-        # sine_y = sine_y.reshape(-1, 1)
-
         # Split the data into training and testing
         X_train, X_test, Y_train, Y_test = self.split_data(samples)
         # Create the training dataset
@@ -230,6 +207,7 @@ class SurrogateModel:
         x_data_list = []
         prev_x_data_list = []
         y_data_list = []
+        round_list = []
         for key, sample in samples.items():
             if key == weights:
                 for round in range(0, len(sample)):
@@ -238,11 +216,13 @@ class SurrogateModel:
                     x_data = sample[str(round)]['x_data']
                     prev_x_data = sample[str(round)]['prev_x_data']
                     y_data = sample[str(round)]['y_data']
+                    round = sample[str(round)]['round']
                     x_data_list.append(x_data)
                     prev_x_data_list.append(prev_x_data)
                     y_data_list.append(y_data)
+                    round_list.append(round)
 
-        return x_data_list, y_data_list, prev_x_data_list
+        return x_data_list, y_data_list, prev_x_data_list, round_list
 
     def load_samples(self, data_dir):
         logger.info(f"Loading samples from: {data_dir}")
@@ -282,7 +262,7 @@ class SurrogateModel:
                 samples[name] = data
         return samples
 
-    def get_round_data(self, name, stats, normalized_names_values: int):
+    def get_round_data(self, name, stats, normalized_names_values: int, normalized_energy_values: int):
         # Get the remaining energy
         remaining_energy = stats['remaining_energy']/200
         assert 0 <= remaining_energy <= 1, f"Invalid remaining energy: {remaining_energy}"
@@ -295,10 +275,17 @@ class SurrogateModel:
         num_cluster_heads = stats['num_cluster_heads']/5
         assert 0 <= num_cluster_heads <= 1, f"Invalid num cluster heads: {num_cluster_heads}"
 
+        # Get the energy levels
+        energy_levels = list(stats['energy_levels'].values())
+        energy_levels = [
+            value / normalized_energy_values for value in energy_levels]
+        assert all(-1 <= value <=
+                   1 for value in energy_levels), f"Invalid energy levels: {energy_levels}"
+
         x_data = [value / normalized_names_values for value in name] + \
             [remaining_energy, num_cluster_heads]
 
-        return x_data, alive_nodes
+        return x_data, alive_nodes, energy_levels
 
     def generate_data(self):
         if self.raw_data_folder is None:
@@ -320,25 +307,41 @@ class SurrogateModel:
                 if round == max_rounds-1:
                     continue
 
-                rnd_data, y_data = self.get_round_data(
-                    name, stats, self.largest_weight)
+                rnd_data, y_data, energy_levels = self.get_round_data(
+                    name, stats, self.largest_weight, self.largest_energy_level)
 
                 prev_x_data = []
-                for prev_round in range(round-1, round-11, -1):
-                    if prev_round < 0:
-                        prev_round_data = [0 for _ in range(len(rnd_data)-3)]
-                    else:
-                        prev_round_data = normalized_samples[name][str(
-                            prev_round)]['x_data']
-                        # Remove the first 3 elements
-                        prev_round_data = prev_round_data[3:]
-                    prev_x_data += prev_round_data
+                prev_round = round-1
+                # for prev_round in range(round-1, round-11, -1):
+                if prev_round < 0:
+                    prev_round_data = [1] * 2
+                    # Add the previous energy levels
+                    prev_round_data += [1] * 99
+                    # Add the previous alive nodes
+                    prev_round_data += [y_data]
+                    # Add the previous round
+                    prev_round_data += [-1]
+                else:
+                    prev_round_data = normalized_samples[name][str(
+                        prev_round)]['x_data']
+                    # Remove the first 3 elements
+                    prev_round_data = prev_round_data[3:]
+                    # Add the previous energy levels
+                    prev_round_data += normalized_samples[name][str(
+                        prev_round)]['energy_levels']
+                    # Add the previous alive nodes
+                    prev_round_data += [normalized_samples[name][str(
+                        prev_round)]['y_data']]
+                    # Add the previous round
+                    prev_round_data += [prev_round]
+                prev_x_data += prev_round_data
 
                 normalized_samples[name][str(round)] = {
                     'x_data': rnd_data,
                     'prev_x_data': prev_x_data,
                     'y_data': y_data,
-                    'round': round
+                    'round': round/10000,
+                    'energy_levels': energy_levels
                 }
 
         os.makedirs(self.data_folder, exist_ok=True)
@@ -349,7 +352,8 @@ class SurrogateModel:
         return normalized_samples
 
     def get_model(self, load_model=False):
-        model = PolynomialModel(degree=3, num_weights=25, hidden_dim=100)
+        model = PolynomialModel(num_weights=109,
+                                hidden_dim=self.hidden_dim)
 
         if self.load_model:
             if self.model_path is None:
@@ -390,8 +394,6 @@ class SurrogateModel:
                     optimizer.zero_grad()
                     # print(f"Input shape: {input_data.shape}")
                     # print(f"Target shape: {target_data.shape}")
-                    weight_data = input_data[:, :-1]
-                    round_data = input_data[:, -1:]
                     target_data = target_data.unsqueeze(1)
                     # print(f"Weight data: {weight_data}, {weight_data.shape}")
                     # print(f"Round data: {round_data}, {round_data.shape}")
@@ -399,7 +401,7 @@ class SurrogateModel:
                     # print(
                     #     f"Categorical data: {categorical_data}, {categorical_data.shape}")
                     # print(f"Target data: {target_data}, {target_data.shape}")
-                    outputs = model(weight=weight_data, round=round_data)
+                    outputs = model(input_weight=input_data)
                     # input(f"Outputs: {outputs}, {outputs.shape}")
                     loss = criterion(outputs, target_data)
                     loss.backward()
@@ -417,10 +419,9 @@ class SurrogateModel:
                 model.eval()
                 with torch.no_grad():
                     for input_data, target_data in self.testing_dataloader:
-                        weight_data = input_data[:, :-1]
-                        round_data = input_data[:, -1:]
                         target_data = target_data.unsqueeze(1)
-                        outputs = model(weight=weight_data, round=round_data)
+                        outputs = model(
+                            input_weight=input_data)
                         loss = criterion(outputs, target_data)
                         validation_losses.append(loss.item())
                 avg_val_loss = np.mean(validation_losses)
@@ -439,6 +440,7 @@ class SurrogateModel:
                 plt.legend()
                 plt.savefig(os.path.join(
                     self.plots_folder, f"train_validation_loss_classification.png"))
+                plt.close()
 
         return model
 
@@ -450,43 +452,54 @@ class SurrogateModel:
 
         model, criterion, _ = self.get_model(load_model=True)
 
-        x = torch.linspace(-math.pi, math.pi, steps=20, dtype=torch.float)
-        cubic_y = x ** 3 + 2 * x ** 2 - 3 * x + 5
-        sine_y = torch.sin(x)
+        if weights is not None:
+            if batch is not None:
+                self.batch_size = batch
+            # Convert weights to tuple
+            weights = tuple(weights)
+            # Load the data
+            samples = self.load_data()
+            x, y, prev_x, round = self.get_sample(
+                samples, weights=weights)
+            np_x = np.array(x)
+            np_y = np.array(y)
+            np_prev_x = np.array(prev_x)
+            np_round = np.array(round)
+            # unsqueeze the np_round
+            np_round = np.expand_dims(np_round, axis=1)
 
-        x = x.reshape(-1, 1)
-        cubic_y = cubic_y.reshape(-1, 1)
-        sine_y = sine_y.reshape(-1, 1)
+            # Concatenate the weights and current_membership
+            np_x = np.concatenate((np_x, np_prev_x, np_round), axis=1)
+            self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
+            # recreate the dataloader
+            self.testing_dataloader = DataLoader(
+                self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
 
-        self.testing_dataset = NetworkDataset(x=x, y=sine_y)
-
-        # Create the testing dataloader
-        self.testing_dataloader = DataLoader(
-            self.testing_dataset, batch_size=batch, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
+        elif batch is not None:
+            self.batch_size = batch
+            # recreate the dataloader
+            self.testing_dataloader = DataLoader(
+                self.testing_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
 
         model.eval()
         losses = []
-        true_data = []
+        target = []
         predictions = []
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
-                X = input_data
-                y = target_data
-                output = model(x=X)
-                loss = criterion(output, y)
+                target_data = target_data.unsqueeze(1)
+                outputs = model(
+                    input_weight=input_data)
+                loss = criterion(outputs, target_data)
                 losses.append(loss.item())
-                # squeeze the output
-                output = output.squeeze()
-                y = y.squeeze()
-                predictions.append(output)
-                true_data.append(y)
+                target.append(target_data.squeeze())
+                predictions.append(outputs.squeeze())
         logger.info(f"Average Loss: {np.mean(losses)}")
-        # print shapes
-        logger.info(f"True data shape: {np.array(true_data).shape}")
-        logger.info(f"Predictions shape: {np.array(predictions).shape}")
-        # plot the true data
-        plt.figure()
-        plt.plot(true_data, label="True Data")
-        plt.plot(predictions, label="Predictions")
-        plt.legend()
-        plt.show()
+        if print_output:
+            plt.figure()
+            plt.plot(target, label="Target")
+            plt.plot(predictions, label="Predictions")
+            plt.legend()
+            plt.savefig(os.path.join(
+                self.plots_folder, f"target_predictions.png"))
+            plt.close()
