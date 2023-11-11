@@ -13,7 +13,7 @@ surrogate:
   weight_decay: 0.001
   drop_out: 0.5
   batch_size: 128
-  learning_rate: 0.001
+  learning_rate: 0.0001
   test_ratio: 0.2
   # This is the largest weight value for alpha, beta, and gamma
   largest_weight: 10
