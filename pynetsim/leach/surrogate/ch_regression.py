@@ -25,9 +25,8 @@ logger = logger_utility.get_logger()
 class NetworkDataset(Dataset):
     def __init__(self, x, y):
         self.X = torch.from_numpy(x.astype(np.float32))
-        self.y = torch.from_numpy(y.astype(np.int64))
+        self.y = torch.from_numpy(y.astype(np.float32))
         self.len = x.shape[0]
-        print(f"len: {self.len}")
         logger.info(f"X: {self.X.shape}, y: {self.y.shape}")
 
     def __len__(self):
@@ -47,63 +46,23 @@ class ClusterHeadModel(nn.Module):
     def __init__(self):
         super(ClusterHeadModel, self).__init__()
 
-        self.input_layer = nn.Linear(304, 500)
+        self.input_layer = nn.Linear(303, 400)
         self.relu = nn.ReLU()
-        self.output_layer = nn.Linear(500, 101)
-        self.softmax = nn.Softmax(dim=1)
+        self.output_layer = nn.Linear(400, 106)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        # print(f"Input data: {x}, {x.shape}")
-        input_data = x
-        # Expand the input_data to [Batch, 5, 205], where in the last dimension we add a number from 1 to 5
-        ch_input_data = input_data.unsqueeze(1).expand(
-            (-1, 5, input_data.shape[1]))
-        # print(f"ch_input_data shape: {ch_input_data.shape}")
-        # [Batch, 5, 303]
-
-        # Now lets add the cluster head number so the input data has shape [Batch, 5, 205]
-        cluster_head_number = torch.arange(
-            1, 6).unsqueeze(0).expand((ch_input_data.shape[0], 5)).unsqueeze(2)
-        # print(f"cluster_head_number shape: {cluster_head_number.shape}")
-        # [Batch, 5, 1]
-
-        # Normalize the cluster_head_number by dividing by 5
-        cluster_head_number = cluster_head_number / 5
-
-        # Lets concatenate the cluster_head_number to the ch_input_data
-        ch_input_data = torch.cat((ch_input_data, cluster_head_number), dim=2)
-        # print(f"ch_input_data shape: {ch_input_data.shape}")
-        # [Batch, 5, 304]
-
-        # Lets print the ch_input_data
-        # print(f"ch_input_data: {ch_input_data}, {ch_input_data.shape}")
-
-        # Pass the input data through the cluster heads prediction layer
-        ch_output = self.input_layer(ch_input_data)
-        # print(f"ch_output: {ch_output}, {ch_output.shape}")
-
-        # Pass the output through the relu activation function
-        ch_output = self.relu(ch_output)
-
-        # Pass the output through the output layer
-        ch_output = self.output_layer(ch_output)
-
-        # Pass the output through the softmax activation function
-        ch_output = self.softmax(ch_output)
-
-        # print(f"ch_output: {ch_output}, {ch_output.shape}")
-
-        # # Reshape the output to [batch*5, 101]
-        # ch_output = ch_output.reshape(
-        #     (ch_output.shape[0]*ch_output.shape[1], ch_output.shape[2]))
-
-        return ch_output
+        x = self.input_layer(x)
+        x = self.relu(x)
+        x = self.output_layer(x)
+        x = self.sigmoid(x)
+        return x
 
 
 class SurrogateModel:
 
     def __init__(self, config):
-        self.name = "Cluster Head Model"
+        self.name = "Cluster Head Regression Model"
         self.config = config
         self.lstm_arch = config.surrogate.lstm_arch
         self.epochs = self.config.surrogate.epochs
@@ -163,8 +122,6 @@ class SurrogateModel:
 
     def init(self):
         self.print_config()
-        # Create the folder to save the model if it does not exist
-        # os.makedirs(self.model_path, exist_ok=True)
 
         # Create the folder to save the plots
         os.makedirs(self.plots_folder, exist_ok=True)
@@ -197,26 +154,26 @@ class SurrogateModel:
 
     def split_data(self, samples):
         # Get all the samples
-        x, y, prev_x, y_chs = self.get_all_samples(samples)
+        x, y = self.get_all_samples(samples)
         # print shapes
         np_x = np.array(x)
         np_y = np.array(y)
-        np_prev_x = np.array(prev_x)
-        np_y_chs = np.array(y_chs)
 
         # print y shape
-        logger.info(f"np_y_chs: {np_y_chs.shape}")
+        logger.info(f"np_y_chs: {np_y.shape}")
 
-        # np_y = np.eye(self.num_clusters+1)[np_y_chs.astype(int)]
-
-        # print(f"np_y eye: {np_y.shape}")
+        # Create target array with higher likelihoods for nodes in np_y_chs
+        np_y_ext = np.zeros(
+            (np_y.shape[0], self.num_clusters+1+5))
+        for i in range(np_y.shape[0]):
+            np_y_ext[i, np_y[i]] = 1
 
         if self.test_ratio is None:
             raise Exception("Please provide the test ratio")
 
         # Lets split the data into training and testing
         X_train, X_test, y_train, y_test = train_test_split(
-            np_x, np_y_chs, test_size=self.test_ratio, random_state=42, shuffle=True)
+            np_x, np_y_ext, test_size=self.test_ratio, random_state=42, shuffle=True)
 
         # print shapes
         logger.info(f"X_train: {X_train.shape}, X_test: {X_test.shape}")
@@ -302,56 +259,27 @@ class SurrogateModel:
                 rnd_data = self.get_round_data(
                     name, stats, normalized_names_values, normalized_membership_values, normalized_energy_values, normalized_dst_to_ch_values)
 
-                # Lets attached 10 past experiences
-                prev_x_data = []
-                prev_round = round - 1
-                # for prev_round in range(round-1, round-11, -1):
-                if prev_round < 0:
-                    prev_round_data = [1] * 99
-                    prev_round_data += [1] * 99
-                    prev_round_data += [1]
-                    prev_round_data += [1]
-                    prev_round_data += [1]
-                    prev_round_data += [1] * 99
-
-                else:
-                    prev_round_data = normalized_samples[name][str(
-                        prev_round)]['x_data']
-                    # Remove the first 3 elements
-                    prev_round_data = prev_round_data[3:]
-                prev_x_data = [0]
-
                 next_round = round + 1
-                next_round_membership = [0 if cluster_id is None else int(
-                    cluster_id) for _, cluster_id in data[str(next_round)]['membership'].items()]
 
                 # Get the cluster heads
                 if not data[str(next_round)]['cluster_heads']:
-                    next_round_chs = [0] * 5
+                    next_round_chs = []
+                    for i in range(5):
+                        next_round_chs.append(self.num_clusters+i+1)
                 else:
                     next_round_chs = data[str(next_round)]['cluster_heads']
-                    if len(next_round_chs) < 5:
-                        next_round_chs += [0] * (5-len(next_round_chs))
+                    count = 1
+                    while len(next_round_chs) < 5:
+                        value = self.num_clusters+count
+                        if value not in next_round_chs:
+                            next_round_chs.append(value)
+                        count += 1
 
                 assert len(
                     next_round_chs) == 5, f"Invalid chs: {next_round_chs}"
 
-                # Remove the sink
-                next_round_membership = next_round_membership[1:]
-
-                y_data = next_round_membership
-
-                assert len(y_data) == 99, f"Invalid y_data: {y_data}"
-
-                # assert all(-1 <= value <=
-                #            1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
-                assert all(
-                    0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
-
                 normalized_samples[name][str(round)] = {
                     "x_data": rnd_data,
-                    "prev_x_data": prev_x_data,
-                    "y_data": y_data,
                     "y_chs": next_round_chs,
                 }
 
@@ -393,41 +321,28 @@ class SurrogateModel:
 
     def get_all_samples(self, samples):
         x_data_list = []
-        prev_x_data_list = []
-        y_data_list = []
         y_chs_list = []
-        for key, sample in samples.items():
+        for _, sample in samples.items():
             for round in range(0, len(sample)):
-                # if round == 1:
-                #     continue
                 x_data = sample[str(round)]['x_data']
-                prev_x_data = sample[str(round)]['prev_x_data']
-                y_data = sample[str(round)]['y_data']
                 y_chs = sample[str(round)]['y_chs']
                 x_data_list.append(x_data)
-                prev_x_data_list.append(prev_x_data)
-                y_data_list.append(y_data)
                 y_chs_list.append(y_chs)
 
-        return x_data_list, y_data_list, prev_x_data_list, y_chs_list
+        return x_data_list, y_chs_list
 
     def get_sample(self, samples, weights: tuple):
         x_data_list = []
-        prev_x_data_list = []
-        y_data_list = []
+        y_chs_list = []
         for key, sample in samples.items():
             if key == weights:
                 for round in range(0, len(sample)):
-                    # if round == 1:
-                    #     continue
                     x_data = sample[str(round)]['x_data']
-                    prev_x_data = sample[str(round)]['prev_x_data']
-                    y_data = sample[str(round)]['y_data']
+                    y_chs = sample[str(round)]['y_chs']
                     x_data_list.append(x_data)
-                    prev_x_data_list.append(prev_x_data)
-                    y_data_list.append(y_data)
+                    y_chs_list.append(y_chs)
 
-        return x_data_list, y_data_list, prev_x_data_list
+        return x_data_list, y_chs_list
 
     def get_model(self, load_model=False):
         model = ClusterHeadModel()
@@ -446,7 +361,7 @@ class SurrogateModel:
             # Lets make sure that the folder to save the model exists
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCELoss()
         optimizer = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate)
 
@@ -469,20 +384,9 @@ class SurrogateModel:
                     f"[cyan]Training (epoch {epoch}/{self.epochs})", total=len(self.training_dataloader))
                 for input_data, target_data in self.training_dataloader:
                     optimizer.zero_grad()
-                    # print(f"Target data: {target_data}, {target_data.shape}")
-                    # [batch, 5]
-                    # We need to reshape the target data to [batch, 5, 1]
-                    # target_data = target_data.unsqueeze(2)
-                    # print(f"Target data: {target_data}, {target_data.shape}")
-                    # Argmax to get the actual cluster head
-                    # target_data_argmax = torch.argmax(target_data, dim=2)
-                    # print(f"target_data_argmax data: {target_data_argmax}, {target_data_argmax.shape}")
                     chs = model(
                         x=input_data)
-                    # input(f"chs: {chs}, {chs.shape}")
-                    # chs_argmax = torch.argmax(chs, dim=2)
-                    # input(f"chs_argmax: {chs_argmax}, {chs_argmax.shape}")
-                    loss = criterion(chs.view(-1, 101), target_data.view(-1))
+                    loss = criterion(chs, target_data)
                     loss.backward()
                     optimizer.step()
                     train_losses.append(loss.item())
@@ -500,8 +404,7 @@ class SurrogateModel:
                     for input_data, target_data in self.testing_dataloader:
                         chs = model(
                             x=input_data)
-                        loss = criterion(chs.view(-1, 101),
-                                         target_data.view(-1))
+                        loss = criterion(chs, target_data)
                         validation_losses.append(loss.item())
                 avg_val_loss = np.mean(validation_losses)
                 if avg_val_loss < best_loss:
@@ -523,27 +426,33 @@ class SurrogateModel:
         return model
 
     def test_predicted_sample(self, y, output, print_output=False):
-        # print(f"Y: {y}, shape: {y.shape}")
-        # print(f"Output: {output}, shape: {output.shape}")
-        # Convert one hot encoded to categorical
-        # _, predicted = torch.max(output.data, 1)
-        # print(f"Predicted: {predicted}")
-        # argmax the output
-        predicted = torch.argmax(output, dim=2)
-        # print(f"Predicted 1: {predicted}")
-        correct = (predicted == y).sum().item()
-        total = np.prod(y.shape)
-        if print_output:
-            logger.info(f"Y: {y}, chs: {np.unique(y)}")
-            logger.info(f"Predicted: {predicted}, chs: {np.unique(predicted)}")
-            # get the index where the values are equal
-            index = np.where(y == predicted)
-            logger.info(f"Correct index: {index}")
-            # get the index where the values are not equal
-            index = np.where(y != predicted)
-            logger.info(f"Incorrect index: {index}")
-            logger.info(f"Correct: {correct}, Total: {total}")
-            input("Press enter to continue")
+        _, y_indices = torch.topk(y, k=5, dim=1)
+        _, topk_indices = torch.topk(output, k=5, dim=1)
+        predicted = topk_indices
+        # to numpy
+        predicted = predicted.numpy()
+        # Sort the predicted
+        predicted.sort()
+        y = y_indices.numpy()
+        # sort the y
+        y.sort()
+        # How many y values are in the predicted
+        correct = 0
+        total = 0
+        for i in range(len(y)):
+            # how many values are in the predicted
+            correct += np.sum(np.isin(y[i], predicted[i]))
+            total += len(y[i])
+            if print_output:
+                logger.info(f"Y: {y[i]}, Predicted: {predicted[i]}")
+                # get the index where the values are equal
+                index = np.where(y[i] == predicted[i])
+                logger.info(f"Correct index: {index}")
+                # get the index where the values are not equal
+                index = np.where(y[i] != predicted[i])
+                logger.info(f"Incorrect index: {index}")
+                logger.info(f"Correct: {correct}, Total: {total}")
+                input("Press enter to continue")
         return correct, total
 
     def test(self, batch: int = None, print_output=False, weights: list = None):
@@ -561,19 +470,18 @@ class SurrogateModel:
             weights = tuple(weights)
             # Load the data
             samples = self.load_data()
-            x, y, prev_x = self.get_sample(
+            x, y = self.get_sample(
                 samples, weights=weights)
             np_x = np.array(x)
             np_y = np.array(y)
-            np_prev_x = np.array(prev_x)
 
-            # Lets one hot encode the y
-            # print(f"np_y: {np_y[0]}")
+            # Create target array with higher likelihoods for nodes in np_y_chs
+            np_y_ext = np.zeros(
+                (np_y.shape[0], self.num_clusters+1+5))
+            for i in range(np_y.shape[0]):
+                np_y_ext[i, np_y[i]] = 1
 
-            # Concatenate the weights and current_membership
-            # np_x = np.concatenate(
-            #     (np_x, np_prev_x), axis=1)
-            self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
+            self.testing_dataset = NetworkDataset(x=np_x, y=np_y_ext)
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
                 self.testing_dataset, batch_size=self.batch_size, shuffle=False, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
@@ -593,8 +501,15 @@ class SurrogateModel:
                 # temp = X[0]
                 # for i in range(0, len(temp), 209):
                 #     print(f"X {i/209}: {temp[i:i+209]}")
+                # print(f"Input data: {input_data}, shape: {input_data.shape}")
+                # print(
+                #     f"Target data: {target_data}, shape: {target_data.shape}")
+                # _, indices = torch.topk(target_data, k=5, dim=1)
+                # indices = indices.numpy()
+                # indices.sort()
+                # print(f"Indices: {indices}")
                 chs = model(x=input_data)
-                loss = criterion(chs.view(-1, 101), target_data.view(-1))
+                loss = criterion(chs, target_data)
                 losses.append(loss.item())
                 correct, total = self.test_predicted_sample(
                     target_data, chs, print_output)
