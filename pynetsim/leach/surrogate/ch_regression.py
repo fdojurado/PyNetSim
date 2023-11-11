@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import pynetsim.leach.surrogate as leach_surrogate
+
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
@@ -64,15 +66,10 @@ class SurrogateModel:
     def __init__(self, config):
         self.name = "Cluster Head Regression Model"
         self.config = config
-        self.lstm_arch = config.surrogate.lstm_arch
         self.epochs = self.config.surrogate.epochs
         self.hidden_dim = self.config.surrogate.hidden_dim
-        self.lstm_hidden = self.config.surrogate.lstm_hidden
         self.output_dim = self.config.surrogate.output_dim
         self.num_clusters = self.config.surrogate.num_clusters
-        self.num_embeddings = self.config.surrogate.num_embeddings
-        self.embedding_dim = self.config.surrogate.embedding_dim
-        self.numeral_dim = self.config.surrogate.numerical_dim
         self.weight_decay = self.config.surrogate.weight_decay
         self.drop_out = self.config.surrogate.drop_out
         self.batch_size = self.config.surrogate.batch_size
@@ -91,47 +88,19 @@ class SurrogateModel:
         self.plot_every = self.config.surrogate.plot_every
         self.eval_every = self.config.surrogate.eval_every
 
-    def print_config(self):
-        # print all the config values
-        logger.info(f"NN model: {self.name}")
-        logger.info(f"lstm_arch: {self.lstm_arch}")
-        logger.info(f"epochs: {self.epochs}")
-        logger.info(f"hidden_dim: {self.hidden_dim}")
-        logger.info(f"lstm_hidden: {self.lstm_hidden}")
-        logger.info(f"output_dim: {self.output_dim}")
-        logger.info(f"num_clusters: {self.num_clusters}")
-        logger.info(f"num_embeddings: {self.num_embeddings}")
-        logger.info(f"embedding_dim: {self.embedding_dim}")
-        logger.info(f"numeral_dim: {self.numeral_dim}")
-        logger.info(f"weight_decay: {self.weight_decay}")
-        logger.info(f"drop_out: {self.drop_out}")
-        logger.info(f"batch_size: {self.batch_size}")
-        logger.info(f"learning_rate: {self.learning_rate}")
-        logger.info(f"test_ratio: {self.test_ratio}")
-        logger.info(f"largest_weight: {self.largest_weight}")
-        logger.info(f"largest_energy_level: {self.largest_energy_level}")
-        logger.info(f"num_workers: {self.num_workers}")
-        logger.info(f"load_model: {self.load_model}")
-        logger.info(f"model_path: {self.model_path}")
-        logger.info(f"raw_data_folder: {self.raw_data_folder}")
-        logger.info(f"data_folder: {self.data_folder}")
-        logger.info(f"plots_folder: {self.plots_folder}")
-        logger.info(f"print_every: {self.print_every}")
-        logger.info(f"plot_every: {self.plot_every}")
-        logger.info(f"eval_every: {self.eval_every}")
-
     def init(self):
-        self.print_config()
+        leach_surrogate.print_config(self.config, surrogate_name=self.name)
 
         # Create the folder to save the plots
         os.makedirs(self.plots_folder, exist_ok=True)
 
         # if data_path is not provided, then we need to generate the data
         if self.config.surrogate.generate_data:
-            samples = self.generate_data()
+            samples = leach_surrogate.generate_data(
+                func=self.process_data, config=self.config)
         else:
             # Load the data
-            samples = self.load_data()
+            samples = leach_surrogate.load_data(self.data_folder)
 
         logger.info(f"Number of samples: {len(samples)}")
 
@@ -180,30 +149,6 @@ class SurrogateModel:
 
         return X_train, X_test, y_train, y_test
 
-    def generate_data(self):
-        if self.raw_data_folder is None:
-            raise Exception(
-                "Please provide the path to the raw data folder to generate the data")
-        if self.data_folder is None:
-            raise Exception(
-                "Please provide the path to save the generated data")
-        # Load the data folder
-        files = self.load_files(self.raw_data_folder)
-        samples = self.normalize_data_cluster_heads(
-            files, normalized_names_values=self.largest_weight, normalized_membership_values=100,
-            normalized_energy_values=self.largest_energy_level, normalized_dst_to_ch_values=self.max_dst_to_ch)
-
-        return samples
-
-    def load_data(self):
-        if self.data_folder is None:
-            raise Exception(
-                "Please provide the path to the data folder to load the data")
-        # Load the data folder
-        samples = self.load_samples(self.data_folder)
-
-        return samples
-
     def get_round_data(self, name, stats, normalized_names_values: int, normalized_membership_values: int,
                        normalized_energy_values: int, normalized_dst_to_ch_values: int):
         energy_levels = list(stats['energy_levels'].values())
@@ -244,8 +189,11 @@ class SurrogateModel:
 
         return x_data
 
-    def normalize_data_cluster_heads(self, samples, normalized_names_values: int, normalized_membership_values: int,
-                                     normalized_energy_values: int, normalized_dst_to_ch_values: int):
+    def process_data(self, samples, config):
+        normalized_names_values = config.surrogate.largest_weight
+        normalized_membership_values = 100
+        normalized_energy_values = config.surrogate.largest_energy_level
+        normalized_dst_to_ch_values = config.surrogate.max_dst_to_ch
         normalized_samples = {}
         for name, data in samples.items():
             normalized_samples[name] = {}
@@ -289,35 +237,6 @@ class SurrogateModel:
                 json.dump(data, f)
 
         return normalized_samples
-
-    def load_files(self, data_dir):
-        samples = {}
-        for file in os.listdir(data_dir):
-            if file.startswith("LEACH-CE-E_") and not file.endswith("extended.json"):
-                name_parts = file.split("_")[1:]
-                name_parts[-1] = name_parts[-1].split(".json")[0]
-                name = tuple(name_parts)
-                name = tuple(float(part.replace("'", ""))
-                             for part in name_parts)
-
-                with open(os.path.join(data_dir, file), "r") as f:
-                    data = json.load(f)
-                samples[name] = data
-        return samples
-
-    def load_samples(self, data_dir):
-        logger.info(f"Loading samples from: {data_dir}")
-        samples = {}
-        for file in os.listdir(data_dir):
-            if file == ".DS_Store":
-                continue
-            with open(os.path.join(data_dir, file), "r") as f:
-                data = json.load(f)
-            # Remove single quotes and split by comma
-            name = tuple(float(x.replace("'", "")) for x in file.split(
-                ".json")[0].replace("(", "").replace(")", "").split(","))
-            samples[name] = data
-        return samples
 
     def get_all_samples(self, samples):
         x_data_list = []
@@ -497,17 +416,6 @@ class SurrogateModel:
         avg_accuracy = []
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
-                # Print the X every 209 elements in the array
-                # temp = X[0]
-                # for i in range(0, len(temp), 209):
-                #     print(f"X {i/209}: {temp[i:i+209]}")
-                # print(f"Input data: {input_data}, shape: {input_data.shape}")
-                # print(
-                #     f"Target data: {target_data}, shape: {target_data.shape}")
-                # _, indices = torch.topk(target_data, k=5, dim=1)
-                # indices = indices.numpy()
-                # indices.sort()
-                # print(f"Indices: {indices}")
                 chs = model(x=input_data)
                 loss = criterion(chs, target_data)
                 losses.append(loss.item())
