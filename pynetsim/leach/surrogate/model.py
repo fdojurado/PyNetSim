@@ -49,54 +49,129 @@ class MixedDataModel(nn.Module):
         self.num_classes = num_classes
         self.num_labels = num_labels
 
-        self.hidden_layer = nn.Linear(input_dim, hidden_dim)
+        # Cluster heads predictions sequential model
+        self.ch_layer = nn.Sequential(
+            nn.Linear(304, 500),
+            nn.ReLU(),
+            nn.Linear(500, 101),
+            nn.Softmax(dim=1)
+        )
 
-        # Output layer
-        self.output_layer = nn.Linear(
-            hidden_dim, self.num_classes*self.num_labels)
+        # Cluster assignment sequential model
+        self.ch_assignment_layer = nn.Sequential(
+            nn.Linear(309, 500),
+            nn.ReLU(),
+            nn.Linear(500, 101),
+            nn.Softmax(dim=1)
+        )
 
-        # Activation functions
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()  # Sigmoid for multi-label classification
+    def forward(self, x, next_chs: list = None):
 
-        # Dropout
-        # self.dropout = nn.Dropout(p=drop_out)
+        input_data = x
+        # input_data = input_data.unsqueeze(1)
+        # print(f"Input data shape: {input_data.shape}")
+        # [Batch, 303]
 
-    def forward(self, input_data):
+        # Get the membership which are the last 99 elements
+        # membership = input_data[:, -99:]
+        # print(f"Membership shape: {membership.shape}")
+        # [Batch, 99]
 
-        # print(f"Input shape: {input_data.shape}")
-        # [128, 202]
-        # We want to extend the input_data to [128, 101, 202]
-        input_data = input_data.unsqueeze(1)
-        # print(f"Input shape2: {input_data.shape}")
-        # [128, 1, 202]
+        # Get the first elements but not the last 99 elements
+        # input_data = input_data[:, :-99]
+        # print(f"Input data shape: {input_data.shape}")
+        # [Batch, 204]
 
-        # Pass through hidden layer
-        hidden_data = self.hidden_layer(input_data)
+        # Expand the input_data to [Batch, 5, 205], where in the last dimension we add a number from 1 to 5
+        ch_input_data = input_data.unsqueeze(1).expand(
+            (-1, 5, input_data.shape[1]))
+        # print(f"ch_input_data shape: {ch_input_data.shape}")
+        # [Batch, 5, 303]
 
-        # print(f"Hidden shape: {hidden_data.shape}")
-        # [128, 512]
+        # Now lets add the cluster head number so the input data has shape [Batch, 5, 205]
+        cluster_head_number = torch.arange(
+            1, 6).unsqueeze(0).expand((ch_input_data.shape[0], 5)).unsqueeze(2)
+        # print(f"cluster_head_number shape: {cluster_head_number.shape}")
+        # [Batch, 5, 1]
 
-        # Pass through the activation function
-        hidden_data = self.relu(hidden_data)
+        # Normalize the cluster_head_number by dividing by 5
+        cluster_head_number = cluster_head_number / 5
 
-        # dropout
-        # hidden_data = self.dropout(hidden_data)
+        # Lets concatenate the cluster_head_number to the ch_input_data
+        ch_input_data = torch.cat((ch_input_data, cluster_head_number), dim=2)
+        # print(f"ch_input_data shape: {ch_input_data.shape}")
+        # [Batch, 5, 304]
 
-        # Pass through output layer
-        output_data = self.output_layer(hidden_data)
+        # Lets print the ch_input_data
+        # print(f"ch_input_data: {ch_input_data}, {ch_input_data.shape}")
 
-        # Reshape the output to [128, 101, 5]
-        output_data = output_data.view(-1, self.num_labels, self.num_classes)
+        # Pass the input data through the cluster heads prediction layer
+        ch_output = self.ch_layer(ch_input_data)
+        # print(f"ch_output: {ch_output}, {ch_output.shape}")
 
-        # print(f"Output shape0: {output_data.shape}")
+        # print(f"membership: {membership}, {membership.shape}")
+        if next_chs is not None:
+            # Lets concatenate the next_chs
+            next_chs = torch.argmax(next_chs, dim=2).float()
+            next_chs = next_chs / 100
+            # print(f"next_chs: {next_chs}, {next_chs.shape}")
+            ch_assign_input = torch.cat((next_chs, x), dim=1)
+            # Expand the ch_assign_input to [Batch, 99, 308], where in the last dimension we add a number from 1 to 99
+            ch_assign_input = ch_assign_input.unsqueeze(1).expand(
+                (-1, 99, ch_assign_input.shape[1]))
+            # print(f"ch_assign_input shape: {ch_assign_input.shape}")
+            # [Batch, 99, 308]
 
-        # Pass through the activation function
-        output_data = self.sigmoid(output_data)
+            # Now lets add the Node ID so the input data has shape [Batch, 99, 309]
+            node_id = torch.arange(
+                1, 100).unsqueeze(0).expand((ch_assign_input.shape[0], 99)).unsqueeze(2)
+            # print(f"node_id shape: {node_id.shape}")
+            # [Batch, 99, 1]
 
-        # input(f"Output shape: {output_data.shape}")
+            # Normalize the node_id by dividing by 99
+            node_id = node_id / 99
 
-        return output_data
+            # Lets concatenate the node_id to the ch_assign_input
+            ch_assign_input = torch.cat(
+                (ch_assign_input, node_id), dim=2)
+            # [Batch, 99, 309]
+            # print(f"ch assignment shape: {ch_assign_input.shape}")
+        else:
+            # Argmax the ch_output
+            ch_output_arg_max = torch.argmax(ch_output, dim=2).float()
+            print(
+                f"ch_output argmax: {ch_output_arg_max}, {ch_output_arg_max.shape}")
+            # Normalize the ch_output_arg_max by dividing by the number of classes
+            ch_output_arg_max = ch_output_arg_max / 100
+            ch_assign_input = torch.cat(
+                (ch_output_arg_max, x), dim=1)
+            # Expand the ch_assign_input to [Batch, 99, 308], where in the last dimension we add a number from 1 to 99
+            ch_assign_input = ch_assign_input.unsqueeze(1).expand(
+                (-1, 99, ch_assign_input.shape[1]))
+            print(f"ch assignment  shape: {ch_assign_input.shape}")
+            # [Batch, 99, 308]
+
+            # Now lets add the cluster head number so the input data has shape [Batch, 99, 309]
+            node_id = torch.arange(
+                1, 100).unsqueeze(0).expand((ch_assign_input.shape[0], 99)).unsqueeze(2)
+            print(f"ch assignment  shape: {node_id.shape}")
+            # [Batch, 99, 1]
+
+            # Normalize the node_id by dividing by 99
+            node_id = node_id / 99
+
+            # Lets concatenate the cluster_head_number to the ch_assign_input
+            ch_assign_input = torch.cat(
+                (ch_assign_input, node_id), dim=2)
+            # [Batch, 99, 309]
+            print(f"ch assignment shape: {ch_assign_input.shape}")
+
+        # Pass the ch_assignment_input through the ch_assignment_layer
+        ch_assignment_output = self.ch_assignment_layer(ch_assign_input)
+        # print(
+        #     f"ch_assignment_output: {ch_assignment_output}, {ch_assignment_output.shape}")
+
+        return ch_output, ch_assignment_output
 
 
 class SurrogateModel:
@@ -194,19 +269,31 @@ class SurrogateModel:
 
     def split_data(self, samples):
         # Get all the samples
-        x, y, prev_x = self.get_all_samples(samples)
+        x, y, prev_x, y_chs = self.get_all_samples(samples)
         # print shapes
         np_x = np.array(x)
         np_y = np.array(y)
         np_prev_x = np.array(prev_x)
+        np_y_chs = np.array(y_chs)
 
         # Lets one hot encode the y
         # print(f"np_y: {np_y[0]}")
-        np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
+        # np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
 
         # Concatenate the weights and current_membership
-        np_x = np.concatenate(
-            (np_x, np_prev_x), axis=1)
+        # np_x = np.concatenate(
+        #     (np_x, np_prev_x), axis=1)
+        # print y shapes
+        print(f"np_y: {np_y.shape}")
+        print(f"np_y_chs: {np_y_chs.shape}")
+        # Concatenate the y and y_chs
+        np_y = np.concatenate(
+            (np_y, np_y_chs), axis=1)
+
+        print(f"np_y: {np_y.shape}")
+        np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
+
+        print(f"np_y eye: {np_y.shape}")
 
         if self.test_ratio is None:
             raise Exception("Please provide the test ratio")
@@ -346,13 +433,26 @@ class SurrogateModel:
                 next_round_membership = [0 if cluster_id is None else int(
                     cluster_id) for _, cluster_id in data[str(next_round)]['membership'].items()]
 
+                # Get the cluster heads
+                if not data[str(next_round)]['cluster_heads']:
+                    next_round_chs = [0] * 5
+                else:
+                    next_round_chs = data[str(next_round)]['cluster_heads']
+                    if len(next_round_chs) < 5:
+                        next_round_chs += [0] * (5-len(next_round_chs))
+
+                assert len(
+                    next_round_chs) == 5, f"Invalid chs: {next_round_chs}"
+
                 # Remove the sink
                 next_round_membership = next_round_membership[1:]
 
                 y_data = next_round_membership
 
-                assert all(-1 <= value <=
-                           1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
+                assert len(y_data) == 99, f"Invalid y_data: {y_data}"
+
+                # assert all(-1 <= value <=
+                #            1 for value in rnd_data), f"Invalid x_data: {rnd_data}"
                 assert all(
                     0 <= value <= self.num_clusters for value in y_data), f"Invalid y_data: {y_data}"
 
@@ -360,7 +460,7 @@ class SurrogateModel:
                     "x_data": rnd_data,
                     "prev_x_data": prev_x_data,
                     "y_data": y_data,
-                    # "membership": current_membership
+                    "y_chs": next_round_chs,
                 }
 
         os.makedirs(self.data_folder, exist_ok=True)
@@ -458,6 +558,7 @@ class SurrogateModel:
         x_data_list = []
         prev_x_data_list = []
         y_data_list = []
+        y_chs_list = []
         for key, sample in samples.items():
             for round in range(0, len(sample)):
                 # if round == 1:
@@ -465,11 +566,13 @@ class SurrogateModel:
                 x_data = sample[str(round)]['x_data']
                 prev_x_data = sample[str(round)]['prev_x_data']
                 y_data = sample[str(round)]['y_data']
+                y_chs = sample[str(round)]['y_chs']
                 x_data_list.append(x_data)
                 prev_x_data_list.append(prev_x_data)
                 y_data_list.append(y_data)
+                y_chs_list.append(y_chs)
 
-        return x_data_list, y_data_list, prev_x_data_list
+        return x_data_list, y_data_list, prev_x_data_list, y_chs_list
 
     def get_sample(self, samples, weights: tuple):
         x_data_list = []
@@ -510,17 +613,18 @@ class SurrogateModel:
             # Lets make sure that the folder to save the model exists
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-        criterion = nn.BCELoss()
+        criterion_chs = nn.BCELoss()
+        criterion_ch_assign = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate)
 
-        return model, criterion, optimizer
+        return model, criterion_chs, criterion_ch_assign, optimizer
 
     def train(self):
         if self.model_path is None:
             raise Exception("Please provide the path to save the model")
 
-        model, criterion, optimizer = self.get_model()
+        model, criterion_chs, criterion_ch_assign, optimizer = self.get_model()
 
         best_loss = float("inf")
         train_losses = []
@@ -533,14 +637,37 @@ class SurrogateModel:
                     f"[cyan]Training (epoch {epoch}/{self.epochs})", total=len(self.training_dataloader))
                 for input_data, target_data in self.training_dataloader:
                     optimizer.zero_grad()
-                    # print(f"Input shape: {input_data.shape}")
-                    # print(f"Target shape: {target_data.shape}")
+                    # The cluster head target which is the last 5 elements
+                    chs_target = target_data[:, -5:]
+                    # The cluster assignment target which is the first 99 elements
+                    chs_assign_target = target_data[:, :-5]
+                    # print(
+                    #     f"chs_target: {chs_target}, {chs_target.shape}")
+                    # argmax to find the cluster heads
+                    # chs_target_argmax = torch.argmax(
+                    #     chs_target, dim=2).long()
+                    # print(
+                    #     f"chs_target_argmax 2: {chs_target_argmax}, {chs_target_argmax.shape}")
+                    # print(
+                    #     f"chs_assign_target: {chs_assign_target}, {chs_assign_target.shape}")
+                    # argmax to find the membership
+                    # chs_assign_target_argmax = torch.argmax(
+                    #     chs_assign_target, dim=2).long()
+                    # print(
+                    #     f"chs_assign_target_argmax: {chs_assign_target_argmax}, {chs_assign_target_argmax.shape}")
                     # print(
                     #     f"Categorical data: {categorical_data}, {categorical_data.shape}")
                     # print(f"Target data: {target_data}, {target_data.shape}")
-                    outputs = model(input_data=input_data)
-                    # input(f"Outputs: {outputs}, {outputs.shape}")
-                    loss = criterion(outputs, target_data)
+                    chs, chs_assign = model(
+                        x=input_data, next_chs=chs_target)
+                    # print(f"chs predicted: {chs}, {chs.shape}")
+                    # input(
+                    #     f"chs_assign predicted: {chs_assign}, {chs_assign.shape}")
+                    loss_ch = criterion_chs(chs, chs_target)
+                    loss_ch_assign = criterion_ch_assign(
+                        chs_assign, chs_assign_target)
+                    # Sum the losses
+                    loss = loss_ch + loss_ch_assign
                     loss.backward()
                     optimizer.step()
                     train_losses.append(loss.item())
@@ -556,8 +683,15 @@ class SurrogateModel:
                 model.eval()
                 with torch.no_grad():
                     for input_data, target_data in self.testing_dataloader:
-                        outputs = model(input_data=input_data)
-                        loss = criterion(outputs, target_data)
+                        chs_target = target_data[:, -5:]
+                        chs_assign_target = target_data[:, :-5]
+                        chs, chs_assign = model(
+                            x=input_data, next_chs=chs_target)
+                        loss_ch = criterion_chs(chs, chs_target)
+                        loss_ch_assign = criterion_ch_assign(
+                            chs_assign, chs_assign_target)
+                        # Sum the losses
+                        loss = loss_ch + loss_ch_assign
                         validation_losses.append(loss.item())
                 avg_val_loss = np.mean(validation_losses)
                 if avg_val_loss < best_loss:
@@ -606,7 +740,7 @@ class SurrogateModel:
         if self.model_path is None:
             raise Exception("Please provide the path to the model")
 
-        model, criterion, _ = self.get_model(load_model=True)
+        model, criterion_chs, criterion_ch_assign, optimizer = self.get_model()
 
         if weights is not None:
             if batch is not None:
@@ -626,8 +760,8 @@ class SurrogateModel:
             np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
 
             # Concatenate the weights and current_membership
-            np_x = np.concatenate(
-                (np_x, np_prev_x), axis=1)
+            # np_x = np.concatenate(
+            #     (np_x, np_prev_x), axis=1)
             self.testing_dataset = NetworkDataset(x=np_x, y=np_y)
             # recreate the dataloader
             self.testing_dataloader = DataLoader(
@@ -644,21 +778,75 @@ class SurrogateModel:
         avg_accuracy = []
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
-                X = input_data
+                chs_target = target_data[:, -5:]
+                chs_assign_target = target_data[:, :-5]
                 # Print the X every 209 elements in the array
                 # temp = X[0]
                 # for i in range(0, len(temp), 209):
                 #     print(f"X {i/209}: {temp[i:i+209]}")
-                y = target_data
-                output = model(input_data=X)
-                loss = criterion(output, y)
+                chs, chs_assign = model(
+                    x=input_data, next_chs=chs_target)
+                loss_ch = criterion_chs(chs, chs_target)
+                loss_ch_assign = criterion_ch_assign(
+                    chs_assign, chs_assign_target)
+                # Sum the losses
+                loss = loss_ch + loss_ch_assign
                 losses.append(loss.item())
-                correct, total = self.test_predicted_sample(
-                    y, output, print_output)
-                acc = correct/total * 100
-                avg_accuracy.append(acc)
+                correct, total = self.test_predicted_chs(
+                    chs_target, chs, print_output)
+                # acc = correct/total * 100
+                # avg_accuracy.append(acc)
+                # predict cluster assignment
+                correct, total = self.test_predicted_ch_assign(
+                    chs_assign_target, chs_assign, print_output)
         logger.info(f"Average Loss: {np.mean(losses)}")
         logger.info(f"Average Accuracy: {np.mean(avg_accuracy)}")
         logger.info(f"Accuracy Min: {np.min(avg_accuracy)}")
         logger.info(
             f"Number of samples with minimum accuracy: {np.sum(np.array(avg_accuracy) == np.min(avg_accuracy))}")
+
+    def test_predicted_chs(self, y, output, print_output=False):
+        # Convert one hot encoded to categorical
+        y = torch.argmax(y, dim=2)
+        # _, predicted = torch.max(output.data, 1)
+        # print(f"Predicted: {predicted}")
+        _, predicted = torch.max(output.data, 2)
+        # print(f"Predicted 1: {predicted}")
+        correct = (predicted == y).sum().item()
+        total = np.prod(y.shape)
+        if print_output:
+            logger.info(f"Y: {y}, chs: {np.unique(y)}")
+            logger.info(f"Predicted: {predicted}, chs: {np.unique(predicted)}")
+            # get the index where the values are equal
+            index = np.where(y == predicted)
+            logger.info(f"Correct index: {index}")
+            # get the index where the values are not equal
+            index = np.where(y != predicted)
+            logger.info(f"Incorrect index: {index}")
+            logger.info(f"Correct: {correct}, Total: {total}")
+            input("Press enter to continue")
+        return correct, total
+
+    def test_predicted_ch_assign(self, y, output, print_output=False):
+        # Convert one hot encoded to categorical
+        y = torch.argmax(y, dim=2)
+        # _, predicted = torch.max(output.data, 1)
+        # print(f"Predicted: {predicted}")
+        _, predicted = torch.max(output.data, 2)
+        # print(f"Predicted 1: {predicted}")
+        correct = (predicted == y).sum().item()
+        total = np.prod(y.shape)
+        if print_output:
+            logger.info(f"Y: {y}, chs: {np.unique(y)}")
+            logger.info(f"Predicted: {predicted}, chs: {np.unique(predicted)}")
+            # get the index where the values are equal
+            index = np.where(y == predicted)
+            logger.info(f"Correct index: {index}")
+            # print the values of the correct index
+            logger.info(f"Correct values: {y[index]}")
+            # get the index where the values are not equal
+            index = np.where(y != predicted)
+            logger.info(f"Incorrect index: {index}")
+            logger.info(f"Correct: {correct}, Total: {total}")
+            input("Press enter to continue")
+        return correct, total

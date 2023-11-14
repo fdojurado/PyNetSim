@@ -1,0 +1,38 @@
+name: example network
+surrogate:
+  # We support two types of architectures: simple and complex
+  # lstm_arch: complex
+  epochs: 1000
+  hidden_dim: 500
+  # lstm_hidden: 24
+  output_dim: 99
+  num_clusters: 100
+  num_embeddings: 101
+  # embedding_dim: 12
+  # numerical_dim: 102
+  weight_decay: 0.001
+  drop_out: 0.5
+  batch_size: 2048
+  learning_rate: 0.01
+  test_ratio: 0.2
+  # This is the largest weight value for alpha, beta, and gamma
+  largest_weight: 10
+  largest_energy_level: 4
+  max_dst_to_ch: 200
+  # This is the largest cluster id, which is 100
+  num_workers: 4
+  # Load model? If yes, then specify the path
+  load_model: True
+  # Folders to save the model and the plots
+  model_path: /Users/fernando/OneDrive - Danmarks Tekniske Universitet/Postdoc/DTU/research/LEACH-based/ch_assignment_model.pt
+  # Generate the data from the raw data
+  generate_data: False
+  # Path to the raw data to generate the data from
+  raw_data_folder: /Users/fernando/PyNetSim/tutorials/results
+  # Path to the data, if it is not provided, then this folder is used to save the data
+  data_folder: /Users/fernando/PyNetSim/tutorials/surrogate/data_ch_assign
+  plots_folder: /Users/fernando/PyNetSim/tutorials/surrogate/plots_ch_assign
+  print_every: 1
+  plot_every: 10
+  # This is the frequency to evaluate the model while training
+  eval_every: 10
