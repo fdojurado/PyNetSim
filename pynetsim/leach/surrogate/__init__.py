@@ -124,6 +124,7 @@ def process_data(samples, data_folder):
 
     # Initialize an empty list to store DataFrames
     dfs_list = []
+    d0 = (10 * 10**(-12) / (0.0013 * 10**(-12)))**0.5
 
     with Progress() as progress:
         task = progress.add_task(
@@ -143,7 +144,8 @@ def process_data(samples, data_folder):
                 # convert the energy levels to a list of integers
                 energy_levels = [float(energy_level)
                                  for energy_level in energy_levels]
-                dst_to_cluster_head = [float(dst) for dst in dst_to_cluster_head]
+                dst_to_cluster_head = [float(dst)
+                                       for dst in dst_to_cluster_head]
                 remaining_energy = float(remaining_energy)
                 alive_nodes = int(alive_nodes)
                 cluster_heads = [int(cluster_head)
@@ -161,7 +163,13 @@ def process_data(samples, data_folder):
                     "cluster_heads": [cluster_heads],
                     "energy_levels": [energy_levels],
                     "dst_to_cluster_head": [dst_to_cluster_head],
-                    "membership": [membership]
+                    "membership": [membership],
+                    "eelect": [50 * 10**(-9)],
+                    "pkt_size": [4000],
+                    "eamp": [0.0013 * 10**(-12)],
+                    "efs": [10 * 10**(-12)],
+                    "eda": [5 * 10**(-9)],
+                    "d0": [d0]
                 })
 
                 # Check if the dataframe has any nan values
