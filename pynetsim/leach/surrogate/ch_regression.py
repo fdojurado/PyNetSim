@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from pynetsim.utils import PyNetSimLogger
 from torch.optim import lr_scheduler
 from rich.progress import Progress
+from tqdm import tqdm
 
 # Constants
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -26,12 +27,11 @@ logger_utility = PyNetSimLogger(namespace=__name__, log_file="my_log.log")
 logger = logger_utility.get_logger()
 
 
-class NetworkDataset(Dataset):
+class ClusterHeadDataset(Dataset):
     def __init__(self, x, y):
         self.X = torch.from_numpy(x.astype(np.float32))
         self.y = torch.from_numpy(y.astype(np.float32))
         self.len = x.shape[0]
-        logger.info(f"X: {self.X.shape}, y: {self.y.shape}")
 
     def __len__(self):
         return self.len
@@ -46,73 +46,41 @@ class NetworkDataset(Dataset):
         return X, y
 
 
-class ClusterHeadModel(nn.Module):
+class ForecastCCH(nn.Module):
     def __init__(self):
-        super(ClusterHeadModel, self).__init__()
+        super(ForecastCCH, self).__init__()
+        self.batch_norm = nn.BatchNorm1d(1535)
+        self.lstm = nn.LSTM(input_size=307, hidden_size=700, num_layers=2,
+                            batch_first=True, dropout=0.3, bidirectional=True)
+        self.fc = nn.Linear(1400, 101*5)
 
-        self.lstm = nn.LSTM(input_size=35, hidden_size=64, num_layers=2, batch_first=True,
-                            dropout=0.2, bidirectional=True)
-        self.fc1 = nn.Linear(208, 400)
-        self.drop1 = nn.Dropout(0.2)
-        self.fc2 = nn.Linear(128+400, 64)
-        self.relu = nn.ReLU()
-        self.drop2 = nn.Dropout(0.4)
-        self.fc3 = nn.Linear(64, 101*5)
+    def forward(self, x):
+        # print(f"Input shape: {x.shape}")
+        # [batch_size, 1535]
 
-    def forward(self, input_data):
-        # print(f"Input: {x.shape}")
-        # Get the none lstm features which are all the features except the last 35  features
-        x = input_data[:, :-35]
-        # print(f"None lstm features: {x.shape}")
+        # Apply batch normalization
+        x = self.batch_norm(x)
+        # reshape input to be [samples, time steps, features]
+        x = x.view(-1, 5, int(x.shape[1]/5))
+        # print(f"Reshaped input shape: {x.shape}")
+        # [batch_size, 5, 307]
 
-        # Get the lstm features which are the last 35 features
-        lstm_features = input_data[:, -35:]
-        # print(f"lstm_features: {lstm_features.shape}")
-        # [Batch, 35]
+        # Forward propagate LSTM
+        out, _ = self.lstm(x)
+        # print(f"Output shape: {out.shape}")
+        # [batch_size, 5, 1000]
 
-        # Pass the none lstm features through the first fully connected layer
-        x = self.fc1(x)
-        # print(f"fc1: {x.shape}")
+        # Decode the hidden state of the last time step
+        out = self.fc(out[:, -1, :])
+        # print(f"Output shape: {out.shape}")
+        # [batch_size, 101*5]
 
-        # Pass the output through the relu activation function
-        x = self.relu(x)
-        # print(f"relu: {x.shape}")
+        # reshape output to be [samples, 5, 101]
+        out = out.view(-1, 5, 101)
+        # print(f"Reshaped output shape: {out.shape}")
+        # [batch_size, 5, 101]
 
-        # Pass the output through the dropout layer
-        x = self.drop1(x)
-
-        # Reshape the lstm features to [Batch, 5, 7]
-        lstm_features = lstm_features.reshape(-1, 5, 7)
-        # print(f"lstm_features: {lstm_features.shape}")
-
-        # Get the lstm output
-        lstm_out, _ = self.lstm(lstm_features)
-        # print(f"lstm_out: {lstm_out.shape}")
-        # [Batch, 128]
-        # Get the last lstm output
-        lstm_out = lstm_out[:, -1, :]
-        # print(f"lstm_out: {lstm_out.shape}")
-
-        # Concatenate the lstm output with the none lstm features
-        x = torch.cat((x, lstm_out), dim=1)
-        # print(f"Concatenated: {x.shape}")
-
-        # Pass the concatenated features through the first fully connected layer
-        x = self.fc2(x)
-        # print(f"fc1: {x.shape}")
-        # Pass the output through the relu activation function
-        x = self.relu(x)
-        # print(f"relu: {x.shape}")
-        # Pass the output through the dropout layer
-        x = self.drop2(x)
-        # print(f"dropout: {x.shape}")
-        # Pass the output through the second fully connected layer
-        x = self.fc3(x)
-        # print(f"fc2: {x.shape}")
-        # Reshape the output to [Batch, 5, 101]
-        x = x.reshape(-1, 5, 101)
-        # print(f"Reshaped: {x.shape}")
-        return x
+        return out
 
 
 class SurrogateModel:
@@ -156,91 +124,160 @@ class SurrogateModel:
             # Load the data
             samples = leach_surrogate.load_data(self.data_folder)
 
-        logger.info(f"Number of samples: {len(samples)}")
+        logger.info(f"Data shape: {samples.shape}")
 
-        # Split the data into training and testing
-        X_train, X_test, Y_train, Y_test = self.split_data(samples)
+        training_set, validation_set = leach_surrogate.get_data(
+            samples, train_fraction=0, test_fraction=0.2)
+
+        logger.info(
+            f"Proportion of training set: {len(training_set)/len(samples)*100:.2f}%")
+        logger.info(
+            f"Proportion of testing set: {len(validation_set)/len(samples)*100:.2f}%")
+
+        n_steps = 5
+        x_train, y_train = self.split_sequence(training_set, n_steps)
+        y_train = np.eye(101)[y_train.astype('int')]
+        x_val, y_val = self.split_sequence(validation_set, n_steps)
+        y_val = np.eye(101)[y_val.astype('int')]
+
+        print(f"x_train: {x_train.shape}, y_train: {y_train.shape}")
+        print(f"x_val: {x_val.shape}, y_val: {y_val.shape}")
 
         # Create the training dataset
-        self.training_dataset = NetworkDataset(x=X_train, y=Y_train)
+        self.training_dataset = ClusterHeadDataset(x_train, y_train)
 
         # Create the testing dataset
-        self.testing_dataset = NetworkDataset(x=X_test, y=Y_test)
+        self.testing_dataset = ClusterHeadDataset(x_val, y_val)
 
-        # Create the training dataloader
-        self.training_dataloader = DataLoader(
-            self.training_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.training_dataset.collate_fn, num_workers=self.num_workers)
+        if x_train.shape[0] > 0:
+            # Create the training dataloader
+            self.train_loader = DataLoader(
+                self.training_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+        else:
+            self.train_loader = None
 
-        # Create the testing dataloader
-        self.testing_dataloader = DataLoader(
-            self.testing_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.testing_dataset.collate_fn, num_workers=self.num_workers)
+        if x_val.shape[0] > 0:
+            # Create the testing dataloader
+            self.valid_loader = DataLoader(
+                self.testing_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+        else:
+            self.valid_loader = None
 
-    def split_data(self, samples):
-        # Get all the samples
-        x, y, prev_x = self.get_all_samples(samples)
-        # print shapes
-        np_x = np.array(x)
-        np_y = np.array(y)
-        np_prev_x = np.array(prev_x)
+    def split_sequence(self, sequence, n_steps):
+        x_data = []
+        y_data = []
+        num_samples = len(sequence)
 
-        print(
-            f"np_x: {np_x.shape}, np_y: {np_y.shape}, np_prev_x: {np_prev_x.shape}")
+        for i in tqdm(range(num_samples), desc="Processing sequence"):
+            end_ix = i + n_steps
+            if end_ix > num_samples - 1:
+                break
+            alpha_val, beta_val, gamma_val = sequence['alpha'][i:end_ix].values, sequence['beta'][
+                i:end_ix].values, sequence['gamma'][i:end_ix].values
+            # convert to float
+            alpha_val = [float(x)/10 for x in alpha_val]
+            beta_val = [float(x)/10 for x in beta_val]
+            gamma_val = [float(x)/10 for x in gamma_val]
+            assert all(
+                x <= 1 and x >= -1 for x in alpha_val), f"Incorrect values of alpha: {alpha_val}"
+            assert all(
+                x <= 1 and x >= -1 for x in beta_val), f"Incorrect values of beta: {beta_val}"
+            assert all(
+                x <= 1 and x >= -1 for x in gamma_val), f"Incorrect values of gamma: {gamma_val}"
+            # Normalize remaining energy dividing by 10
+            remaining_energy = sequence['remaining_energy'][i:end_ix]
+            remaining_energy = [float(x)/10 for x in remaining_energy]
+            assert all(
+                x <= 1 and x >= -1 for x in remaining_energy), f"Incorrect values of remaining energy: {remaining_energy}"
+            # seq_x.extend(remaining_energy)
+            # Normalize alive nodes dividing by 100
+            alive_nodes = sequence['alive_nodes'][i:end_ix].values
+            alive_nodes = [float(x)/100 for x in alive_nodes]
+            assert all(
+                x <= 1 and x >= -1 for x in alive_nodes), f"Incorrect values of alive nodes: {alive_nodes}"
+            # seq_x.extend(alive_nodes)
+            # Normalize energy levels dividing by 5
+            energy_levels = sequence['energy_levels'][i:end_ix].values
+            energy_levels = [eval(x) for x in energy_levels]
+            # Convert to float every element in the array of arrays
+            energy_levels = [[float(x)/5 for x in sublist]
+                             for sublist in energy_levels]
+            # energy levels is a list of lists, so we need to assert that all values are between -1 and 1
+            # We iterate over the list of lists and assert that all values are between -1 and 1
+            assert all(
+                -1 <= x <= 1 for sublist in energy_levels for x in sublist), f"Incorrect values of energy levels: {energy_levels}"
+            # seq_x.extend(energy_levels)
+            # Normalize distance to cluster head dividing by 100
+            dst_to_cluster_head = sequence['dst_to_cluster_head'][i:end_ix].values
+            dst_to_cluster_head = [eval(x) for x in dst_to_cluster_head]
+            dst_to_cluster_head = [[float(x)/200 for x in sublist]
+                                   for sublist in dst_to_cluster_head]
+            assert all(-1 <= x <=
+                       1 for sublist in dst_to_cluster_head for x in sublist), f"Incorrect values of distance to cluster head: {dst_to_cluster_head}"
 
-        # Concatenate the weights and current_membership
-        np_x = np.concatenate(
-            (np_x, np_prev_x), axis=1)
+            # seq_x.extend(dst_to_cluster_head)
+            # Normalize membership dividing by 100
+            membership = sequence['membership'][i:end_ix].values
+            membership = [eval(x) for x in membership]
+            membership = [[float(x)/100 for x in sublist]
+                          for sublist in membership]
+            assert all(-1 <= x <=
+                       1 for sublist in membership for x in sublist), f"Incorrect values of membership: {membership}"
+            # seq_x.extend(membership)
+            # Normalize cluster heads dividing by 100
+            chs, seq_y = sequence['cluster_heads'][i:
+                                                   end_ix], sequence['cluster_heads'][end_ix]
+            chs = [eval(x) for x in chs]
+            chs = [[float(x)/100 for x in sublist] for sublist in chs]
+            assert all(-1 <= x <=
+                       1 for sublist in chs for x in sublist), f"Incorrect values of cluster heads: {chs}"
 
-        # print y shape
-        logger.info(f"np_y_chs: {np_y.shape}")
+            seq_y = eval(seq_y)
 
-        np_y = np.eye(self.num_clusters+1)[np_y.astype(int)]
-        print(f"np_y eye: {np_y.shape}")
+            next_alpha_val, next_beta_val, next_gamma_val = sequence['alpha'][end_ix], sequence['beta'][
+                end_ix], sequence['gamma'][end_ix]
+            # convert to float
+            next_alpha_val = float(next_alpha_val)/10
+            next_beta_val = float(next_beta_val)/10
+            next_gamma_val = float(next_gamma_val)/10
 
-        if self.test_ratio is None:
-            raise Exception("Please provide the test ratio")
+            if (next_alpha_val != alpha_val[0]) or (next_beta_val != beta_val[0]) or (next_gamma_val != gamma_val[0]):
+                continue
 
-        # Lets split the data into training and testing
-        X_train, X_test, y_train, y_test = train_test_split(
-            np_x, np_y, test_size=self.test_ratio, random_state=42, shuffle=True)
+            # Lets put the data into the seq_x like this weights[0], remaining energy[0],...,weights[1], remaining energy[1]
+            seq_x_tmp = []
+            for i in range(n_steps):
+                a = alpha_val[i]
+                b = beta_val[i]
+                g = gamma_val[i]
+                re = remaining_energy[i]
+                an = alive_nodes[i]
+                el = energy_levels[i]
+                dst = dst_to_cluster_head[i]
+                mem = membership[i]
+                ch = chs[i]
+                # Put the alpha, beta, gamma, remaining energy and alive nodes at the end of the list
+                exp = []
+                # seq_x.extend([a, b, g, re, an])
+                exp.extend([a, b, g, re, an])
+                exp.extend(el)
+                exp.extend(dst)
+                exp.extend(mem)
+                exp.extend(ch)
+                # Append to the list
+                seq_x_tmp.append(exp)
+                # seq_x.extend([a, b, g, re, an, el, dst, mem, ch])
 
-        # print shapes
-        logger.info(f"X_train: {X_train.shape}, X_test: {X_test.shape}")
+            # Convert seq_x into a single list
+            seq_x = [item for sublist in seq_x_tmp for item in sublist]
 
-        return X_train, X_test, y_train, y_test
+            x_data.append(seq_x)
+            y_data.append(seq_y)
 
-    def get_all_samples(self, samples):
-        x_data_list = []
-        prev_x_data_list = []
-        y_chs_list = []
-        for _, sample in samples.items():
-            for round in range(0, len(sample)):
-                x_data = sample[str(round)]['x_data']
-                prev_x_data = sample[str(round)]['prev_x_data']
-                y_chs = sample[str(round)]['y_chs']
-                x_data_list.append(x_data)
-                prev_x_data_list.append(prev_x_data)
-                y_chs_list.append(y_chs)
-
-        return x_data_list, y_chs_list, prev_x_data_list
-
-    def get_sample(self, samples, weights: tuple):
-        x_data_list = []
-        prev_x_data_list = []
-        y_chs_list = []
-        for key, sample in samples.items():
-            if key == weights:
-                for round in range(0, len(sample)):
-                    x_data = sample[str(round)]['x_data']
-                    prev_x_data = sample[str(round)]['prev_x_data']
-                    y_chs = sample[str(round)]['y_chs']
-                    x_data_list.append(x_data)
-                    prev_x_data_list.append(prev_x_data)
-                    y_chs_list.append(y_chs)
-
-        return x_data_list, y_chs_list, prev_x_data_list
+        return np.array(x_data), np.array(y_data)
 
     def get_model(self, load_model=False):
-        model = ClusterHeadModel()
+        model = ForecastCCH()
 
         if self.load_model:
             if self.model_path is None:
@@ -259,7 +296,7 @@ class SurrogateModel:
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
             model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
         return model, criterion, optimizer, scheduler
 
@@ -278,7 +315,7 @@ class SurrogateModel:
             with Progress() as progress:
                 task = progress.add_task(
                     f"[cyan]Training (epoch {epoch}/{self.epochs})", total=len(self.training_dataloader))
-                for input_data, target_data in self.training_dataloader:
+                for input_data, target_data in self.train_loader:
                     optimizer.zero_grad()
                     chs = model(
                         input_data=input_data)
@@ -297,7 +334,7 @@ class SurrogateModel:
             if epoch % self.eval_every == 0:
                 model.eval()
                 with torch.no_grad():
-                    for input_data, target_data in self.testing_dataloader:
+                    for input_data, target_data in self.valid_loader:
                         chs = model(
                             input_data=input_data)
                         loss = criterion(chs, target_data)
@@ -390,7 +427,7 @@ class SurrogateModel:
         avg_accuracy = []
         with torch.no_grad():
             for input_data, target_data in self.testing_dataloader:
-                chs = model(input_data=input_data)
+                chs = model(input_data)
                 loss = criterion(chs, target_data)
                 losses.append(loss.item())
                 correct, total = self.test_predicted_sample(

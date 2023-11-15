@@ -40,28 +40,26 @@ def print_config(config, **kwargs):
     print(f"\tNum nodes: {config.network.num_sensor}")
 
 
-def load_samples(data_dir):
-    print(f"Loading samples from: {data_dir}")
-    samples = {}
-    for file in os.listdir(data_dir):
-        if file == ".DS_Store":
-            continue
-        with open(os.path.join(data_dir, file), "r") as f:
-            data = json.load(f)
-        # Remove single quotes and split by comma
-        name = tuple(float(x.replace("'", "")) for x in file.split(
-            ".json")[0].replace("(", "").replace(")", "").split(","))
-        samples[name] = data
-    return samples
+# Method to get a specify fraction of the data for training and testing
+def get_data(data, train_fraction=0.8, test_fraction=0.2):
+    # Get the number of samples
+    num_samples = len(data)
+
+    train_data = data[:int(num_samples * train_fraction)]
+    test_data = data[int(num_samples * (1 - test_fraction)):]
+
+    # reset index in both dataframes
+    train_data.reset_index(drop=True, inplace=True)
+    test_data.reset_index(drop=True, inplace=True)
+    # print shapes
+    print(f"Train data shape: {train_data.shape}")
+    print(f"Test data shape: {test_data.shape}")
+
+    return train_data, test_data
 
 
-def load_data(data_folder):
-    if data_folder is None:
-        raise Exception(
-            "Please provide the path to the data folder to load the data")
-    # Load the data folder
-    samples = load_samples(data_folder)
-    return samples
+def load_data(data_url):
+    return pd.read_csv(data_url, dtype=str)
 
 
 def load_files(data_dir):
@@ -143,7 +141,8 @@ def process_data(samples, data_folder):
                 # convert the energy levels to a list of integers
                 energy_levels = [float(energy_level)
                                  for energy_level in energy_levels]
-                dst_to_cluster_head = [float(dst) for dst in dst_to_cluster_head]
+                dst_to_cluster_head = [float(dst)
+                                       for dst in dst_to_cluster_head]
                 remaining_energy = float(remaining_energy)
                 alive_nodes = int(alive_nodes)
                 cluster_heads = [int(cluster_head)
