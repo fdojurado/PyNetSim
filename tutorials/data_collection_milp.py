@@ -23,18 +23,12 @@ def main():
     config = load_config(CONFIG_FILE)
     logger.info(f"Loading config from {CONFIG_FILE}")
 
-    network = Network(config=config)
-    network_model = NETWORK_MODELS[config.network.model](
-        config=config, network=network)
-    network.set_model(network_model)
-    network.initialize()
-
     # Define the range of numbers
     min_value = 0
     max_value = 10
 
     # Define the number of combinations you want
-    num_combinations = 2
+    num_combinations = 100
 
     # Generate random combinations
     combinations = []
@@ -43,7 +37,7 @@ def main():
         combination = [random.uniform(min_value, max_value) for _ in range(3)]
         combinations.append(combination)
 
-    print(f"Shape of combinations: {len(combinations)}")
+    print(f"Number of combinations: {len(combinations)}")
 
     for combo in combinations:
         print(f"Combo: {combo}")
@@ -52,13 +46,13 @@ def main():
             config=config, network=network)
         network.set_model(network_model)
         # Generate a random initial energy for each node.
-        for node in config.network.nodes:
-            random_energy = random.uniform(0, 0.1)
-            node.energy = random_energy
-        network.initialize()
+        # for node in config.network.nodes:
+        #     random_energy = random.uniform(0, 0.1)
+        #     node.energy = random_energy
         # Lets create the object of the LEACH-CE-E protocol.
         leach_ce_e = LEACH_CE_E(network, network_model,
                                 alpha=combo[0], beta=combo[1], gamma=combo[2])
+        network.initialize()
         # network.stats.name = f"LEACH-CE-E_{combo[0]}_{combo[1]}_{combo[2]}"
         # Lets run the protocol.
         leach_ce_e.run()

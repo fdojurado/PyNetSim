@@ -31,6 +31,8 @@ class LEACH_CE_E:
             self.gamma = kwargs['gamma']
         else:
             self.gamma = 2
+        self.network.set_stats_name(f'{self.name}_{self.alpha}_{self.beta}_{self.gamma}')
+
 
     def create_model(self, cluster_heads, alive_nodes):
         model = pyo.ConcreteModel()
@@ -174,8 +176,6 @@ class LEACH_CE_E:
         print(f"Running {self.name}...")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
-        # Set stats name
-        self.network.set_stats_name(f'{self.name}_{self.alpha}_{self.beta}_{self.gamma}')
 
         for node in self.network:
             node.is_cluster_head = False
