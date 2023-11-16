@@ -47,6 +47,9 @@ class Network:
         self.stats.generate_round_stats(round=round)
         self.stats.export_json()
 
+    def set_stats_name(self, name):
+        self.stats.name = name
+
     def get_cluster_head_ids_at_round(self, round: int):
         return self.cluster_heads_per_round[round]
 

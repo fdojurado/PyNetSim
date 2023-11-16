@@ -9,7 +9,9 @@ import pynetsim.leach.surrogate as leach_surrogate
 
 
 from torch.utils.data import Dataset, DataLoader
+from pynetsim.config import load_config, NETWORK_MODELS
 from sklearn.model_selection import train_test_split
+from pynetsim.network.network import Network
 from pynetsim.utils import PyNetSimLogger
 from torch.optim import lr_scheduler
 from rich.progress import Progress
@@ -110,6 +112,12 @@ class SurrogateModel:
         self.plot_every = self.config.surrogate.plot_every
         self.eval_every = self.config.surrogate.eval_every
 
+        self.network = Network(config=config)
+        network_model = NETWORK_MODELS[config.network.model](
+            config=config, network=self.network)
+        self.network.set_model(network_model)
+        self.network.initialize()
+
     def init(self):
         leach_surrogate.print_config(self.config, surrogate_name=self.name)
 
@@ -119,7 +127,7 @@ class SurrogateModel:
         # if data_path is not provided, then we need to generate the data
         if self.config.surrogate.generate_data:
             samples = leach_surrogate.generate_data(
-                config=self.config)
+                config=self.config, network=self.network)
         else:
             # Load the data
             samples = leach_surrogate.load_data(self.data_folder)

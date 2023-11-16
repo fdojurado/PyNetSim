@@ -174,6 +174,8 @@ class LEACH_CE_E:
         print(f"Running {self.name}...")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
+        # Set stats name
+        self.network.set_stats_name(f'{self.name}_{self.alpha}_{self.beta}_{self.gamma}')
 
         for node in self.network:
             node.is_cluster_head = False
@@ -197,15 +199,15 @@ class LEACH_CE_E:
 
         self.threshold_energy = self.network.average_remaining_energy()
 
-        print(f"Threshold energy: {self.threshold_energy}")
+        # print(f"Threshold energy: {self.threshold_energy}")
 
         self.max_chs = np.ceil(
             self.network.alive_nodes() * self.config.network.protocol.cluster_head_percentage)
 
-        print(f"Max CHs: {self.max_chs}")
+        # print(f"Max CHs: {self.max_chs}")
 
         chs, node_cluster_head = self.choose_cluster_heads(round)
-        print(f"Cluster heads at round {round}: {chs}")
+        # print(f"Cluster heads at round {round}: {chs}")
         leach_milp.update_cluster_heads(self.network, chs)
         leach_milp.update_chs_to_nodes(self.network, node_cluster_head)
         self.net_model.dissipate_energy(round=round)

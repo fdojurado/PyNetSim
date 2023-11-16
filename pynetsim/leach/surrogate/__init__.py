@@ -111,10 +111,11 @@ def get_round_data(stats):
     return energy_levels, dst_to_cluster_head, remaining_energy, alive_nodes, cluster_heads, membership
 
 
-def process_data(samples, data_folder):
+def process_data(samples, data_folder, network):
     # Lets create a pandas dataframe to store the data
     columns = [
-        "alpha", "beta", "gamma", "remaining_energy", "alive_nodes", "cluster_heads", "energy_levels", "dst_to_cluster_head", "membership"]
+        "alpha", "beta", "gamma", "remaining_energy", "alive_nodes", "cluster_heads", "energy_levels", "dst_to_cluster_head", "membership",
+        "eelect", "pkt_size", "eamp", "efs", "eda", "d0"]
     df = pd.DataFrame(columns=columns)
 
     # Get the size of the samples
@@ -122,6 +123,38 @@ def process_data(samples, data_folder):
 
     # Initialize an empty list to store DataFrames
     dfs_list = []
+    d0 = (10 * 10**(-12) / (0.0013 * 10**(-12)))**0.5
+
+    # Calculate the minimum, maximum and average distance from all nodes to any other node
+    distances = {}
+    for node in network:
+        if node.node_id == 1:
+            continue
+        distances[node.node_id] = {}
+        for other_node in network:
+            # avoid calculating the distance between a node and itself
+            if node.node_id == other_node.node_id:
+                continue
+            distances[node.node_id][other_node.node_id] = network.distance_between_nodes(
+                node, other_node)
+
+    # Calculate the average distance per node
+    avg_distances = {}
+    # Calculate the minimum distance per node
+    min_distances = {}
+    # Calculate the maximum distance per node
+    max_distances = {}
+    for node_id, node_distances in distances.items():
+        avg_distances[node_id] = sum(node_distances.values()) / \
+            len(node_distances)
+        min_distances[node_id] = min(node_distances.values())
+        max_distances[node_id] = max(node_distances.values())
+
+    # Lets put together in an array the average, minimum and maximum distance per node
+    avg_min_max_distances = []
+    for node_id in avg_distances.keys():
+        avg_min_max_distances.extend(
+            [avg_distances[node_id], min_distances[node_id], max_distances[node_id]])
 
     with Progress() as progress:
         task = progress.add_task(
@@ -160,7 +193,14 @@ def process_data(samples, data_folder):
                     "cluster_heads": [cluster_heads],
                     "energy_levels": [energy_levels],
                     "dst_to_cluster_head": [dst_to_cluster_head],
-                    "membership": [membership]
+                    "membership": [membership],
+                    "eelect": [50 * 10**(-9)],
+                    "pkt_size": [4000],
+                    "eamp": [0.0013 * 10**(-12)],
+                    "efs": [10 * 10**(-12)],
+                    "eda": [5 * 10**(-9)],
+                    "d0": [d0],
+                    "avg_min_max_distances": [avg_min_max_distances],
                 })
 
                 # Check if the dataframe has any nan values
@@ -182,7 +222,7 @@ def process_data(samples, data_folder):
     return df
 
 
-def generate_data(config):
+def generate_data(config, network: object):
     raw_data_folder = config.surrogate.raw_data_folder
     data_folder = config.surrogate.data_folder
     if raw_data_folder is None:
@@ -193,5 +233,5 @@ def generate_data(config):
             "Please provide the path to save the generated data")
     # Load the data folder
     files = load_files(raw_data_folder)
-    samples = process_data(files, data_folder)
+    samples = process_data(files, data_folder, network)
     return samples
