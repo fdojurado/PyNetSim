@@ -24,8 +24,12 @@ def main():
     logger.info(f"Loading config from {CONFIG_FILE}")
 
     # Define the range of numbers
-    min_value = 0
-    max_value = 10
+    alpha_min = 6
+    alpha_max = 13
+    beta_min = 0
+    beta_max = 4
+    gamma_min = 4
+    gamma_max = 13
 
     # Define the number of combinations you want
     num_combinations = 100
@@ -34,7 +38,11 @@ def main():
     combinations = []
 
     for _ in range(num_combinations):
-        combination = [random.uniform(min_value, max_value) for _ in range(3)]
+        alpha = random.uniform(alpha_min, alpha_max)
+        beta = random.uniform(beta_min, beta_max)
+        gamma = random.uniform(gamma_min, gamma_max)
+        combination = [alpha, beta, gamma]
+        # combination = [random.uniform(min_value, max_value) for _ in range(3)]
         combinations.append(combination)
 
     print(f"Number of combinations: {len(combinations)}")
