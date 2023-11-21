@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 import argparse
+import numpy as np
 from rich.progress import Progress
 from pynetsim.config import load_config
 from pynetsim.network.network import Network
@@ -92,7 +93,7 @@ def get_round_data(stats):
     return data
 
 
-def process_data(samples, output_folder, network, export_csv=True):
+def generate_data_cluster_heads(samples, output_folder, network, export_csv=True):
     # Lets create a pandas dataframe to store the data
     columns = [
         "alpha", "beta", "gamma", "remaining_energy", "alive_nodes", "cluster_heads", "energy_levels", "dst_to_cluster_head", "membership",
@@ -105,44 +106,35 @@ def process_data(samples, output_folder, network, export_csv=True):
     # Initialize an empty list to store DataFrames
     dfs_list = []
     d0 = (10 * 10**(-12) / (0.0013 * 10**(-12)))**0.5
+    eelect = 50 * 10**(-9)
+    pkt_size = 4000
+    eamp = 0.0013 * 10**(-12)
+    efs = 10 * 10**(-12)
+    eda = 5 * 10**(-9)
 
     # Calculate the minimum, maximum and average distance from all nodes to any other node
-    distances = {}
+    tx_energy = {}
     for node in network:
         if node.node_id == 1:
             continue
-        distances[node.node_id] = {}
+        tx_energy[node.node_id] = {}
         for other_node in network:
             # avoid calculating the distance between a node and itself
             if node.node_id == other_node.node_id:
+                tx_energy[node.node_id][other_node.node_id] = 0
                 continue
-            # Avoid calculating the distance between a node and the sink
+            dst = network.distance_between_nodes(node, other_node)
+            eamp_calc = 0
+            if dst <= d0:
+                eamp_calc = pkt_size*efs*dst**2
+            else:
+                eamp_calc = pkt_size*eamp*dst**4
             if other_node.node_id == 1:
-                continue
-            distances[node.node_id][other_node.node_id] = network.distance_between_nodes(
-                node, other_node)
-
-    # Calculate the average distance per node
-    avg_distances = {}
-    # Calculate the minimum distance per node
-    min_distances = {}
-    # Calculate the maximum distance per node
-    max_distances = {}
-    # Calculate the distance between the node and the sink
-    sink_distances = {}
-    for node_id, node_distances in distances.items():
-        avg_distances[node_id] = sum(node_distances.values()) / \
-            len(node_distances)
-        min_distances[node_id] = min(node_distances.values())
-        max_distances[node_id] = max(node_distances.values())
-        sink_distances[node_id] = network.distance_between_nodes(
-            network.get_node(node_id), network.get_node(1))
-
-    # Lets put together in an array the average, minimum and maximum distance per node
-    avg_min_max_sink_distances = []
-    for node_id in avg_distances.keys():
-        avg_min_max_sink_distances.extend(
-            [avg_distances[node_id], min_distances[node_id], max_distances[node_id], sink_distances[node_id]])
+                tx_energy[node.node_id][other_node.node_id] = (
+                    eelect + eda) * pkt_size + eamp_calc
+            else:
+                tx_energy[node.node_id][other_node.node_id] = eelect * \
+                    pkt_size + eamp_calc
 
     with Progress() as progress:
         task = progress.add_task(
@@ -169,13 +161,85 @@ def process_data(samples, output_folder, network, export_csv=True):
                 if is_number:
                     name = tuple(float(x) for x in name)
 
+                # Get the cluster heads of the next round
+                cluster_heads = get_round_data(
+                    data[str(round+1)])['cluster_heads']
+                # Create an array of zeros. As there are 100 nodes, we need 101
+                np_cluster_heads = np.zeros(101)
+                # Set the index of the cluster heads to 1
+                np_cluster_heads[cluster_heads] = 1
+                np_cluster_heads = list(np_cluster_heads)
+                # Let now get the potential cluster heads
+                potential_cluster_heads = []
+                # Potential cluster heads are the nodes that have energy above the average of the alive nodes
+                energy_levels = round_data['energy_levels']
+                # Calculate the average energy of the alive nodes, alive nodes are the nodes that have energy above 0
+                nodes_with_energy = [
+                    energy_level for energy_level in energy_levels if energy_level > 0]
+                if not nodes_with_energy:
+                    avg_energy = 0
+                else:
+                    avg_energy = np.mean(nodes_with_energy)
+                # Set the potential cluster heads
+                for i, energy_level in enumerate(energy_levels):
+                    if energy_level > avg_energy:
+                        potential_cluster_heads.append(i+2)
+                np_potential_cluster_heads = np.zeros(101)
+                np_potential_cluster_heads[potential_cluster_heads] = 1
+                np_potential_cluster_heads = list(np_potential_cluster_heads)
+                # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the sink
+                np_ch_to_sink = np.zeros(101)
+                # We only consider the potential cluster heads
+                for ch in potential_cluster_heads:
+                    # Get from tx_energy the energy dissipated when transmitting from the cluster head to the sink
+                    np_ch_to_sink[ch] = tx_energy[ch][1]
+                np_ch_to_sink = list(np_ch_to_sink)
+                # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the cluster head
+                np_non_ch_to_ch = np.zeros(101)
+                # Here only consider the nodes that are not cluster heads
+                for node in range(2, 101):
+                    if node in potential_cluster_heads:
+                        continue
+                    tx_energy_to_ch = {}
+                    for ch in potential_cluster_heads:
+                        if ch == node:
+                            continue
+                        tx_energy_to_ch[ch] = tx_energy[node][ch]
+                    tx_energy_to_ch = dict(
+                        sorted(tx_energy_to_ch.items(), key=lambda item: item[1]))
+                    min_values = list(tx_energy_to_ch.values())[:2]
+                    if len(min_values) < 2:
+                        if len(min_values) == 1:
+                            min_values = [min_values[0]]
+                        else:
+                            min_values = [0]
+                    avg_min_values = np.mean(min_values)
+                    np_non_ch_to_ch[node] = avg_min_values
+                np_non_ch_to_ch = list(np_non_ch_to_ch)
+                # Calculate the estimated energy dissipated by potential cluster heads when receiving data from non cluster heads
+                np_ch_from_non_ch = np.zeros(101)
+                num_alive_nodes = round_data['alive_nodes']
+                estimated_num_chs = int(num_alive_nodes*0.05)
+                if estimated_num_chs == 0:
+                    estimated_num_chs = 1
+                else:
+                    num_non_ch_per_ch = num_alive_nodes/estimated_num_chs
+                for ch in potential_cluster_heads:
+                    ch_rx_energy = eelect*pkt_size*num_non_ch_per_ch
+                    np_ch_from_non_ch[ch] = ch_rx_energy
+                np_ch_from_non_ch = list(np_ch_from_non_ch)
                 # Create a DataFrame for the current round
                 df_data = pd.DataFrame({
                     "name": [name],
                     "remaining_energy": [round_data['remaining_energy']],
                     "alive_nodes": [round_data['alive_nodes']],
-                    "cluster_heads": [round_data['cluster_heads']],
+                    "cluster_heads": [cluster_heads],
+                    "cluster_heads_index": [np_cluster_heads],
+                    "potential_cluster_heads": [np_potential_cluster_heads],
                     "energy_levels": [round_data['energy_levels']],
+                    "energy_dissipated_ch_to_sink": [np_ch_to_sink],
+                    "energy_dissipated_non_ch_to_ch": [np_non_ch_to_ch],
+                    "energy_dissipated_ch_rx_from_non_ch": [np_ch_from_non_ch],
                     "dst_to_cluster_head": [round_data['dst_to_cluster_head']],
                     "membership": [round_data['membership']],
                     "pdr": [round_data['pdr']],
@@ -183,13 +247,13 @@ def process_data(samples, output_folder, network, export_csv=True):
                     "pkts_recv_by_bs": [round_data['pkts_recv_by_bs']],
                     "num_cluster_heads": [round_data['num_cluster_heads']],
                     "energy_dissipated": [round_data['energy_dissipated']],
-                    "eelect": [50 * 10**(-9)],
-                    "pkt_size": [4000],
-                    "eamp": [0.0013 * 10**(-12)],
-                    "efs": [10 * 10**(-12)],
-                    "eda": [5 * 10**(-9)],
+                    "eelect": [eelect],
+                    "pkt_size": [pkt_size],
+                    "eamp": [eamp],
+                    "efs": [efs],
+                    "eda": [eda],
                     "d0": [d0],
-                    "avg_min_max_sink_distances": [avg_min_max_sink_distances],
+                    # "avg_min_max_sink_distances": [avg_min_max_sink_distances],
                 })
 
                 # Check if the dataframe has any nan values
@@ -239,7 +303,11 @@ def main(args):
     network.set_model(network_model)
     network.initialize()
 
-    process_data(input_files, args.output, network=network)
+    if args.model == "cluster_heads":
+        generate_data_cluster_heads(input_files, args.output, network=network)
+    elif args.model == "cluster_assignment":
+        raise NotImplementedError(
+            "Cluster assignment model is not implemented yet.")
 
 
 if __name__ == '__main__':
@@ -248,6 +316,9 @@ if __name__ == '__main__':
                         help="Path to config file", default=CONFIG_FILE)
     parser.add_argument('--input', '-i', type=str,
                         nargs='+', help='Input files', required=True)
+    # Generate data for the cluster head or the cluster assignment model?
+    parser.add_argument('--model', '-m', type=str,
+                        required=True, help="Model to generate data for (cluster_heads or cluster_assignment)")
     parser.add_argument('--output', '-o', type=str,
                         required=True, help='Output folder')
     args = parser.parse_args()
