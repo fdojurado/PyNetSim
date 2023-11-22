@@ -112,7 +112,6 @@ def generate_data_cluster_heads(samples, output_folder, network, export_csv=True
     efs = 10 * 10**(-12)
     eda = 5 * 10**(-9)
 
-    # Calculate the minimum, maximum and average distance from all nodes to any other node
     tx_energy = {}
     for node in network:
         if node.node_id == 1:
@@ -278,6 +277,184 @@ def generate_data_cluster_heads(samples, output_folder, network, export_csv=True
     return df
 
 
+def generate_data_cluster_assignment(samples, output_folder, network, export_csv=True):
+    # Lets create a pandas dataframe to store the data
+    columns = [
+        "alpha", "beta", "gamma", "remaining_energy", "alive_nodes", "cluster_heads", "energy_levels", "dst_to_cluster_head", "membership",
+        "eelect", "pkt_size", "eamp", "efs", "eda", "d0"]
+    df = pd.DataFrame(columns=columns)
+
+    # Get the size of the samples
+    file_size = len(samples)
+
+    # Initialize an empty list to store DataFrames
+    dfs_list = []
+    d0 = (10 * 10**(-12) / (0.0013 * 10**(-12)))**0.5
+    eelect = 50 * 10**(-9)
+    pkt_size = 4000
+    eamp = 0.0013 * 10**(-12)
+    efs = 10 * 10**(-12)
+    eda = 5 * 10**(-9)
+
+    tx_energy = {}
+    for node in network:
+        if node.node_id == 1:
+            continue
+        tx_energy[node.node_id] = {}
+        for other_node in network:
+            # avoid calculating the distance between a node and itself
+            if node.node_id == other_node.node_id:
+                tx_energy[node.node_id][other_node.node_id] = 0
+                continue
+            dst = network.distance_between_nodes(node, other_node)
+            eamp_calc = 0
+            if dst <= d0:
+                eamp_calc = pkt_size*efs*dst**2
+            else:
+                eamp_calc = pkt_size*eamp*dst**4
+            if other_node.node_id == 1:
+                tx_energy[node.node_id][other_node.node_id] = (
+                    eelect + eda) * pkt_size + eamp_calc
+            else:
+                tx_energy[node.node_id][other_node.node_id] = eelect * \
+                    pkt_size + eamp_calc
+
+    with Progress() as progress:
+        task = progress.add_task(
+            f"[cyan]Processing samples for cluster assignment", total=file_size)
+
+        for name, data in samples.items():
+            # print(f"Processing {name}...")
+            max_rounds = len(data)
+
+            for round, stats in data.items():
+                round = int(round)
+                if round == max_rounds - 1:
+                    continue
+
+                round_data = get_round_data(
+                    stats)
+
+                # if the name is not a number we keep it as a string
+                is_number = True
+                for x in name:
+                    # if it is not a float, we keep it as a string
+                    if not isinstance(x, float):
+                        is_number = False
+                        break
+                if is_number:
+                    name = tuple(float(x) for x in name)
+
+                # Get the cluster heads of the next round
+                cluster_heads = get_round_data(
+                    data[str(round+1)])['cluster_heads']
+                # print(f"Cluster heads: {cluster_heads}")
+                # Get the membership of the next round
+                membership = get_round_data(
+                    data[str(round+1)])['membership']
+                # print(f"Membership: {membership}")
+                # return
+                # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the sink
+                np_ch_to_sink = np.zeros(101)
+                # We only consider the cluster heads
+                for ch in cluster_heads:
+                    if ch == 0:
+                        continue
+                    # Get from tx_energy the energy dissipated when transmitting from the cluster head to the sink
+                    np_ch_to_sink[ch] = tx_energy[ch][1]
+                np_ch_to_sink = list(np_ch_to_sink)
+                # print(f"np_ch_to_sink: {np_ch_to_sink}")
+
+                # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the cluster head
+                tx_energy_to_ch = {}
+                # Here only consider the nodes that are not cluster heads
+                for node in range(2, 101):
+                    if node in cluster_heads:
+                        tx_energy_to_ch[node] = [0, 0, 0, 0, 0]
+                        continue
+                    # Check if the node has energy
+                    if round_data['energy_levels'][node-2] <= 0:
+                        tx_energy_to_ch[node] = [0, 0, 0, 0, 0]
+                        continue
+                    cluster_head_energy = []
+                    for ch in cluster_heads:
+                        if ch == 0:
+                            cluster_head_energy.append(0)
+                            continue
+                        cluster_head_energy.append(
+                            tx_energy[node][ch])
+
+                    tx_energy_to_ch[node] = cluster_head_energy
+                    # print len(tx_energy_to_ch[node])
+                tx_energy_to_ch_list = [value for _, value in tx_energy_to_ch.items(
+                )]
+                tx_energy_to_ch_list = [
+                    item for sublist in tx_energy_to_ch_list for item in sublist]
+                assert len(
+                    tx_energy_to_ch_list) == 495, f"len(tx_energy_to_ch_list): {len(tx_energy_to_ch_list)}"
+                # print(f"np_non_ch_to_ch: {np_non_ch_to_ch}")
+                # print(f"non_ch_closest_ch: {non_ch_closest_ch}")
+
+                # Calculate the estimated energy dissipated by cluster heads when receiving data from non cluster heads
+                # np_ch_from_non_ch = np.zeros(101)
+                # for ch in cluster_heads:
+                #     # count the number of non cluster heads that are assigned to the cluster head
+                #     num_non_ch = 0
+                #     for _, assigned_ch in non_ch_closest_ch.items():
+                #         if assigned_ch == ch:
+                #             num_non_ch += 1
+                #     # print(f"ch: {ch}, num_non_ch: {num_non_ch}")
+                #     ch_rx_energy = eelect*pkt_size*num_non_ch
+                #     np_ch_from_non_ch[ch] = ch_rx_energy
+                # np_ch_from_non_ch = list(np_ch_from_non_ch)
+                # print(f"np_ch_from_non_ch: {np_ch_from_non_ch}")
+
+                # Create a DataFrame for the current round
+                df_data = pd.DataFrame({
+                    "name": [name],
+                    "remaining_energy": [round_data['remaining_energy']],
+                    "alive_nodes": [round_data['alive_nodes']],
+                    "cluster_heads": [cluster_heads],
+                    "energy_levels": [round_data['energy_levels']],
+                    "energy_dissipated_ch_to_sink": [np_ch_to_sink],
+                    "energy_dissipated_non_ch_to_ch": [tx_energy_to_ch_list],
+                    # "energy_dissipated_ch_rx_from_non_ch": [np_ch_from_non_ch],
+                    "dst_to_cluster_head": [round_data['dst_to_cluster_head']],
+                    "membership": [membership],
+                    "pdr": [round_data['pdr']],
+                    "control_pkt_bits": [round_data['control_pkt_bits']],
+                    "pkts_recv_by_bs": [round_data['pkts_recv_by_bs']],
+                    "num_cluster_heads": [round_data['num_cluster_heads']],
+                    "energy_dissipated": [round_data['energy_dissipated']],
+                    "eelect": [eelect],
+                    "pkt_size": [pkt_size],
+                    "eamp": [eamp],
+                    "efs": [efs],
+                    "eda": [eda],
+                    "d0": [d0],
+                    # "avg_min_max_sink_distances": [avg_min_max_sink_distances],
+                })
+
+                # Check if the dataframe has any nan values
+                if df_data.isnull().values.any():
+                    raise Exception(f"Dataframe has nan values: {df_data}")
+
+                # Append the DataFrame to the list
+                dfs_list.append(df_data)
+
+            progress.update(task, advance=1)
+
+    # Concatenate all DataFrames in the list
+    df = pd.concat(dfs_list, ignore_index=True)
+
+    # Export the df to csv?
+    if export_csv:
+        # create the output folder if it does not exist
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        df.to_csv(os.path.join(output_folder, "data.csv"), index=False)
+
+
 def load_input_data(input_files):
     results = {}
     for input_file in input_files:
@@ -306,8 +483,10 @@ def main(args):
     if args.model == "cluster_heads":
         generate_data_cluster_heads(input_files, args.output, network=network)
     elif args.model == "cluster_assignment":
-        raise NotImplementedError(
-            "Cluster assignment model is not implemented yet.")
+        generate_data_cluster_assignment(
+            input_files, args.output, network=network)
+    else:
+        raise Exception(f"Unknown model: {args.model}")
 
 
 if __name__ == '__main__':
