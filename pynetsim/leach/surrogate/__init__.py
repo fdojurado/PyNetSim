@@ -1,237 +1,133 @@
 import json
 import os
+import numpy as np
 import pandas as pd
 
 from rich.progress import Progress
 
 
-def print_config(config, **kwargs):
-    print("Configuration:")
-    print(f"Name: {config.name}")
-    print(f"Surrogate: {kwargs.get('surrogate_name', 'unknown')}")
-    # print(f"\tLSTM architecture: {config.surrogate.lstm_arch}")
-    print(f"\tEpochs: {config.surrogate.epochs}")
-    print(f"\tHidden dim: {config.surrogate.hidden_dim}")
-    # print(f"\tLSTM hidden: {config.surrogate.lstm_hidden}")
-    print(f"\tOutput dim: {config.surrogate.output_dim}")
-    print(f"\tNum clusters: {config.surrogate.num_clusters}")
-    # print(f"\tNum embeddings: {config.surrogate.num_embeddings}")
-    # print(f"\tEmbedding dim: {config.surrogate.embedding_dim}")
-    # print(f"\tNumerical dim: {config.surrogate.numerical_dim}")
-    print(f"\tWeight decay: {config.surrogate.weight_decay}")
-    print(f"\tDrop out: {config.surrogate.drop_out}")
-    print(f"\tBatch size: {config.surrogate.batch_size}")
-    print(f"\tLearning rate: {config.surrogate.learning_rate}")
-    print(f"\tTest ratio: {config.surrogate.test_ratio}")
-    print(f"\tLargest weight: {config.surrogate.largest_weight}")
-    print(f"\tLargest energy level: {config.surrogate.largest_energy_level}")
-    print(f"\tMax dst to ch: {config.surrogate.max_dst_to_ch}")
-    print(f"\tNum workers: {config.surrogate.num_workers}")
-    print(f"\tLoad model: {config.surrogate.load_model}")
-    print(f"\tModel path: {config.surrogate.model_path}")
-    print(f"\tGenerate data: {config.surrogate.generate_data}")
-    print(f"\tRaw data folder: {config.surrogate.raw_data_folder}")
-    print(f"\tData folder: {config.surrogate.data_folder}")
-    print(f"\tPlots folder: {config.surrogate.plots_folder}")
-    print(f"\tPrint every: {config.surrogate.print_every}")
-    print(f"\tPlot every: {config.surrogate.plot_every}")
-    print(f"\tEval every: {config.surrogate.eval_every}")
-    print(f"Network:")
-    print(f"\tNum nodes: {config.network.num_sensor}")
-
-
-# Method to get a specify fraction of the data for training and testing
-def get_data(data, train_fraction=0.8, test_fraction=0.2):
-    # Get the number of samples
-    num_samples = len(data)
-
-    train_data = data[:int(num_samples * train_fraction)]
-    test_data = data[int(num_samples * (1 - test_fraction)):]
-
-    # reset index in both dataframes
-    train_data.reset_index(drop=True, inplace=True)
-    test_data.reset_index(drop=True, inplace=True)
-    # print shapes
-    print(f"Train data shape: {train_data.shape}")
-    print(f"Test data shape: {test_data.shape}")
-
-    return train_data, test_data
-
-
-def load_data(data_url):
-    return pd.read_csv(data_url, dtype=str)
-
-
-def load_files(data_dir):
-    samples = {}
-    for file in os.listdir(data_dir):
-        if file.startswith("LEACH-CE-E_") and not file.endswith("extended.json"):
-            name_parts = file.split("_")[1:]
-            name_parts[-1] = name_parts[-1].split(".json")[0]
-            name = tuple(name_parts)
-            name = tuple(float(part.replace("'", ""))
-                         for part in name_parts)
-
-            with open(os.path.join(data_dir, file), "r") as f:
-                data = json.load(f)
-            samples[name] = data
-    return samples
-
-
-def get_round_data(stats):
-    energy_levels = list(stats['energy_levels'].values())
-
-    membership = [0 if cluster_id is None else int(cluster_id)
-                  for _, cluster_id in stats['membership'].items()]
-    # Remove the sink
-    membership = membership[1:]
-
-    # Get the remaining energy
-    remaining_energy = stats['remaining_energy']
-
-    # Get distance to cluster head
-    dst_to_cluster_head = list(stats['dst_to_cluster_head'].values())
-
-    # Get the alive nodes
-    alive_nodes = stats['alive_nodes']
-
-    # Get the number of cluster heads
-    num_cluster_heads = stats['num_cluster_heads']
-
-    # Get the cluster heads
-    if not stats['cluster_heads']:
-        cluster_heads = [0] * 5
-    else:
-        cluster_heads = stats['cluster_heads']
-        if len(cluster_heads) < 5:
-            cluster_heads += [0] * (5-len(cluster_heads))
-
-    cluster_heads.sort(reverse=False)
-
-    return energy_levels, dst_to_cluster_head, remaining_energy, alive_nodes, cluster_heads, membership
-
-
-def process_data(samples, data_folder, network):
-    # Lets create a pandas dataframe to store the data
-    columns = [
-        "alpha", "beta", "gamma", "remaining_energy", "alive_nodes", "cluster_heads", "energy_levels", "dst_to_cluster_head", "membership",
-        "eelect", "pkt_size", "eamp", "efs", "eda", "d0"]
-    df = pd.DataFrame(columns=columns)
-
-    # Get the size of the samples
-    file_size = len(samples)
-
-    # Initialize an empty list to store DataFrames
-    dfs_list = []
-    d0 = (10 * 10**(-12) / (0.0013 * 10**(-12)))**0.5
-
-    # Calculate the minimum, maximum and average distance from all nodes to any other node
-    distances = {}
-    for node in network:
-        if node.node_id == 1:
-            continue
-        distances[node.node_id] = {}
-        for other_node in network:
-            # avoid calculating the distance between a node and itself
-            if node.node_id == other_node.node_id:
-                continue
-            distances[node.node_id][other_node.node_id] = network.distance_between_nodes(
-                node, other_node)
-
-    # Calculate the average distance per node
-    avg_distances = {}
-    # Calculate the minimum distance per node
-    min_distances = {}
-    # Calculate the maximum distance per node
-    max_distances = {}
-    for node_id, node_distances in distances.items():
-        avg_distances[node_id] = sum(node_distances.values()) / \
-            len(node_distances)
-        min_distances[node_id] = min(node_distances.values())
-        max_distances[node_id] = max(node_distances.values())
-
-    # Lets put together in an array the average, minimum and maximum distance per node
-    avg_min_max_distances = []
-    for node_id in avg_distances.keys():
-        avg_min_max_distances.extend(
-            [avg_distances[node_id], min_distances[node_id], max_distances[node_id]])
-
-    with Progress() as progress:
-        task = progress.add_task(
-            f"[cyan]Processing samples", total=file_size)
-
-        for name, data in samples.items():
-            max_rounds = len(data)
-
-            for round, stats in data.items():
-                round = int(round)
-                if round == max_rounds - 1:
-                    continue
-
-                energy_levels, dst_to_cluster_head, remaining_energy, alive_nodes, cluster_heads, membership = get_round_data(
-                    stats)
-
-                # convert the energy levels to a list of integers
-                energy_levels = [float(energy_level)
-                                 for energy_level in energy_levels]
-                dst_to_cluster_head = [float(dst)
-                                       for dst in dst_to_cluster_head]
-                remaining_energy = float(remaining_energy)
-                alive_nodes = int(alive_nodes)
-                cluster_heads = [int(cluster_head)
-                                 for cluster_head in cluster_heads]
-                membership = [int(cluster_id) for cluster_id in membership]
-                name = tuple(float(x) for x in name)
-
-                # Create a DataFrame for the current round
-                df_data = pd.DataFrame({
-                    "alpha": [name[0]],
-                    "beta": [name[1]],
-                    "gamma": [name[2]],
-                    "remaining_energy": [remaining_energy],
-                    "alive_nodes": [alive_nodes],
-                    "cluster_heads": [cluster_heads],
-                    "energy_levels": [energy_levels],
-                    "dst_to_cluster_head": [dst_to_cluster_head],
-                    "membership": [membership],
-                    "eelect": [50 * 10**(-9)],
-                    "pkt_size": [4000],
-                    "eamp": [0.0013 * 10**(-12)],
-                    "efs": [10 * 10**(-12)],
-                    "eda": [5 * 10**(-9)],
-                    "d0": [d0],
-                    "avg_min_max_distances": [avg_min_max_distances],
-                })
-
-                # Check if the dataframe has any nan values
-                if df_data.isnull().values.any():
-                    raise Exception(f"Dataframe has nan values: {df_data}")
-
-                # Append the DataFrame to the list
-                dfs_list.append(df_data)
-
-            progress.update(task, advance=1)
-
-    # Concatenate all DataFrames in the list
-    df = pd.concat(dfs_list, ignore_index=True)
-
-    os.makedirs(data_folder, exist_ok=True)
-    # Export the df to csv
-    df.to_csv(os.path.join(data_folder, "data.csv"), index=False)
-
+def get_mean_std_name(data, df):
+    name_values = data['name']
+    name_values = name_values.apply(lambda x: eval(x))
+    alpha_values = name_values.apply(lambda x: x[0])
+    beta_values = name_values.apply(lambda x: x[1])
+    gamma_values = name_values.apply(lambda x: x[2])
+    # Lets add to the dataframe
+    df = pd.concat([df, pd.DataFrame({
+        'name': 'alpha',
+        'mean': alpha_values.mean(),
+        'std': alpha_values.std()
+    }, index=[0])])
+    df = pd.concat([df, pd.DataFrame({
+        'name': 'beta',
+        'mean': beta_values.mean(),
+        'std': beta_values.std()
+    }, index=[0])])
+    df = pd.concat([df, pd.DataFrame({
+        'name': 'gamma',
+        'mean': gamma_values.mean(),
+        'std': gamma_values.std()
+    }, index=[0])])
+    # Reset the index
+    df = df.reset_index(drop=True)
     return df
 
 
-def generate_data(config, network: object):
-    raw_data_folder = config.surrogate.raw_data_folder
-    data_folder = config.surrogate.data_folder
-    if raw_data_folder is None:
-        raise Exception(
-            "Please provide the path to the raw data folder to generate the data")
-    if data_folder is None:
-        raise Exception(
-            "Please provide the path to save the generated data")
-    # Load the data folder
-    files = load_files(raw_data_folder)
-    samples = process_data(files, data_folder, network)
-    return samples
+def compute_stats(name, data):
+    # data = data.apply(lambda x: eval(x))
+    data_mean = data.mean()
+    data_std = data.std()
+    data_stats_dict = {
+        'name': name,
+        'mean': data_mean,
+        'std': data_std
+    }
+    return data_stats_dict
+
+
+def compute_array_stats(name, data):
+    data = data.apply(lambda x: eval(x))
+    data_mean = data.apply(lambda x: np.mean(x)).mean()
+    data_std = data.apply(lambda x: np.std(x)).mean()
+    data_stats_dict = {
+        'name': name,
+        'mean': data_mean,
+        'std': data_std
+    }
+    return data_stats_dict
+
+# Standardize data using F1 score
+
+
+def standardize_inputs(x, mean, std):
+    standardized_x = (x - mean) / std
+    return standardized_x
+
+
+def get_estimate_tx_energy(network, eelect, eamp, efs, eda, packet_size, d0):
+    tx_energy = {}
+    for node in network:
+        if node.node_id == 1:
+            continue
+        tx_energy[node.node_id] = {}
+        for other_node in network:
+            # avoid calculating the distance between a node and itself
+            if node.node_id == other_node.node_id:
+                tx_energy[node.node_id][other_node.node_id] = 0
+                continue
+            dst = network.distance_between_nodes(node, other_node)
+            eamp_calc = 0
+            if dst <= d0:
+                eamp_calc = packet_size*efs*dst**2
+            else:
+                eamp_calc = packet_size*eamp*dst**4
+            if other_node.node_id == 1:
+                tx_energy[node.node_id][other_node.node_id] = (
+                    eelect + eda) * packet_size + eamp_calc
+            else:
+                tx_energy[node.node_id][other_node.node_id] = eelect * \
+                    packet_size + eamp_calc
+    return tx_energy
+
+
+def get_standardized_weights(alpha_val, beta_val, gamma_val, data_stats):
+    # Get the mean and std of the data
+    alpha = standardize_inputs(
+        x=alpha_val,
+        mean=data_stats.loc[data_stats['name']
+                            == 'alpha']['mean'].values[0],
+        std=data_stats.loc[data_stats['name'] == 'alpha']['std'].values[0])
+    beta = standardize_inputs(
+        x=beta_val,
+        mean=data_stats.loc[data_stats['name']
+                            == 'beta']['mean'].values[0],
+        std=data_stats.loc[data_stats['name'] == 'beta']['std'].values[0])
+    gamma = standardize_inputs(
+        x=gamma_val,
+        mean=data_stats.loc[data_stats['name']
+                            == 'gamma']['mean'].values[0],
+        std=data_stats.loc[data_stats['name'] == 'gamma']['std'].values[0])
+    return alpha, beta, gamma
+
+
+def get_standardized_remaining_energy(remaining_energy: float, data_stats):
+    return standardize_inputs(
+        x=remaining_energy,
+        mean=data_stats.loc[data_stats['name']
+                            == 're']['mean'].values[0],
+        std=data_stats.loc[data_stats['name'] == 're']['std'].values[0])
+
+
+def get_standardized_energy_levels(network: object, data_stats: object):
+    # Get the energy levels
+    np_energy_levels = np.zeros(99)
+    for node in network:
+        if node.node_id <= 1:
+            continue
+        np_energy_levels[node.node_id-2] = node.remaining_energy
+    energy_levels = list(np_energy_levels)
+    return standardize_inputs(
+        x=energy_levels,
+        mean=data_stats.loc[data_stats['name']
+                            == 'el']['mean'].values[0],
+        std=data_stats.loc[data_stats['name'] == 'el']['std'].values[0])

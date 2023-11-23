@@ -7,7 +7,7 @@ from pynetsim.leach.rl.leach_rl_loss import LEACH_RL_LOSS
 from pynetsim.leach.rl.leach_hrl import LEACH_HRL
 from pynetsim.network.simple_model import Simple
 from pynetsim.network.extended_model import Extended
-from pynetsim.leach.surrogate.surrogate import SURROGATE
+from pynetsim.leach.surrogate.surrogate import SurrogateModel
 from pynetsim.leach.leach_milp.leach_ce_d import LEACH_CE_D
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.leach.leach_ce import LEACH_CE
@@ -38,7 +38,7 @@ PROTOCOLS = {
     "LEACH-RT": LEACH_RT,
     "EC-LEACH": EC_LEACH,
     "EE-LEACH": EE_LEACH,
-    "Surrogate": SURROGATE
+    "Surrogate": SurrogateModel
 }
 
 NETWORK_MODELS = {
@@ -111,75 +111,25 @@ class NetworkConfiguration:
                       for node in network_dict.get('nodes', [])]
 
 
-# Surrogate defaults
-HIDDEN_DIM = 512
-LSTM_HIDDEN = 512
-OUTPUT_DIM = 101
-LEARNING_RATE = 1e-6
-EPOCHS = 5000
-LARGEST_WEIGHT = 6
-LARGEST_ENERGY_LEVEL = 4
-MAX_DST_TO_CH = 200
-NUM_CLUSTERS = 100
-NUM_EMBEDDINGS = 101
-EMBEDDING_DIM = 30
-NUMERICAL_DIM = 102
-WEIGHT_DECAY = 1e-5
-DROP_OUT = 0.2
-
-# Data loader
-BATCH_SIZE = 64
-TEST_RATIO = 0.2
-NUM_WORKERS = 1
-
-# Print and plot intervals
-PRINT_EVERY = 1
-PLOT_EVERY = 10
-EVAL_EVERY = 10
+# Default surrogate configuration
+ALPHA = 0.5
+BETA = 0.5
+GAMMA = 0.5
 
 
 class SurrogateConfiguration:
     def __init__(self, surrogate_dict):
-        # Surrogate model
-        self.lstm_arch = surrogate_dict.get('lstm_arch', "simple")
-        self.epochs = surrogate_dict.get('epochs', EPOCHS)
-        self.hidden_dim = surrogate_dict.get(
-            'hidden_dim', HIDDEN_DIM)
-        self.lstm_hidden = surrogate_dict.get(
-            'lstm_hidden', LSTM_HIDDEN)
-        self.output_dim = surrogate_dict.get('output_dim', OUTPUT_DIM)
-        self.num_clusters = surrogate_dict.get(
-            'num_clusters', NUM_CLUSTERS)
-        self.num_embeddings = surrogate_dict.get(
-            'num_embeddings', NUM_EMBEDDINGS)
-        self.embedding_dim = surrogate_dict.get(
-            'embedding_dim', EMBEDDING_DIM)
-        self.numerical_dim = surrogate_dict.get(
-            'numerical_dim', NUMERICAL_DIM)
-        self.weight_decay = surrogate_dict.get(
-            'weight_decay', WEIGHT_DECAY)
-        self.drop_out = surrogate_dict.get('drop_out', DROP_OUT)
-        self.batch_size = surrogate_dict.get('batch_size', BATCH_SIZE)
-        self.learning_rate = surrogate_dict.get(
-            'learning_rate', LEARNING_RATE)
-        self.test_ratio = surrogate_dict.get('test_ratio', TEST_RATIO)
-        self.largest_weight = surrogate_dict.get(
-            'largest_weight', LARGEST_WEIGHT)
-        self.largest_energy_level = surrogate_dict.get(
-            'largest_energy_level', LARGEST_ENERGY_LEVEL)
-        self.max_dst_to_ch = surrogate_dict.get(
-            'max_dst_to_ch', MAX_DST_TO_CH)
-        self.num_workers = surrogate_dict.get('num_workers', NUM_WORKERS)
-        self.load_model = surrogate_dict.get('load_model', False)
-        self.model_path = surrogate_dict.get('model_path', None)
-        self.generate_data = surrogate_dict.get('generate_data', False)
-        self.raw_data_folder = surrogate_dict.get('raw_data_folder', None)
-        self.data_folder = surrogate_dict.get('data_folder', None)
-        self.plots_folder = surrogate_dict.get('plots_folder', None)
-        # Print and plot intervals
-        self.print_every = surrogate_dict.get('print_every', PRINT_EVERY)
-        self.plot_every = surrogate_dict.get('plot_every', PLOT_EVERY)
-        self.eval_every = surrogate_dict.get('eval_every', EVAL_EVERY)
+        self.cluster_head_model = surrogate_dict.get(
+            'cluster_head_model', None)
+        self.cluster_head_data = surrogate_dict.get(
+            'cluster_head_data', None)
+        self.cluster_assignment_model = surrogate_dict.get(
+            'cluster_assignment_model', None)
+        self.cluster_assignment_data = surrogate_dict.get(
+            'cluster_assignment_data', None)
+        self.alpha = surrogate_dict.get('alpha', ALPHA)
+        self.beta = surrogate_dict.get('beta', BETA)
+        self.gamma = surrogate_dict.get('gamma', GAMMA)
 
 
 class Configuration:

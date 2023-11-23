@@ -163,11 +163,13 @@ def generate_data_cluster_heads(samples, output_folder, network, export_csv=True
                 # Get the cluster heads of the next round
                 cluster_heads = get_round_data(
                     data[str(round+1)])['cluster_heads']
-                # Create an array of zeros. As there are 100 nodes, we need 101
+                # print(f"Cluster heads: {cluster_heads}")
+                # The cluster head index key is the node id and the value is 1 if the node is a cluster head, 0 otherwise
                 np_cluster_heads = np.zeros(101)
                 # Set the index of the cluster heads to 1
                 np_cluster_heads[cluster_heads] = 1
                 np_cluster_heads = list(np_cluster_heads)
+                # print(f"np_cluster_heads: {np_cluster_heads}")
                 # Let now get the potential cluster heads
                 potential_cluster_heads = []
                 # Potential cluster heads are the nodes that have energy above the average of the alive nodes
@@ -181,20 +183,24 @@ def generate_data_cluster_heads(samples, output_folder, network, export_csv=True
                     avg_energy = np.mean(nodes_with_energy)
                 # Set the potential cluster heads
                 for i, energy_level in enumerate(energy_levels):
-                    if energy_level > avg_energy:
+                    if energy_level >= avg_energy:
                         potential_cluster_heads.append(i+2)
-                np_potential_cluster_heads = np.zeros(101)
-                np_potential_cluster_heads[potential_cluster_heads] = 1
+                np_potential_cluster_heads = np.zeros(99)
+                for ch in potential_cluster_heads:
+                    np_potential_cluster_heads[ch-2] = 1
                 np_potential_cluster_heads = list(np_potential_cluster_heads)
+                # print(
+                #     f"np_potential_cluster_heads: {np_potential_cluster_heads}")
                 # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the sink
-                np_ch_to_sink = np.zeros(101)
+                np_ch_to_sink = np.zeros(99)
                 # We only consider the potential cluster heads
                 for ch in potential_cluster_heads:
                     # Get from tx_energy the energy dissipated when transmitting from the cluster head to the sink
-                    np_ch_to_sink[ch] = tx_energy[ch][1]
+                    np_ch_to_sink[ch-2] = tx_energy[ch][1]
                 np_ch_to_sink = list(np_ch_to_sink)
+                # print(f"np_ch_to_sink: {np_ch_to_sink}")
                 # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the cluster head
-                np_non_ch_to_ch = np.zeros(101)
+                np_non_ch_to_ch = np.zeros(99)
                 # Here only consider the nodes that are not cluster heads
                 for node in range(2, 101):
                     if node in potential_cluster_heads:
@@ -213,20 +219,22 @@ def generate_data_cluster_heads(samples, output_folder, network, export_csv=True
                         else:
                             min_values = [0]
                     avg_min_values = np.mean(min_values)
-                    np_non_ch_to_ch[node] = avg_min_values
+                    np_non_ch_to_ch[node-2] = avg_min_values
                 np_non_ch_to_ch = list(np_non_ch_to_ch)
+                # print(f"np_non_ch_to_ch: {np_non_ch_to_ch}")
                 # Calculate the estimated energy dissipated by potential cluster heads when receiving data from non cluster heads
-                np_ch_from_non_ch = np.zeros(101)
+                np_ch_from_non_ch = np.zeros(99)
                 num_alive_nodes = round_data['alive_nodes']
-                estimated_num_chs = int(num_alive_nodes*0.05)
+                estimated_num_chs = int(num_alive_nodes*0.05)+1
                 if estimated_num_chs == 0:
                     estimated_num_chs = 1
                 else:
                     num_non_ch_per_ch = num_alive_nodes/estimated_num_chs
                 for ch in potential_cluster_heads:
                     ch_rx_energy = eelect*pkt_size*num_non_ch_per_ch
-                    np_ch_from_non_ch[ch] = ch_rx_energy
+                    np_ch_from_non_ch[ch-2] = ch_rx_energy
                 np_ch_from_non_ch = list(np_ch_from_non_ch)
+                # print(f"np_ch_from_non_ch: {np_ch_from_non_ch}")
                 # Create a DataFrame for the current round
                 df_data = pd.DataFrame({
                     "name": [name],
@@ -355,13 +363,13 @@ def generate_data_cluster_assignment(samples, output_folder, network, export_csv
                 # print(f"Membership: {membership}")
                 # return
                 # Lets create a numpy array that contains the estimated energy dissipated when transmitting to the sink
-                np_ch_to_sink = np.zeros(101)
+                np_ch_to_sink = np.zeros(99)
                 # We only consider the cluster heads
                 for ch in cluster_heads:
                     if ch == 0:
                         continue
                     # Get from tx_energy the energy dissipated when transmitting from the cluster head to the sink
-                    np_ch_to_sink[ch] = tx_energy[ch][1]
+                    np_ch_to_sink[ch-2] = tx_energy[ch][1]
                 np_ch_to_sink = list(np_ch_to_sink)
                 # print(f"np_ch_to_sink: {np_ch_to_sink}")
 

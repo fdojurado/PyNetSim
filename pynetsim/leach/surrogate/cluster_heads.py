@@ -1,16 +1,13 @@
-import numpy as np
-import pandas as pd
-import torch
 import os
+import numpy as np
+import torch
+import pandas as pd
 import torch.nn as nn
-import matplotlib.pyplot as plt
 import pynetsim.leach.surrogate as leach_surrogate
 
 
 from torch.utils.data import Dataset
 from pynetsim.utils import PyNetSimLogger
-from rich.progress import Progress
-
 
 # -------------------- Create logger --------------------
 logger_utility = PyNetSimLogger(namespace=__name__, log_file="my_log.log")
@@ -37,8 +34,6 @@ class ClusterHeadDataset(Dataset):
 
 
 class ForecastCCH(nn.Module):
-    global non_cyclical_features_size, cyclical_features_size
-
     def __init__(self, input_size=10, h1=100, h2=100, output_size=101):
         super(ForecastCCH, self).__init__()
         self.batch_norm1 = nn.BatchNorm1d(input_size)
@@ -54,7 +49,7 @@ class ForecastCCH(nn.Module):
 
         self.fc3 = nn.Linear(h2, output_size)
 
-        # self.sigmoid = nn.Sigmoid()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         # print(f"x shape: {x.shape}")
@@ -72,20 +67,20 @@ class ForecastCCH(nn.Module):
         # print(f"out shape2: {out.shape}")
 
         out = self.fc3(out)
-        # out = self.sigmoid(out)
+        out = self.sigmoid(out)
         # print(f"out shape3: {out.shape}")
-        # reshape output to [batch_size, 99, 101]
-        out = out.view(-1, 99, 6)
+
         return out
 
 
-class ClusterAssignmentModel:
+class ClusterHeadModel:
 
-    def __init__(self, config, network: object):
-        self.name = "Cluster Assignment Model"
+    def __init__(self, config, network=object):
+        self.name = "Cluster Head Model"
         self.network = network
-        self.model_path = config.surrogate.cluster_assignment_model
-        self.data_folder = config.surrogate.cluster_assignment_data
+        self.cluster_head_percentage = config.network.protocol.cluster_head_percentage
+        self.model_path = config.surrogate.cluster_head_model
+        self.data_folder = config.surrogate.cluster_head_data
         self.alpha = config.surrogate.alpha
         self.beta = config.surrogate.beta
         self.gamma = config.surrogate.gamma
@@ -137,7 +132,11 @@ class ClusterAssignmentModel:
             'ed_non_ch_to_ch', self.data['energy_dissipated_non_ch_to_ch'])
         self.data_stats = pd.concat(
             [self.data_stats, pd.DataFrame(energy_dissipated_non_ch_to_ch_dict, index=[0])]).reset_index(drop=True)
-        logger.info(f"Data stats: {self.data_stats}")
+        energy_dissipated_ch_rx_from_non_ch_dict = leach_surrogate.compute_array_stats(
+            'ed_ch_rx_from_non_ch', self.data['energy_dissipated_ch_rx_from_non_ch'])
+        self.data_stats = pd.concat(
+            [self.data_stats, pd.DataFrame(energy_dissipated_ch_rx_from_non_ch_dict, index=[0])]).reset_index(drop=True)
+        logger.info(f"Data stats: {self.data_stats.to_string()}")
 
         self.model = self.load_model()
 
@@ -154,7 +153,7 @@ class ClusterAssignmentModel:
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
         model = ForecastCCH(
-            input_size=703, h1=2000, h2=2000, output_size=6*99).to(self.device)
+            input_size=401, h1=2000, h2=2000, output_size=101).to(self.device)
         if os.path.exists(self.model_path):
             model.load_state_dict(torch.load(self.model_path))
             logger.info(f"Loaded model from {self.model_path}")
@@ -162,11 +161,26 @@ class ClusterAssignmentModel:
             raise Exception(f"Model not found at {self.model_path}")
         return model
 
-    def get_standardized_energy_dissipated_ch_to_sink(self, cluster_heads: list):
-        np_ch_to_sink = np.zeros(99)
-        for ch in cluster_heads:
-            if ch <= 1:
+    def get_standardized_potential_cluster_heads(self, network: object):
+        potential_cluster_heads = []
+        # get the network average energy
+        avg_energy = network.average_remaining_energy()
+        for node in network:
+            if network.should_skip_node(node):
                 continue
+            if node.remaining_energy >= avg_energy:
+                potential_cluster_heads.append(node.node_id)
+        np_potential_cluster_heads = np.zeros(99)
+        for ch in potential_cluster_heads:
+            np_potential_cluster_heads[ch-2] = 1
+        np_potential_cluster_heads = list(np_potential_cluster_heads)
+        return {'pchs': potential_cluster_heads,
+                'pchs_one_hot': np_potential_cluster_heads}
+
+    def get_standardized_energy_dissipated_ch_to_sink(self, pchs: list):
+        # Get the energy dissipated by cluster heads to sink
+        np_ch_to_sink = np.zeros(99)
+        for ch in pchs:
             np_ch_to_sink[ch-2] = self.estimate_tx_energy[ch][1]
         ch_to_sink = list(np_ch_to_sink)
         # standardize the data
@@ -176,76 +190,81 @@ class ClusterAssignmentModel:
                                      == 'ed_ch_to_sink']['mean'].values[0],
             std=self.data_stats.loc[self.data_stats['name'] == 'ed_ch_to_sink']['std'].values[0])
 
-    def get_standardized_energy_dissipated_non_ch_to_ch(self, cluster_heads: list):
-        # Get the energy dissipated by cluster heads to sink
-        tx_energy_to_ch = {}
-        for node in self.network:
-            if node.node_id <= 1:
-                continue
-            if node.node_id in cluster_heads:
-                tx_energy_to_ch[node.node_id] = [0, 0, 0, 0, 0]
-                continue
-            # Check if the node has energy
-            if node.remaining_energy <= 0:
-                tx_energy_to_ch[node.node_id] = [0, 0, 0, 0, 0]
-                continue
-            cluster_head_energy = []
-            for ch in cluster_heads:
-                if ch == 0:
-                    cluster_head_energy.append(0)
-                    continue
-                cluster_head_energy.append(
-                    self.estimate_tx_energy[node.node_id][ch])
-            tx_energy_to_ch[node.node_id] = cluster_head_energy
-        tx_energy_to_ch_list = [value for _, value in tx_energy_to_ch.items(
-        )]
-        tx_energy_to_ch_list = [
-            item for sublist in tx_energy_to_ch_list for item in sublist]
-        assert len(
-            tx_energy_to_ch_list) == 495, f"len(tx_energy_to_ch_list): {len(tx_energy_to_ch_list)}"
+    def get_standardized_energy_dissipated_ch_rx_from_non_ch(self, potential_cluster_heads,
+                                                             network: object):
+        np_ch_from_non_ch = np.zeros(99)
+        num_alive_nodes = network.alive_nodes()
+        estimated_num_chs = int(
+            num_alive_nodes*self.cluster_head_percentage) + 1
+        if estimated_num_chs == 0:
+            estimated_num_chs = 1
+        else:
+            num_non_ch_per_ch = num_alive_nodes/estimated_num_chs
+        for ch in potential_cluster_heads:
+            ch_rx_energy = self.eelect * self.packet_size * \
+                num_non_ch_per_ch
+            np_ch_from_non_ch[ch-2] = ch_rx_energy
+        ch_from_non_ch = list(np_ch_from_non_ch)
+        logger.info(
+            f"Energy dissipated by cluster heads when receiving from non-cluster heads: {ch_from_non_ch}")
         return leach_surrogate.standardize_inputs(
-            x=tx_energy_to_ch_list,
+            x=ch_from_non_ch,
             mean=self.data_stats.loc[self.data_stats['name']
-                                     == 'ed_non_ch_to_ch']['mean'].values[0],
-            std=self.data_stats.loc[self.data_stats['name'] == 'ed_non_ch_to_ch']['std'].values[0])
+                                     == 'ed_ch_rx_from_non_ch']['mean'].values[0],
+            std=self.data_stats.loc[self.data_stats['name'] == 'ed_ch_rx_from_non_ch']['std'].values[0])
 
-    def get_standardized_cluster_heads(self, cluster_heads: list):
-        return leach_surrogate.standardize_inputs(
-            x=cluster_heads,
-            mean=self.data_stats.loc[self.data_stats['name']
-                                     == 'chs']['mean'].values[0],
-            std=self.data_stats.loc[self.data_stats['name'] == 'chs']['std'].values[0])
+    def get_standardized_num_cluster_heads(self, network: object):
+        num_alive_nodes = network.alive_nodes()
+        num_chs = (int(num_alive_nodes*self.cluster_head_percentage)+1)/5
+        logger.info(f"Number of cluster heads: {num_chs}")
+        return num_chs
 
-    def predict(self, network: object, cluster_heads: list):
+    def predict(self, network: object, round: int):
         # Get standardized inputs
         remaining_energy = leach_surrogate.get_standardized_remaining_energy(
             network.remaining_energy(), self.data_stats)
         logger.info(f"Standardized remaining energy: {remaining_energy}")
+        # Get potential cluster heads
+        potential_cluster_heads = self.get_standardized_potential_cluster_heads(
+            network)
+        logger.info(
+            f"Potential cluster heads: {potential_cluster_heads['pchs']} one hot: {potential_cluster_heads['pchs_one_hot']}")
         # Get the energy levels
         energy_levels = leach_surrogate.get_standardized_energy_levels(
             network, self.data_stats)
         logger.info(f"Standardized energy levels: {energy_levels}")
         # Get the energy dissipated by cluster heads to sink
         edc = self.get_standardized_energy_dissipated_ch_to_sink(
-            cluster_heads=cluster_heads)
+            pchs=potential_cluster_heads['pchs'])
         logger.info(
             f"Standardized energy dissipated by cluster heads to sink: {edc}")
-        # Get the energy dissipated by non cluster heads to cluster heads
-        ednc = self.get_standardized_energy_dissipated_non_ch_to_ch(
-            cluster_heads=cluster_heads)
+        # Get the energy consumed by non-cluster heads when transmitting to cluster heads
+        # ednch = leach_surrogate.get_standardized_energy_dissipated_non_ch_to_ch(
+        #     potential_cluster_heads=potential_cluster_heads['pchs'],
+        #     network=network,
+        #     estimate_tx_energy=self.estimate_tx_energy,
+        #     data_stats=self.data_stats)
+        # logger.info(
+        #     f"Standardized energy dissipated by non-cluster heads when transmitting to cluster heads: {ednch}")
+        # Get the energy dissipated by chs when receiving from non-chs
+        energy_dissipated_ch_rx_from_non_ch = self.get_standardized_energy_dissipated_ch_rx_from_non_ch(
+            potential_cluster_heads['pchs'], network)
         logger.info(
-            f"Standardized energy dissipated by non cluster heads to cluster heads: {ednc}")
-        # Get the cluster heads
-        cluster_heads.insert(0, 0)
-        cluster_heads = self.get_standardized_cluster_heads(
-            cluster_heads=cluster_heads)
-        logger.info(f"Standardized cluster heads: {cluster_heads}")
+            f"Standardized energy dissipated by cluster heads when receiving from non-cluster heads: {energy_dissipated_ch_rx_from_non_ch}")
+        # Get the number of cluster heads
+        num_cluster_heads = self.get_standardized_num_cluster_heads(
+            network)
+        logger.info(
+            f"Standardized number of cluster heads: {num_cluster_heads}")
         # Now lets put everything together
         inputs = [self.alpha, self.beta, self.gamma, remaining_energy]
+        inputs.extend(potential_cluster_heads['pchs_one_hot'])
         inputs.extend(energy_levels)
         inputs.extend(edc)
-        inputs.extend(ednc)
-        inputs.extend(cluster_heads)
+        # inputs.extend(ednch)
+        inputs.extend(energy_dissipated_ch_rx_from_non_ch)
+        inputs.append(num_cluster_heads)
+        # Lets predict the cluster heads
         inputs = np.array(inputs)
         inputs = inputs.reshape(1, -1)
         inputs = torch.from_numpy(inputs.astype(np.float32))
@@ -253,7 +272,12 @@ class ClusterAssignmentModel:
         self.model.eval()
         with torch.no_grad():
             outputs = self.model(inputs)
-            print(f"Outputs shape: {outputs.shape}")
-            outputs = torch.argmax(outputs, dim=2)
-            print(f"Output: {outputs}")
-        return outputs.cpu().numpy()[0]
+            outputs = outputs.cpu().numpy()
+            outputs = outputs.reshape(-1)
+            print(f"Outputs: {outputs}")
+            # Get the top 5 cluster heads
+            top_5 = outputs.argsort()[-5:][::-1]
+            # sort the top 5
+            top_5 = sorted(top_5)
+            print(f"Top 5: {top_5}")
+        return top_5
