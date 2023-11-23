@@ -79,17 +79,30 @@ class SurrogateModel:
         logger.info(f"Predicted cluster assignments: {cluster_assignments}")
         return cluster_assignments
 
+    def set_cluster_heads(self, cluster_heads):
+        for node in self.network:
+            if node.node_id in cluster_heads:
+                self.network.mark_as_cluster_head(node, node.node_id)
+            else:
+                self.network.mark_as_non_cluster_head(node)
+
+    def set_clusters(self, cluster_assignments):
+        for i, cluster_head in enumerate(cluster_assignments):
+            node = self.network.get_node(i+2)
+            node.cluster_id = int(cluster_head)
+            node.dst_to_cluster_head = self.network.distance_between_nodes(
+                node, self.network.get_node(cluster_head))
+
     def evaluate_round(self, round):
         round += 1
         print(f"Round {round}")
 
         self.max_chs = int(self.network.alive_nodes() *
                            self.config.network.protocol.cluster_head_percentage) + 1
-
         # Create cluster assignments predicted by the surrogate model
         cluster_heads = self.predict_cluster_heads(round=round)
-        # for node in self.network:
-        #     self.network.mark_as_non_cluster_head(node)
+        # Set cluster heads
+        self.set_cluster_heads(cluster_heads)
         # Lets predict the cluster assignments
         cluster_assignments = self.predict_cluster_assignments(
             cluster_heads=cluster_heads)

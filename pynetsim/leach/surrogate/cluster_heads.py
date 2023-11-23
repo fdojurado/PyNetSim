@@ -275,9 +275,26 @@ class ClusterHeadModel:
             outputs = outputs.cpu().numpy()
             outputs = outputs.reshape(-1)
             print(f"Outputs: {outputs}")
+            print(f"Outputs shape: {outputs.shape}")
             # Get the top 5 cluster heads
             top_5 = outputs.argsort()[-5:][::-1]
             # sort the top 5
             top_5 = sorted(top_5)
             print(f"Top 5: {top_5}")
+            # sort the outputs from highest to lowest but print the indices
+            print(outputs.argsort()[::-1])
+            # Lets set to 0 the outputs index where the energy is less than the average energy
+            avg_energy = network.average_remaining_energy()
+            for i, output in enumerate(outputs):
+                if i<=1:
+                    continue
+                node_id = i
+                node = network.get_node(node_id)
+                if node.remaining_energy < avg_energy:
+                    outputs[i] = 0
+            # Get the top 5 cluster heads
+            top_5 = outputs.argsort()[-5:][::-1]
+            # sort the top 5
+            top_5 = sorted(top_5)
+            print(f"Top 5-2: {top_5}")
         return top_5
