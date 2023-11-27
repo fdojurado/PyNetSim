@@ -27,6 +27,22 @@ class SurrogateModel:
         self.cluster_assignment_model = ClusterAssignmentModel(config=config,
                                                                network=network)
 
+    # update the network
+    def update_network(self, network):
+        self.network = network
+
+    # update the network model
+    def update_network_model(self, net_model):
+        self.net_model = net_model
+
+    def initialize(self):
+        for node in self.network:
+            node.is_cluster_head = False
+
+        # Set all dst_to_sink for all nodes
+        for node in self.network:
+            node.dst_to_sink = self.network.distance_to_sink(node)
+
     def run(self):
         logger.info(
             f"Running {self.name}")
@@ -35,12 +51,7 @@ class SurrogateModel:
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
 
-        for node in self.network:
-            node.is_cluster_head = False
-
-        # Set all dst_to_sink for all nodes
-        for node in self.network:
-            node.dst_to_sink = self.network.distance_to_sink(node)
+        self.initialize()
 
         if not plot_clusters_flag:
             with Timer() as t:
@@ -65,7 +76,6 @@ class SurrogateModel:
         # Get the cluster heads
         cluster_heads = self.cluster_head_model.predict(
             network=self.network, round=round, std_re=self.std_re, std_el=self.std_el,
-            re=self.re,
             avg_re=self.avg_re,
             alive_nodes=self.alive_nodes)
         return cluster_heads
@@ -123,10 +133,10 @@ class SurrogateModel:
         round += 1
         # print(f"Round {round}")
 
-        self.re = self.network.remaining_energy()
+        re = self.network.remaining_energy()
         self.avg_re = self.network.average_remaining_energy()
         self.std_re = leach_surrogate.standardize_inputs(
-            x=self.re, mean=self.cluster_head_model.re_mean,
+            x=re, mean=self.cluster_head_model.re_mean,
             std=self.cluster_head_model.re_std)
         self.std_el = leach_surrogate.get_standardized_energy_levels(
             network=self.network,

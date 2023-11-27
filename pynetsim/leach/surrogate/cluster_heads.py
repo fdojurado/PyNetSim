@@ -214,7 +214,7 @@ class ClusterHeadModel:
         return num_chs
 
     def predict(self, network: object, round: int, std_re: float, std_el: list,
-                re: float, avg_re: float, alive_nodes: int):
+                avg_re: float, alive_nodes: int):
         # print the cluster heads at that round in the data
         # data_at_round = self.data[(self.data['name'].str.contains(
         #     str(self.alpha))) & (self.data['name'].str.contains(str(self.beta))) & (self.data['name'].str.contains(str(self.gamma)))]

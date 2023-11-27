@@ -6,8 +6,10 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
-from stable_baselines3 import DQN, PPO
-from pynetsim.config import PROTOCOLS
+from pynetsim.leach.surrogate.surrogate import SurrogateModel
+from pynetsim.utils import PyNetSimLogger
+from stable_baselines3 import DQN
+from pynetsim.leach.rl.leach_rl import LEACH_RL
 import gymnasium as gym
 
 import numpy as np
@@ -17,6 +19,10 @@ import os
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
+
+# -------------------- Create logger --------------------
+logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger = logger_utility.get_logger()
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -51,8 +57,8 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 # Mean training reward over the last 100 episodes
                 mean_reward = np.mean(y[-100:])
                 if self.verbose > 0:
-                    print(f"Num timesteps: {self.num_timesteps}")
-                    print(
+                    logger.info(f"Num timesteps: {self.num_timesteps}")
+                    logger.info(
                         f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")
 
                 # New best model, you could save the agent here
@@ -60,7 +66,8 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     self.best_mean_reward = mean_reward
                     # Example for saving best model
                     if self.verbose > 0:
-                        print(f"Saving new best model to {self.save_path}")
+                        logger.info(
+                            f"Saving new best model to {self.save_path}")
                     self.model.save(self.save_path)
 
         return True
@@ -75,16 +82,16 @@ def main(args):
         os.makedirs(args.logdir)
     # Load config
     config = load_config(CONFIG_FILE)
-    print(f"config: {config}")
+    logger.info(f"Loading config from {CONFIG_FILE}")
 
     network = Network(config=config)
     network_model = NETWORK_MODELS[config.network.model](
         config=config, network=network)
     network.set_model(network_model)
     network.initialize()
+    network_model.init()
     # -----------Lets train the DQN network
-    env_name = config.network.protocol.name
-    env = PROTOCOLS[env_name](network, network_model)
+    env = LEACH_RL(network, network_model, config)
     env = gym.wrappers.TimeLimit(
         env,
         max_episode_steps=config.network.protocol.max_steps
@@ -99,38 +106,17 @@ def main(args):
         verbose=1,
         learning_rate=3e-4,
         # buffer_size=50000,
-        learning_starts=1024,
-        batch_size=512,
+        learning_starts=512,
+        batch_size=128,
         # tau=1.0,
         gamma=0.98,
         # train_freq=4,
         target_update_interval=100,
-        exploration_fraction=0.6,
+        exploration_fraction=0.8,
         exploration_initial_eps=1.0,
         exploration_final_eps=0.05,
         tensorboard_log=tensorboard_log
     )
-    # model = PPO(
-    #     "MlpPolicy",
-    #     env,
-    #     verbose=1,
-    #     n_steps=512,
-    #     learning_rate=3e-4,
-    #     batch_size=64,
-    #     ent_coef=0.1,
-    #     gamma=0.99,
-    #     # buffer_size=50000,
-    #     # learning_starts=5e3,
-    #     # batch_size=512,
-    #     # # tau=1.0,
-    #     # gamma=0.8,
-    #     # # train_freq=4,
-    #     # target_update_interval=100,
-    #     # exploration_fraction=0.8,
-    #     # exploration_initial_eps=1.0,
-    #     # exploration_final_eps=0.05,
-    #     tensorboard_log=tensorboard_log
-    # )
     model.learn(total_timesteps=200e3, log_interval=4, callback=best_model)
 
 

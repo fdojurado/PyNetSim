@@ -2,9 +2,6 @@ import yaml
 import os
 
 from pynetsim.leach.rl.leach_rl import LEACH_RL
-from pynetsim.leach.rl.leach_rl_mult import LEACH_RL_MULT
-from pynetsim.leach.rl.leach_rl_loss import LEACH_RL_LOSS
-from pynetsim.leach.rl.leach_hrl import LEACH_HRL
 from pynetsim.network.simple_model import Simple
 from pynetsim.network.extended_model import Extended
 from pynetsim.leach.surrogate.surrogate import SurrogateModel
@@ -27,9 +24,6 @@ PROTOCOLS = {
     "LEACH": LEACH,
     "LEACH-C": LEACH_C,
     "LEACH-RL": LEACH_RL,
-    "LEACH-RL-LOSS": LEACH_RL_LOSS,
-    "LEACH-HRL": LEACH_HRL,
-    "LEACH-RL-MULT": LEACH_RL_MULT,
     "LEACH-K": LEACH_K,
     "LEACH-CE": LEACH_CE,
     "LEACH-CE-D": LEACH_CE_D,
