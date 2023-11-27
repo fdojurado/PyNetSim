@@ -2,12 +2,10 @@ import numpy as np
 import pynetsim.common as common
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import torch
-import pyomo.environ as pyo
-import pynetsim.leach.leach_milp as leach_milp
+import pynetsim.leach.surrogate as leach_surrogate
 
 
-from pynetsim.utils import PyNetSimLogger
+from pynetsim.utils import PyNetSimLogger, Timer
 from rich.progress import Progress
 from pynetsim.leach.surrogate.cluster_heads import ClusterHeadModel
 from pynetsim.leach.surrogate.cluster_assignment import ClusterAssignmentModel
@@ -45,11 +43,15 @@ class SurrogateModel:
             node.dst_to_sink = self.network.distance_to_sink(node)
 
         if not plot_clusters_flag:
-            self.run_without_plotting(
-                num_rounds)
+            with Timer() as t:
+                self.run_without_plotting(
+                    num_rounds)
         else:
             self.run_with_plotting(
                 num_rounds)
+
+        # export the metrics
+        self.network.export_stats()
 
     def print_clusters(self):
         # Print cluster assignments
@@ -62,21 +64,21 @@ class SurrogateModel:
     def predict_cluster_heads(self, round):
         # Get the cluster heads
         cluster_heads = self.cluster_head_model.predict(
-            network=self.network, round=round)
-        logger.info(f"Predicted cluster heads: {cluster_heads}")
+            network=self.network, round=round, std_re=self.std_re, std_el=self.std_el,
+            re=self.re,
+            avg_re=self.avg_re,
+            alive_nodes=self.alive_nodes)
         return cluster_heads
 
-    def predict_cluster_assignments(self, cluster_heads):
+    def predict_cluster_assignments(self, cluster_heads, round):
         # Get the cluster assignments
         cluster_assignments = self.cluster_assignment_model.predict(
-            network=self.network, cluster_heads=cluster_heads)
-        logger.info(f"Predicted cluster heads: {cluster_heads}")
-        logger.info(f"Predicted cluster assignments: {cluster_assignments}")
+            network=self.network, cluster_heads=cluster_heads,
+            std_re=self.std_re, std_el=self.std_el, round=round)
         # Now match each element in cluster assignments whose value is the index of the cluster head
         # to the actual cluster head
-        for i, cluster_head in enumerate(cluster_assignments):
-            cluster_assignments[i] = cluster_heads[cluster_head]
-        logger.info(f"Predicted cluster assignments: {cluster_assignments}")
+        # for i, cluster_head in enumerate(cluster_assignments):
+        #     cluster_assignments[i] = cluster_heads[cluster_head]
         return cluster_assignments
 
     def set_cluster_heads(self, cluster_heads):
@@ -89,26 +91,60 @@ class SurrogateModel:
     def set_clusters(self, cluster_assignments):
         for i, cluster_head in enumerate(cluster_assignments):
             node = self.network.get_node(i+2)
+            if node.remaining_energy <= 0:
+                continue
+            if cluster_head == 0:
+                # if we reach this point, then the node  is alive but we may have made a bad prediction of the cluster head
+                # Therefore, we assign the node to the closest cluster head
+                min_distance = 10000
+                ch_id = -1
+                for ch in cluster_assignments:
+                    if ch == 0:
+                        continue
+                    # Calculate the distance between the node and the cluster head
+                    distance = self.network.distance_between_nodes(
+                        node, self.network.get_node(ch))
+                    if distance < min_distance:
+                        min_distance = distance
+                        ch_id = ch
+                if ch_id == -1:
+                    cluster_head = 1
+                    # print(f"Node {node.node_id} is assigned to the sink.")
+                    # print energy of node
+                    # print(f"Node {node.node_id} energy: {node.remaining_energy}")
+                    # print(f"alive nodes: {self.network.alive_nodes()}")
+                else:
+                    cluster_head = ch_id
             node.cluster_id = int(cluster_head)
             node.dst_to_cluster_head = self.network.distance_between_nodes(
                 node, self.network.get_node(cluster_head))
 
     def evaluate_round(self, round):
         round += 1
-        print(f"Round {round}")
+        # print(f"Round {round}")
 
-        self.max_chs = int(self.network.alive_nodes() *
-                           self.config.network.protocol.cluster_head_percentage) + 1
+        self.re = self.network.remaining_energy()
+        self.avg_re = self.network.average_remaining_energy()
+        self.std_re = leach_surrogate.standardize_inputs(
+            x=self.re, mean=self.cluster_head_model.re_mean,
+            std=self.cluster_head_model.re_std)
+        self.std_el = leach_surrogate.get_standardized_energy_levels(
+            network=self.network,
+            mean=self.cluster_head_model.el_mean,
+            std=self.cluster_head_model.el_std)
+        # print(f"Standardized energy levels: {self.std_el}")
+        self.alive_nodes = self.network.alive_nodes()
         # Create cluster assignments predicted by the surrogate model
         cluster_heads = self.predict_cluster_heads(round=round)
         # Set cluster heads
         self.set_cluster_heads(cluster_heads)
         # Lets predict the cluster assignments
         cluster_assignments = self.predict_cluster_assignments(
-            cluster_heads=cluster_heads)
+            cluster_heads=cluster_heads, round=round)
         self.set_clusters(cluster_assignments)
+        # with Timer() as t:
         self.net_model.dissipate_energy(round=round)
-        input("Press enter to continue...")
+        # input("Press enter to continue...")
         return round
 
     def run_without_plotting(self, num_rounds):

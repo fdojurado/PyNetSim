@@ -1,7 +1,4 @@
 # Create an abstract class for network models
-import matplotlib.pyplot as plt
-import json
-
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 
@@ -13,7 +10,6 @@ class NetworkModel(ABC):
         self.network = network
         self.round_callback: Optional[Callable] = None
         self.get_energy_conversion_factors()
-        pass
 
     @property
     def name(self):
@@ -26,12 +22,14 @@ class NetworkModel(ABC):
         self.network = network
 
     def get_energy_conversion_factors(self):
-        self.elect = self.config.network.protocol.eelect
+        self.eelect = self.config.network.protocol.eelect
         self.eamp = self.config.network.protocol.eamp
         self.efs = self.config.network.protocol.efs
         self.eda = self.config.network.protocol.eda
         self.d_0 = (self.efs/self.eamp)**0.5
         self.packet_size = self.config.network.protocol.packet_size
+        self.eelect_ps = self.eelect * self.packet_size
+        self.eelect_eda_ps = (self.eelect+self.eda)*self.packet_size
 
     def energy_dissipation_non_cluster_heads(self, round: int):
         for node in self.network:
@@ -47,11 +45,11 @@ class NetworkModel(ABC):
                     node=node, cluster_head=cluster_head, round=round)
 
     @abstractmethod
-    def calculate_energy_tx_non_ch(self, distance: float):
+    def calculate_energy_tx_non_ch(self, src: int, dst: int):
         pass
 
     @abstractmethod
-    def calculate_energy_tx_ch(self, distance: float):
+    def calculate_energy_tx_ch(self, src: int):
         pass
 
     @abstractmethod
@@ -66,10 +64,8 @@ class NetworkModel(ABC):
         node.energy_dissipation(energy=energy, round=round)
 
     def energy_dissipation_non_cluster_head(self, node: object, cluster_head: object, round: int):
-        if not self.network.alive(node):
-            return
-        distance = node.dst_to_cluster_head
-        ETx = self.calculate_energy_tx_non_ch(distance=distance)
+        ETx = self.calculate_energy_tx_non_ch(
+            src=node.node_id, dst=cluster_head.node_id)
         self.energy_dissipated(node=node, energy=ETx, round=round)
         node.inc_pkts_sent()
         if not self.network.alive(cluster_head):
@@ -91,8 +87,7 @@ class NetworkModel(ABC):
         for node in self.network:
             if self.network.should_skip_node(node) or not node.is_cluster_head:
                 continue
-            distance = node.dst_to_sink
-            ETx = self.calculate_energy_tx_ch(distance=distance)
+            ETx = self.calculate_energy_tx_ch(src=node.node_id)
             self.energy_dissipated(node=node, energy=ETx, round=round)
             node.inc_pkts_sent_to_bs()
             node.inc_pkts_sent()
@@ -107,10 +102,9 @@ class NetworkModel(ABC):
     def transfer_data_to_sink(self, node, round: int):
         if not self.network.alive(node):
             return
-        distance = node.dst_to_sink
         # print("No cluster heads, transferring data to the sink.")
         # print(f"Node {node.node_id} distance to sink: {distance}")
-        ETx = self.calculate_energy_tx_non_ch(distance=distance)
+        ETx = self.calculate_energy_tx_non_ch(src=node.node_id, dst=1)
         self.energy_dissipated(node=node, energy=ETx, round=round)
         node.inc_pkts_sent()
         # node.inc_pkts_sent_to_bs()

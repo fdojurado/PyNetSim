@@ -101,53 +101,56 @@ class ClusterHeadModel:
 
     def init(self):
         self.data = pd.read_csv(self.data_folder)
-        logger.info(f"Data shape: {self.data.shape}")
+        # logger.info(f"Data shape: {self.data.shape}")
         # print info and describe the data
-        logger.info(f"Data info: {self.data.info()}")
-        logger.info(f"Data description: {self.data.describe()}")
-        self.data_stats = pd.DataFrame(columns=['name', 'mean', 'std'])
-        self.data_stats = leach_surrogate.get_mean_std_name(
-            self.data, self.data_stats)
-        # Get the remaining energy column
-        remaining_energy_stats_dict = leach_surrogate.compute_stats(
-            're', self.data['remaining_energy'])
-        # Add to the data stats
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(remaining_energy_stats_dict, index=[0])]).reset_index(drop=True)
-        # Get the cluster_head column
-        chs_dict = leach_surrogate.compute_array_stats(
-            'chs', self.data['cluster_heads'])
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(chs_dict, index=[0])]).reset_index(drop=True)
-        # Get the energy levels column
+        # logger.info(f"Data info: {self.data.info()}")
+        # logger.info(f"Data description: {self.data.describe()}")
+        weights_dict = leach_surrogate.get_mean_std_name(
+            data=self.data)
+        alpha_standardized = leach_surrogate.standardize_inputs(
+            x=self.alpha,
+            mean=weights_dict['alpha']['mean'],
+            std=weights_dict['alpha']['std'])
+        beta_standardized = leach_surrogate.standardize_inputs(
+            x=self.beta,
+            mean=weights_dict['beta']['mean'],
+            std=weights_dict['beta']['std'])
+        gamma_standardized = leach_surrogate.standardize_inputs(
+            x=self.gamma,
+            mean=weights_dict['gamma']['mean'],
+            std=weights_dict['gamma']['std'])
+        self.weights = [alpha_standardized, beta_standardized,
+                        gamma_standardized]
+
+        remaining_energy_dict = leach_surrogate.compute_stats(
+            data=self.data['remaining_energy'])
+
+        self.re_mean = remaining_energy_dict['mean']
+        self.re_std = remaining_energy_dict['std']
+
         energy_levels_dict = leach_surrogate.compute_array_stats(
-            'el', self.data['energy_levels'])
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(energy_levels_dict, index=[0])]).reset_index(drop=True)
+            data=self.data['energy_levels'])
+
+        self.el_mean = energy_levels_dict['mean']
+        self.el_std = energy_levels_dict['std']
+
         energy_dissipated_ch_to_sink_dict = leach_surrogate.compute_array_stats(
-            'ed_ch_to_sink', self.data['energy_dissipated_ch_to_sink'])
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(energy_dissipated_ch_to_sink_dict, index=[0])]).reset_index(drop=True)
-        energy_dissipated_non_ch_to_ch_dict = leach_surrogate.compute_array_stats(
-            'ed_non_ch_to_ch', self.data['energy_dissipated_non_ch_to_ch'])
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(energy_dissipated_non_ch_to_ch_dict, index=[0])]).reset_index(drop=True)
+            self.data['energy_dissipated_ch_to_sink'])
+
+        self.ed_ch_to_sink_mean = energy_dissipated_ch_to_sink_dict['mean']
+        self.ed_ch_to_sink_std = energy_dissipated_ch_to_sink_dict['std']
+
         energy_dissipated_ch_rx_from_non_ch_dict = leach_surrogate.compute_array_stats(
-            'ed_ch_rx_from_non_ch', self.data['energy_dissipated_ch_rx_from_non_ch'])
-        self.data_stats = pd.concat(
-            [self.data_stats, pd.DataFrame(energy_dissipated_ch_rx_from_non_ch_dict, index=[0])]).reset_index(drop=True)
-        logger.info(f"Data stats: {self.data_stats.to_string()}")
+            self.data['energy_dissipated_ch_rx_from_non_ch'])
+
+        self.ed_ch_rx_from_non_ch_mean = energy_dissipated_ch_rx_from_non_ch_dict['mean']
+        self.ed_ch_rx_from_non_ch_std = energy_dissipated_ch_rx_from_non_ch_dict['std']
 
         self.model = self.load_model()
 
         self.estimate_tx_energy = leach_surrogate.get_estimate_tx_energy(
             network=self.network, eelect=self.eelect, eamp=self.eamp,
             efs=self.efs, eda=self.eda, packet_size=self.packet_size, d0=self.d0)
-
-        self.alpha, self.beta, self.gamma = leach_surrogate.get_standardized_weights(
-            alpha_val=self.alpha, beta_val=self.beta, gamma_val=self.gamma,
-            data_stats=self.data_stats)
-        print(f"Alpha: {self.alpha}, Beta: {self.beta}, Gamma: {self.gamma}")
 
     def load_model(self):
         self.device = torch.device(
@@ -161,14 +164,12 @@ class ClusterHeadModel:
             raise Exception(f"Model not found at {self.model_path}")
         return model
 
-    def get_standardized_potential_cluster_heads(self, network: object):
+    def get_standardized_potential_cluster_heads(self, network: object, avg_re: float):
         potential_cluster_heads = []
-        # get the network average energy
-        avg_energy = network.average_remaining_energy()
         for node in network:
             if network.should_skip_node(node):
                 continue
-            if node.remaining_energy >= avg_energy:
+            if node.remaining_energy >= avg_re:
                 potential_cluster_heads.append(node.node_id)
         np_potential_cluster_heads = np.zeros(99)
         for ch in potential_cluster_heads:
@@ -186,58 +187,59 @@ class ClusterHeadModel:
         # standardize the data
         return leach_surrogate.standardize_inputs(
             x=ch_to_sink,
-            mean=self.data_stats.loc[self.data_stats['name']
-                                     == 'ed_ch_to_sink']['mean'].values[0],
-            std=self.data_stats.loc[self.data_stats['name'] == 'ed_ch_to_sink']['std'].values[0])
+            mean=self.ed_ch_to_sink_mean,
+            std=self.ed_ch_to_sink_std)
 
     def get_standardized_energy_dissipated_ch_rx_from_non_ch(self, potential_cluster_heads,
-                                                             network: object):
+                                                             alive_nodes: int):
         np_ch_from_non_ch = np.zeros(99)
-        num_alive_nodes = network.alive_nodes()
         estimated_num_chs = int(
-            num_alive_nodes*self.cluster_head_percentage) + 1
+            alive_nodes*self.cluster_head_percentage) + 1
         if estimated_num_chs == 0:
             estimated_num_chs = 1
         else:
-            num_non_ch_per_ch = num_alive_nodes/estimated_num_chs
+            num_non_ch_per_ch = alive_nodes/estimated_num_chs
         for ch in potential_cluster_heads:
             ch_rx_energy = self.eelect * self.packet_size * \
                 num_non_ch_per_ch
             np_ch_from_non_ch[ch-2] = ch_rx_energy
         ch_from_non_ch = list(np_ch_from_non_ch)
-        logger.info(
-            f"Energy dissipated by cluster heads when receiving from non-cluster heads: {ch_from_non_ch}")
         return leach_surrogate.standardize_inputs(
             x=ch_from_non_ch,
-            mean=self.data_stats.loc[self.data_stats['name']
-                                     == 'ed_ch_rx_from_non_ch']['mean'].values[0],
-            std=self.data_stats.loc[self.data_stats['name'] == 'ed_ch_rx_from_non_ch']['std'].values[0])
+            mean=self.ed_ch_rx_from_non_ch_mean,
+            std=self.ed_ch_rx_from_non_ch_std)
 
-    def get_standardized_num_cluster_heads(self, network: object):
-        num_alive_nodes = network.alive_nodes()
-        num_chs = (int(num_alive_nodes*self.cluster_head_percentage)+1)/5
-        logger.info(f"Number of cluster heads: {num_chs}")
+    def get_standardized_num_cluster_heads(self, alive_nodes: int):
+        num_chs = (int(alive_nodes*self.cluster_head_percentage)+1)/5
         return num_chs
 
-    def predict(self, network: object, round: int):
+    def predict(self, network: object, round: int, std_re: float, std_el: list,
+                re: float, avg_re: float, alive_nodes: int):
+        # print the cluster heads at that round in the data
+        # data_at_round = self.data[(self.data['name'].str.contains(
+        #     str(self.alpha))) & (self.data['name'].str.contains(str(self.beta))) & (self.data['name'].str.contains(str(self.gamma)))]
+        #  reset index
+        # data_at_round = data_at_round.reset_index(drop=True)
+        # print(f"Data at round {round}: {data_at_round}")
+        # Get the data at round
+        # data_at_round = data_at_round.loc[round-1]
+        # print(f"Data at round {round}: {data_at_round}")
         # Get standardized inputs
-        remaining_energy = leach_surrogate.get_standardized_remaining_energy(
-            network.remaining_energy(), self.data_stats)
-        logger.info(f"Standardized remaining energy: {remaining_energy}")
+        remaining_energy = std_re
+        # logger.debug(f"Standardized remaining energy: {remaining_energy}")
         # Get potential cluster heads
         potential_cluster_heads = self.get_standardized_potential_cluster_heads(
-            network)
-        logger.info(
-            f"Potential cluster heads: {potential_cluster_heads['pchs']} one hot: {potential_cluster_heads['pchs_one_hot']}")
+            network, avg_re=avg_re)
+        # logger.debug(
+        #     f"Potential cluster heads: {potential_cluster_heads['pchs']} one hot: {potential_cluster_heads['pchs_one_hot']}")
         # Get the energy levels
-        energy_levels = leach_surrogate.get_standardized_energy_levels(
-            network, self.data_stats)
-        logger.info(f"Standardized energy levels: {energy_levels}")
+        energy_levels = std_el
+        # logger.debug(f"Standardized energy levels: {energy_levels}")
         # Get the energy dissipated by cluster heads to sink
         edc = self.get_standardized_energy_dissipated_ch_to_sink(
             pchs=potential_cluster_heads['pchs'])
-        logger.info(
-            f"Standardized energy dissipated by cluster heads to sink: {edc}")
+        # logger.debug(
+        #     f"Standardized energy dissipated by cluster heads to sink: {edc}")
         # Get the energy consumed by non-cluster heads when transmitting to cluster heads
         # ednch = leach_surrogate.get_standardized_energy_dissipated_non_ch_to_ch(
         #     potential_cluster_heads=potential_cluster_heads['pchs'],
@@ -248,16 +250,16 @@ class ClusterHeadModel:
         #     f"Standardized energy dissipated by non-cluster heads when transmitting to cluster heads: {ednch}")
         # Get the energy dissipated by chs when receiving from non-chs
         energy_dissipated_ch_rx_from_non_ch = self.get_standardized_energy_dissipated_ch_rx_from_non_ch(
-            potential_cluster_heads['pchs'], network)
-        logger.info(
-            f"Standardized energy dissipated by cluster heads when receiving from non-cluster heads: {energy_dissipated_ch_rx_from_non_ch}")
+            potential_cluster_heads['pchs'], alive_nodes=alive_nodes)
+        # logger.debug(
+        #     f"Standardized energy dissipated by cluster heads when receiving from non-cluster heads: {energy_dissipated_ch_rx_from_non_ch}")
         # Get the number of cluster heads
         num_cluster_heads = self.get_standardized_num_cluster_heads(
-            network)
-        logger.info(
-            f"Standardized number of cluster heads: {num_cluster_heads}")
+            alive_nodes=alive_nodes)
+        # logger.debug(
+        #     f"Standardized number of cluster heads: {num_cluster_heads}")
         # Now lets put everything together
-        inputs = [self.alpha, self.beta, self.gamma, remaining_energy]
+        inputs = self.weights + [remaining_energy]
         inputs.extend(potential_cluster_heads['pchs_one_hot'])
         inputs.extend(energy_levels)
         inputs.extend(edc)
@@ -274,27 +276,83 @@ class ClusterHeadModel:
             outputs = self.model(inputs)
             outputs = outputs.cpu().numpy()
             outputs = outputs.reshape(-1)
-            print(f"Outputs: {outputs}")
-            print(f"Outputs shape: {outputs.shape}")
-            # Get the top 5 cluster heads
-            top_5 = outputs.argsort()[-5:][::-1]
-            # sort the top 5
-            top_5 = sorted(top_5)
-            print(f"Top 5: {top_5}")
-            # sort the outputs from highest to lowest but print the indices
-            print(outputs.argsort()[::-1])
-            # Lets set to 0 the outputs index where the energy is less than the average energy
-            avg_energy = network.average_remaining_energy()
-            for i, output in enumerate(outputs):
-                if i<=1:
-                    continue
-                node_id = i
-                node = network.get_node(node_id)
-                if node.remaining_energy < avg_energy:
-                    outputs[i] = 0
-            # Get the top 5 cluster heads
-            top_5 = outputs.argsort()[-5:][::-1]
-            # sort the top 5
-            top_5 = sorted(top_5)
-            print(f"Top 5-2: {top_5}")
-        return top_5
+            # logger.info(f"Predicted cluster heads: {outputs}")
+            predicted = outputs > 0.5
+            predicted = np.where(predicted == True)[0]
+            # logger.info(f"Predicted cluster heads 1: {predicted}")
+            # logger.info(
+            #     f"Expected number of cluster heads: {num_cluster_heads*5}")
+            #  if len(predicted) < num_cluster_heads then we need to add more cluster heads
+            #  the cluster head with the highest probability will be selected that is not already a cluster head
+            if len(predicted) < num_cluster_heads*5:
+                # How many more cluster heads do we need?
+                num_more_chs = num_cluster_heads*5 - len(predicted)
+                num_more_chs = int(num_more_chs)
+                # Get the indices of the cluster heads that were not predicted
+                # print(f"Outputs: {outputs}")
+                # Sort the indices in descending order
+                indices = outputs.argsort()[::-1]
+                # print(f"Sorted indices: {indices}")
+                # print the values of the indices
+                # print(f"Sorted outputs: {outputs[indices]}")
+                count_more_chs = 0
+                while count_more_chs < num_more_chs:
+                    for index in indices:
+                        if index not in predicted:
+                            predicted = np.insert(predicted, 0, index)
+                            count_more_chs += 1
+                            break
+                # sort the predicted cluster heads
+                predicted.sort()
+                # print(f"Predicted cluster heads 2: {predicted}")
+                # input("Press enter to continue...")
+            if len(predicted) > 5:
+                predicted = outputs.argsort()[-5:][::-1]
+                # logger.info(f"Predicted cluster heads 2: {predicted}")
+            if len(predicted) < 5:
+                predicted = np.insert(predicted, 0, np.zeros(5-len(predicted)))
+            # convert to a list and sort
+            predicted = list(predicted)
+            predicted.sort()
+            # logger.info(f"Predicted cluster heads 3: {predicted}")
+        # See if the predicted cluster heads are the same as the actual cluster heads
+        # Get the actual cluster heads
+        # actual = data_at_round['cluster_heads']
+        # actual = eval(actual)
+        # Get the actual energy levels
+        # actual_energy_levels = data_at_round['energy_levels']
+        # actual_energy_levels = eval(actual_energy_levels)
+        # check if the predicted cluster heads are the same as the actual cluster heads
+        # if predicted == actual:
+            # logger.info(
+            #     f"Predicted cluster heads are the same as the actual cluster heads.")
+            # # print cluster heads, round, alive nodes and current energy of all nodes
+            # logger.info(f"Predicted cluster heads: {predicted}")
+            # logger.info(f"Round: {round}")
+            # logger.info(f"Alive nodes: {network.alive_nodes()}")
+            # for node in network:
+            #     if network.should_skip_node(node):
+            #         continue
+            #     logger.info(
+            #         f"Node {node.node_id} current energy: {node.remaining_energy}")
+            # input("Press Enter to continue...")
+        #     pass
+        # else:
+        #     logger.info(
+        #         f"Predicted cluster heads are not the same as the actual cluster heads.")
+        #     logger.info(f"Predicted cluster heads: {predicted}")
+        #     logger.info(f"Actual cluster heads: {actual}")
+        #     logger.info(f"Round: {round}")
+        #     logger.info(f"Alive nodes: {network.alive_nodes()}")
+        #     # check if the energy levels are the same
+        #     if np.all(np.array(actual_energy_levels) == np.array(energy_levels)):
+        #         logger.info(
+        #             f"Energy levels are the same as the actual energy levels.")
+        #     else:
+        #         # print the energy levels that are different
+        #         for i, energy_level in enumerate(actual_energy_levels):
+        #             if energy_level != energy_levels[i]:
+        #                 logger.info(
+        #                     f"Node {i+2} energy level is different. Predicted: {energy_levels[i]}, Actual: {energy_level}")
+        #     input("Press Enter to continue...")
+        return predicted

@@ -45,6 +45,8 @@ class Network:
         # input(f"Cluster heads at round {round}: {chs}")
         self.cluster_heads_per_round[round] = chs
         self.stats.generate_round_stats(round=round)
+
+    def export_stats(self):
         self.stats.export_json()
 
     def set_stats_name(self, name):
@@ -130,7 +132,7 @@ class Network:
         return node.remaining_energy > 0
 
     def mark_node_as_dead(self, node, round):
-        print(f"Node {node.node_id} is dead.")
+        # print(f"Node {node.node_id} is dead.")
         node.round_dead = round
 
     def alive_nodes(self):

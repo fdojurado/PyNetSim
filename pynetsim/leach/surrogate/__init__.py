@@ -6,51 +6,45 @@ import pandas as pd
 from rich.progress import Progress
 
 
-def get_mean_std_name(data, df):
+def get_mean_std_name(data):
     name_values = data['name']
     name_values = name_values.apply(lambda x: eval(x))
     alpha_values = name_values.apply(lambda x: x[0])
     beta_values = name_values.apply(lambda x: x[1])
     gamma_values = name_values.apply(lambda x: x[2])
-    # Lets add to the dataframe
-    df = pd.concat([df, pd.DataFrame({
-        'name': 'alpha',
-        'mean': alpha_values.mean(),
-        'std': alpha_values.std()
-    }, index=[0])])
-    df = pd.concat([df, pd.DataFrame({
-        'name': 'beta',
-        'mean': beta_values.mean(),
-        'std': beta_values.std()
-    }, index=[0])])
-    df = pd.concat([df, pd.DataFrame({
-        'name': 'gamma',
-        'mean': gamma_values.mean(),
-        'std': gamma_values.std()
-    }, index=[0])])
-    # Reset the index
-    df = df.reset_index(drop=True)
-    return df
+    weight_values = {
+        'alpha': {
+            'mean': alpha_values.mean(),
+            'std': alpha_values.std()
+        },
+        'beta': {
+            'mean': beta_values.mean(),
+            'std': beta_values.std()
+        },
+        'gamma': {
+            'mean': gamma_values.mean(),
+            'std': gamma_values.std()
+        }
+    }
+    return weight_values
 
 
-def compute_stats(name, data):
+def compute_stats(data):
     # data = data.apply(lambda x: eval(x))
     data_mean = data.mean()
     data_std = data.std()
     data_stats_dict = {
-        'name': name,
         'mean': data_mean,
         'std': data_std
     }
     return data_stats_dict
 
 
-def compute_array_stats(name, data):
+def compute_array_stats(data):
     data = data.apply(lambda x: eval(x))
     data_mean = data.apply(lambda x: np.mean(x)).mean()
     data_std = data.apply(lambda x: np.std(x)).mean()
     data_stats_dict = {
-        'name': name,
         'mean': data_mean,
         'std': data_std
     }
@@ -110,15 +104,7 @@ def get_standardized_weights(alpha_val, beta_val, gamma_val, data_stats):
     return alpha, beta, gamma
 
 
-def get_standardized_remaining_energy(remaining_energy: float, data_stats):
-    return standardize_inputs(
-        x=remaining_energy,
-        mean=data_stats.loc[data_stats['name']
-                            == 're']['mean'].values[0],
-        std=data_stats.loc[data_stats['name'] == 're']['std'].values[0])
-
-
-def get_standardized_energy_levels(network: object, data_stats: object):
+def get_standardized_energy_levels(network: object, mean: float, std: float):
     # Get the energy levels
     np_energy_levels = np.zeros(99)
     for node in network:
@@ -126,8 +112,9 @@ def get_standardized_energy_levels(network: object, data_stats: object):
             continue
         np_energy_levels[node.node_id-2] = node.remaining_energy
     energy_levels = list(np_energy_levels)
+    # print(f"Energy levels: {energy_levels}")
     return standardize_inputs(
         x=energy_levels,
-        mean=data_stats.loc[data_stats['name']
-                            == 'el']['mean'].values[0],
-        std=data_stats.loc[data_stats['name'] == 'el']['std'].values[0])
+        mean=mean,
+        std=std
+    )

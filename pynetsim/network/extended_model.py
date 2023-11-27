@@ -6,6 +6,22 @@ class Extended(NetworkModel):
     def __init__(self, config, network):
         super().__init__(name="Extended", config=config, network=network)
 
+    def init(self):
+        # Calculate the eamp from every node to
+        self.eamp_matrix = self.calculate_eamp_matrix()
+        # control packet transmission energy
+        self.ctrl_pkt_energy = self.eelect * 400
+
+    def calculate_eamp_matrix(self):
+        eamp_matrix = {}
+        # print self.network
+        for node in self.network:
+            eamp_matrix[node.node_id] = {}
+            for node2 in self.network:
+                eamp_matrix[node.node_id][node2.node_id] = self.select_eamp(
+                    distance=self.network.distance_between_nodes(node, node2))
+        return eamp_matrix
+
     def select_eamp(self, distance: float):
         eamp = 0
         if distance <= self.d_0:
@@ -14,11 +30,11 @@ class Extended(NetworkModel):
             eamp = self.packet_size * self.eamp * distance**4
         return eamp
 
-    def calculate_energy_tx_non_ch(self, distance: float):
-        return self.elect * self.packet_size + self.select_eamp(distance=distance)
+    def calculate_energy_tx_non_ch(self, src: int, dst: int):
+        return self.eelect_ps + self.eamp_matrix[src][dst]
 
-    def calculate_energy_tx_ch(self, distance: float):
-        return (self.elect+self.eda)*self.packet_size + self.select_eamp(distance=distance)
+    def calculate_energy_tx_ch(self, src: int):
+        return self.eelect_eda_ps + self.eamp_matrix[src][1]
 
     def energy_dissipation_control_packets(self, round: int):
         # # This is only processed by centralized algorithms
@@ -43,20 +59,19 @@ class Extended(NetworkModel):
             return
         # chs = self.network.num_cluster_heads()
         # pkt_size = (4*chs+15) * 8
-        pkt_size = 400
         # Reduce the energy of all nodes by the energy required to transmit the
         # control packet
-        energy = self.elect * pkt_size
         for node in self.network:
             if self.network.should_skip_node(node):
                 continue
-            self.energy_dissipated(node=node, energy=energy, round=round)
+            self.energy_dissipated(
+                node=node, energy=self.ctrl_pkt_energy, round=round)
             # node.energy_control_packets(energy=energy)
             node.energy_dissipation_control_packets(
-                energy=energy, bits=pkt_size)
+                energy=self.ctrl_pkt_energy, bits=400)
             if not self.network.alive(node):
                 self.network.mark_node_as_dead(node, round)
             #     self.network.remove_node_from_cluster(node)
 
     def calculate_energy_rx(self):
-        return self.elect * self.packet_size
+        return self.eelect_ps

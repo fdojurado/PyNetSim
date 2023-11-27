@@ -3,10 +3,13 @@ from pynetsim.utils import PyNetSimLogger
 from pynetsim.network.network import Network
 from pynetsim.config import NETWORK_MODELS
 from pynetsim.leach.surrogate.surrogate import SurrogateModel
+from rich.logging import RichHandler
 
 import sys
 import os
 import argparse
+import logging.config
+
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "surrogate.yml")
@@ -26,6 +29,8 @@ def main(args):
         config=config, network=network)
     network.set_model(network_model)
     network.initialize()
+    # initialize the network model
+    network_model.init()
 
     # Instantiate the model
     surrogate_model = SurrogateModel(config=config, network=network,
