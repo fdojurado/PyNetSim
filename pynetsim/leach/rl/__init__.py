@@ -130,11 +130,10 @@ def get_obs(network, config, prev_action, same_cluster_heads):
 
 
 def step(action, network, net_model, config, prev_action,
-         same_cluster_heads, round_number, protocol, testing=False):
+         same_cluster_heads, round_number, protocol, stats, testing=False):
     action = int(action)
     done = False
     reward = 0
-    stats = {}
     stats[round_number] = {}
     stats[round_number]["action"] = action
 

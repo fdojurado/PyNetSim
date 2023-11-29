@@ -6,7 +6,6 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
-from pynetsim.leach.surrogate.surrogate import SurrogateModel
 from pynetsim.utils import PyNetSimLogger
 from stable_baselines3 import DQN
 from pynetsim.leach.rl.leach_rl import LEACH_RL
@@ -22,7 +21,7 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger_utility = PyNetSimLogger(log_file="my_log.log", namespace="Main")
 logger = logger_utility.get_logger()
 
 
@@ -147,5 +146,6 @@ if __name__ == "__main__":
     argparser.add_argument("-s", "--save", type=str,
                            default="./log/")
     args = argparser.parse_args()
+    logger.info(f"Using protocol {args.protocol}")
     main(args)
     sys.exit(0)

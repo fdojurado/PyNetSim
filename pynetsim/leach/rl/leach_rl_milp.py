@@ -13,7 +13,7 @@ import pynetsim.leach.surrogate as leach_surrogate
 
 from pynetsim.utils import PyNetSimLogger
 
-logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger_utility = PyNetSimLogger(log_file="my_log.log", namespace=__name__)
 logger = logger_utility.get_logger()
 
 MAX_STEPS = 1000
@@ -84,7 +84,9 @@ class LEACH_RL_MILP(gym.Env):
 
     def step(self, action):
         self.action, self._same_cluster_heads, self.round_number, obs, reward, done, truncated, info = rl.step(
-            action=action, network=self.episode_network, net_model=self.episode_net_model, config=self.config, prev_action=self.prev_action, same_cluster_heads=self._same_cluster_heads, round_number=self.round_number, protocol=self.milp_model, testing=self.test)
+            action=action, network=self.episode_network, net_model=self.episode_net_model, config=self.config,
+            prev_action=self.prev_action, same_cluster_heads=self._same_cluster_heads, round_number=self.round_number,
+            protocol=self.milp_model, stats=self.stats, testing=self.test)
 
         return obs, reward, done, truncated, {'network': self.episode_network,
                                               'network_model': self.episode_net_model}
@@ -110,6 +112,7 @@ class LEACH_RL_MILP(gym.Env):
         self.action = 0
         obs = rl.get_obs(network=self.episode_network, config=self.config,
                          prev_action=self.prev_action, same_cluster_heads=self._same_cluster_heads)
+        self.stats = {}
         # input(f"Init observations: {obs}")
         return obs, {}
 

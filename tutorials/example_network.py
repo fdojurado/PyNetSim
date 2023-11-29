@@ -13,7 +13,7 @@ SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(log_file="my_log.log")
+logger_utility = PyNetSimLogger(log_file="my_log.log", namespace="Main")
 logger = logger_utility.get_logger()
 
 
