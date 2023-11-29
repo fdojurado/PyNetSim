@@ -75,7 +75,7 @@ def run_without_plotting(config, network, model, network_model, rounds):
 def create_env(config, network, network_model):
     # Create the environment
     # env_name = config.network.protocol.name
-    env = LEACH_RL_MILP(network, network_model, config)
+    env = LEACH_RL_MILP(network, network_model, config, test=True)
     env = gym.wrappers.TimeLimit(
         env, max_episode_steps=config.network.protocol.max_steps)
     env = Monitor(env, args.log)
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     # tensologger file location
     argparser.add_argument(
-        "-m", "--model", help="Model to load", required=True)
+        "-m", "--model", help="Pre-trained model to load", default=None)
     # Path to the configuration file (.json)
     argparser.add_argument("-c", "--config", help="Configuration file")
     # Path to the log directory, required.

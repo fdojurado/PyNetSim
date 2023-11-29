@@ -75,12 +75,17 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 
 def main(args):
+    # Check if the protocol is valid
+    if args.protocol not in ["LEACH_RL", "LEACH_RL_MILP"]:
+        logger.error(
+            f"Protocol {args.protocol} is not valid. Please choose between LEACH_RL and LEACH_RL_MILP")
+        sys.exit(1)
     # Create tensorboard logger folder if it does not exist
     if not os.path.exists(args.tensorboard):
         os.makedirs(args.tensorboard)
     # Create log dir folder if it does not exist
-    if not os.path.exists(args.logdir):
-        os.makedirs(args.logdir)
+    if not os.path.exists(args.save):
+        os.makedirs(args.save)
     # Load config
     config = load_config(CONFIG_FILE)
     logger.info(f"Loading config from {CONFIG_FILE}")
@@ -92,43 +97,55 @@ def main(args):
     network.initialize()
     network_model.init()
     # -----------Lets train the DQN network
-    env = LEACH_RL(network, network_model, config)
+    if args.protocol == "LEACH_RL_MILP":
+        env = LEACH_RL_MILP(network, network_model, config)
+    else:
+        env = LEACH_RL(network, network_model, config)
     env = gym.wrappers.TimeLimit(
         env,
         max_episode_steps=config.network.protocol.max_steps
     )
-    env = Monitor(env, args.logdir)
+    env = Monitor(env, args.save)
     tensorboard_log = args.tensorboard
     best_model = SaveOnBestTrainingRewardCallback(
-        check_freq=100, log_dir=args.logdir)
-    model = DQN(
-        "MlpPolicy",
-        env,
-        verbose=1,
-        learning_rate=7e-4,
-        # buffer_size=50000,
-        learning_starts=512,
-        batch_size=128,
-        # tau=1.0,
-        gamma=0.90,
-        # train_freq=4,
-        target_update_interval=100,
-        exploration_fraction=0.8,
-        exploration_initial_eps=1.0,
-        exploration_final_eps=0.05,
-        tensorboard_log=tensorboard_log
-    )
+        check_freq=100, log_dir=args.save)
+    if args.model is not None:
+        model = DQN.load(args.model, env=env, tensorboard_log=tensorboard_log)
+        logger.info(f"Loaded model from {args.model}")
+    else:
+        logger.info("Training new model")
+        model = DQN(
+            "MlpPolicy",
+            env,
+            verbose=1,
+            learning_rate=1e-4,
+            # buffer_size=50000,
+            learning_starts=512,
+            batch_size=128,
+            # tau=1.0,
+            gamma=0.90,
+            # train_freq=4,
+            target_update_interval=100,
+            exploration_fraction=0.8,
+            exploration_initial_eps=1.0,
+            exploration_final_eps=0.05,
+            tensorboard_log=tensorboard_log
+        )
     model.learn(total_timesteps=200e3, log_interval=4, callback=best_model)
 
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    # tensologger file location
+    argparser.add_argument("-m", "--model", type=str,
+                           help="Pre-trained model to load", default=None)
+    # Select between LEACH_RL and LEACH_RL_MILP
+    argparser.add_argument("-p", "--protocol", type=str,
+                           help="Choose between LEACH_RL and LEACH_RL_MILP", default="LEACH_RL")
     argparser.add_argument("-t", "--tensorboard", type=str,
                            default="./dqn_leach_add_tensorboard/")
-    # log dir
-    argparser.add_argument("-l", "--logdir", type=str,
-                           default="./dqn_leach_add_log/")
+    # path to save the model
+    argparser.add_argument("-s", "--save", type=str,
+                           default="./log/")
     args = argparser.parse_args()
     main(args)
     sys.exit(0)

@@ -71,7 +71,7 @@ class Network:
 
     def mark_as_non_cluster_head(self, node):
         node.is_cluster_head = False
-        node.cluster_id = None
+        node.cluster_id = 0
 
     def create_clusters(self):
         cluster_heads_exist = any(

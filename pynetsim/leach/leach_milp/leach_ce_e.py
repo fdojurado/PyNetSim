@@ -113,7 +113,7 @@ class LEACH_CE_E:
 
         return expr
 
-    def choose_cluster_heads(self, round):
+    def choose_cluster_heads(self):
         alive_nodes = [node.node_id for node in self.network if not self.network.should_skip_node(
             node) and self.network.alive(node)]
 
@@ -146,6 +146,32 @@ class LEACH_CE_E:
                     if pyo.value(model.y[node, cluster_head]) == 1:
                         node_cluster_head[node] = cluster_head
                         pass
+
+        # If no cluster heads were selected, then select the self.max_chs node from the potential cluster heads with the highest energy
+        if len(chs) == 0:
+            # Select the self.max_chs node from the potential cluster heads with the highest energy
+            sorted_nodes = sorted(
+                cluster_heads, key=lambda node: self.network.get_node(node).remaining_energy, reverse=True)
+            chs = sorted_nodes[:self.max_chs]
+            # print(f"Selected cluster heads: {chs}, max_chs: {self.max_chs}, len(sorted_nodes): {len(sorted_nodes)}")
+            # Now assign the nodes to the closest cluster head
+            for node in model.nodes:
+                min_distance = 10000
+                ch_id = -1
+                for ch in chs:
+                    # Calculate the distance between the node and the cluster head
+                    distance = self.network.distance_between_nodes(
+                        self.network.get_node(node), self.network.get_node(ch))
+                    if distance < min_distance:
+                        min_distance = distance
+                        ch_id = ch
+                node_cluster_head[node] = ch_id
+
+        # if len(chs) < 5:
+        #     print(f"Length of cluster heads: {len(chs)}")
+        #     # add 0 to the beginning of the list to make it 5 elements
+        #     chs = [0]*(5-len(chs)) + chs
+        #     print(f"chs: {chs}, len(chs): {len(chs)}")
 
         # Lets check if the nodes are assigned to a cluster head that is the closest to them
         # for node in model.nodes:
@@ -205,12 +231,12 @@ class LEACH_CE_E:
 
         # print(f"Threshold energy: {self.threshold_energy}")
 
-        self.max_chs = np.ceil(
-            self.network.alive_nodes() * self.config.network.protocol.cluster_head_percentage)
+        self.max_chs = int(np.ceil(
+            self.network.alive_nodes() * self.config.network.protocol.cluster_head_percentage))
 
         # print(f"Max CHs: {self.max_chs}")
 
-        chs, node_cluster_head = self.choose_cluster_heads(round)
+        chs, node_cluster_head = self.choose_cluster_heads()
         # print(f"Cluster heads at round {round}: {chs}")
         leach_milp.update_cluster_heads(self.network, chs)
         leach_milp.update_chs_to_nodes(self.network, node_cluster_head)

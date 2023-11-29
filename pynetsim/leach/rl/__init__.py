@@ -1,247 +1,202 @@
-import pynetsim.leach as leach
+from gymnasium import spaces
 import numpy as np
+import copy
 
-from sklearn.cluster import KMeans
+MAX_STEPS = 1000
 
 
-def obs(num_sensors: int, network: object,
-        x_pos: np.ndarray, y_pos: np.ndarray,
-        dst_to_sink: np.ndarray,
-        init_energy: float,
-        round: int,
-        max_steps: int,
-        max_distance: float,
-        action_taken: int = 0):
-    # Put the energy consumption in a numpy array
-    energy_consumption = np.zeros(num_sensors+1)
+def initialize():
+    max_steps = MAX_STEPS
+    action = 0
+    same_cluster_heads = 0
+
+    round_number = 0
+
+    n_actions = 2
+    action_space = spaces.Discrete(n_actions)
+
+    # Observation are:
+    # - Remaining energy of the network (float)
+    # - Energy consumption of each node (array of 99)
+    # - current cluster heads (array of 5)
+    # - number of times the current cluster heads have been cluster heads (int)
+    # - Membership of each node to a cluster (array of 99)
+    # - previous action (int)
+    n_obs = 1+99+5+1+99+1
+    observation_space = spaces.Box(
+        low=-5, high=5, shape=(n_obs,), dtype=np.float32)
+
+    return max_steps, action, same_cluster_heads, round_number, action_space, observation_space
+
+
+def copy_network(network, net_model):
+    network_copy = copy.deepcopy(network)
+    net_model_copy = copy.deepcopy(net_model)
+    network_copy.set_model(net_model_copy)
+    net_model_copy.set_network(network_copy)
+    # Register callback to the network model
+    # self.model.register_round_complete_callback(self.round_callback)
+    # Register the callback to the network
+    net_model_copy.register_round_complete_callback(
+        network_copy.round_callback)
+    return network_copy, net_model_copy
+
+
+def get_remaining_energy(network):
+    return network.remaining_energy()/50
+
+
+def get_energy_consumption(network):
+    energy = []
     for node in network:
-        if node.node_id == 1:
+        if node.node_id <= 1:
             continue
-        energy = max(node.remaining_energy, 0)/init_energy
-        energy_consumption[node.node_id] = energy
+        energy.append(node.remaining_energy/0.5)
+    return energy
 
-    # print(f"sizes: {len(energy_consumption)}, {len(network.nodes)}")
 
-    cluster_heads = np.zeros(num_sensors+1)
+def get_cluster_heads(network):
+    cluster_heads = []
     for node in network:
-        if node.node_id == 1:
+        if node.node_id <= 1:
             continue
         if node.is_cluster_head:
-            cluster_heads[node.node_id] = 1
+            cluster_heads.append(node.node_id/100)
+    # TODO: Fix this for the MILP case
+    # sort
+    if len(cluster_heads) < 5:
+        cluster_heads.extend([0]*(5-len(cluster_heads)))
+    cluster_heads.sort()
+    return cluster_heads
 
-    # print(f"Size of cluster heads: {len(cluster_heads)}")
 
-    observation = np.append(energy_consumption, cluster_heads)
-    # Append the sensor nodes location
-    observation = np.append(observation, x_pos)
-    observation = np.append(observation, y_pos)
+def get_expected_num_cluster_heads(network, config):
+    num_alive_nodes = network.alive_nodes()
+    # percentage of cluster heads
+    p = config.network.protocol.cluster_head_percentage
+    expected_num_cluster_heads = int(num_alive_nodes * p)+1
+    return expected_num_cluster_heads
 
-    # append distance to sink
-    observation = np.append(observation, dst_to_sink)
 
-    # append rounds
-    observation = np.append(observation, round/max_steps)
-
-    # Append all sensor nodes' distance to cluster head. In the case,
-    # of cluster heads, append distance to sink
-    dst_to_cluster_head = np.zeros(num_sensors+1)
+def get_membership(network):
+    membership = []
     for node in network:
-        if node.node_id == 1:
+        if node.node_id <= 1:
             continue
-        if node.is_cluster_head:
-            dst_to_cluster_head[node.node_id] = node.dst_to_sink/max_distance
+        membership.append(node.cluster_id/100)
+    return membership
+
+
+def get_obs(network, config, prev_action, same_cluster_heads):
+    re = get_remaining_energy(network=network)
+    assert re >= -1 and re <= 1, f"Remaining energy: {re}"
+    nodes_energy_consumption = get_energy_consumption(
+        network=network)
+    assert len(
+        nodes_energy_consumption) == 99, f"Length of nodes energy consumption: {len(nodes_energy_consumption)}"
+    assert all(
+        [x >= -1 and x <= 1 for x in nodes_energy_consumption]), f"Nodes energy consumption: {nodes_energy_consumption}"
+    current_cluster_heads = get_cluster_heads(
+        network=network)
+    # expected_num_cluster_heads = get_expected_num_cluster_heads(
+    #     network=network, config=config)
+    # if len(current_cluster_heads) < expected_num_cluster_heads:
+    #     print(
+    #         f"Lenght of current cluster heads: {len(current_cluster_heads)}, expected: {expected_num_cluster_heads}")
+    #     print(
+    #         f"Number of alive nodes: {network.alive_nodes()}")
+    #     for node in network:
+    #         print(f"Node {node.node_id} energy: {node.remaining_energy}")
+    #         if node.remaining_energy <= 0:
+    #             print(f"Node {node.node_id} is dead")
+    #     for node in network:
+    #         print(
+    #             f"Node {node.node_id} is cluster head: {node.is_cluster_head}")
+    #     # print previous action
+    #     print(f"Previous action: {prev_action}")
+    # assert len(
+    #     current_cluster_heads) == expected_num_cluster_heads, f"Length of current cluster heads: {len(current_cluster_heads)}, expected: {expected_num_cluster_heads}"
+    assert all(
+        [x >= 0 and x <= 1 for x in current_cluster_heads]), f"Current cluster heads: {current_cluster_heads}"
+    num_times_ch = same_cluster_heads/400
+    assert num_times_ch >= 0 and num_times_ch <= 1, f"Number of times CH: {num_times_ch}"
+    membership = get_membership(network=network)
+    assert len(
+        membership) == 99, f"Length of membership: {len(membership)}"
+    assert all(
+        [x >= 0 and x <= 1 for x in membership]), f"Membership: {membership}"
+    assert prev_action >= 0 and prev_action <= 1, f"Previous action: {prev_action}"
+    return np.array([re, *nodes_energy_consumption, *current_cluster_heads, num_times_ch, *membership, prev_action])
+
+
+def step(action, network, net_model, config, prev_action,
+         same_cluster_heads, round_number, protocol, testing=False):
+    action = int(action)
+    done = False
+    reward = 0
+    stats = {}
+    stats[round_number] = {}
+    stats[round_number]["action"] = action
+
+    # Two actions, create a new set of clusters or stay in the same set
+    if action == 0:
+        same_cluster_heads = 0
+        # print("Stay in the same set of clusters")
+        round_number += 1
+        net_model.dissipate_energy(round=round_number)
+        # reward += 0.1
+    if action == 1:
+        same_cluster_heads += 1
+        # print("Create a new set of clusters")
+        round_number = protocol.evaluate_round(
+            round=round_number)
+        # reward = self.episode_network.average_remaining_energy()/0.5
+        reward += 0.1
+    # Are there any dead nodes?
+    alive_nodes = network.alive_nodes()
+    if not testing:
+        if alive_nodes < 99:
+            done = True
+            reward = 2
+            print(f"Number of rounds: {round_number}")
+            # print how many times the same action was taken
+            action_0 = 0
+            action_1 = 0
+            for round in stats:
+                if stats[round]["action"] == 0:
+                    action_0 += 1
+                else:
+                    action_1 += 1
+            print(f"Number of times action 0 was taken: {action_0}")
+            print(f"Number of times action 1 was taken: {action_1}")
+            # print the last round number
+            print(f"Last round number: {round_number}")
         else:
-            dst_to_cluster_head[node.node_id] = node.dst_to_cluster_head/max_distance
-
-    observation = np.append(observation, dst_to_cluster_head)
-
-    # Append average energy of the network
-    avg_energy = network.average_remaining_energy()
-
-    observation = np.append(observation, avg_energy)
-
-    # Append action taken
-    observation = np.append(observation, action_taken)
-
-    # Check that all the observations are between 0 and 1
-    for ob in observation:
-        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
-
-    return observation
-
-
-def clustered_obs(num_sensors: int, network: object,
-                  max_x: float, max_y: float,
-                  init_energy: float,
-                  round: int,
-                  max_steps: int,
-                  max_distance: float,
-                  action_taken: int = 0):
-    # Put the energy consumption in a numpy array
-    energy_consumption = np.zeros(num_sensors)
-    # Get all nodes in the network except the sink which is node_id 1
-    nodes = [node for node in network if node.node_id != 1]
-    for i, node in enumerate(nodes):
-        energy = max(node.remaining_energy, 0)/init_energy
-        energy_consumption[i] = energy
-    # print(f"Energy consumption: {energy_consumption}")
-
-    cluster_heads = np.zeros(num_sensors)
-    for i, node in enumerate(nodes):
-        if node.is_cluster_head:
-            cluster_heads[i] = 1
-    # print(f"Cluster heads: {cluster_heads}")
-
-    observation = np.append(energy_consumption, cluster_heads)
-
-    x_pos = np.zeros(num_sensors)
-    y_pos = np.zeros(num_sensors)
-    for i, node in enumerate(nodes):
-        x_pos[i] = node.x/max_x
-        y_pos[i] = node.y/max_y
-    # print(f"X positions: {x_pos}")
-    # print(f"Y positions: {y_pos}")
-    observation = np.append(observation, x_pos)
-    observation = np.append(observation, y_pos)
-
-    dst_to_sink = np.zeros(num_sensors)
-    for i, node in enumerate(nodes):
-        dst_to_sink[i] = node.dst_to_sink/max_distance
-    # print(f"Distance to sink: {dst_to_sink}")
-    observation = np.append(observation, dst_to_sink)
-
-    # append rounds
-    observation = np.append(observation, round/max_steps)
-
-    # Append network's average energy
-    avg_energy = network.average_remaining_energy()/init_energy
-    observation = np.append(observation, avg_energy)
-
-    # Append action taken
-    observation = np.append(observation, action_taken)
-
-    # print(f"Lenght of observation: {len(observation)}")
-
-    # Check that all the observations are between 0 and 1
-    for ob in observation:
-        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
-
-    return observation
-
-
-def obs_packet_loss(num_sensors: int, network: object,
-                    x_pos: np.ndarray, y_pos: np.ndarray,
-                    dst_to_sink: np.ndarray,
-                    init_energy: float,
-                    round: int,
-                    max_steps: int,
-                    max_distance: float,
-                    action_taken: int = 0):
-
-    observation = obs(num_sensors, network, x_pos, y_pos, dst_to_sink,
-                      init_energy, round, max_steps, max_distance, action_taken)
-    # Append the PLR for each node
-    plr = np.zeros(num_sensors+1)
-    for node in network:
-        if node.node_id == 1:
-            continue
-        plr[node.node_id] = node.plr()
-    observation = np.append(observation, plr)
-    # Append the network's PLR
-    network_plr = network.average_plr()
-    observation = np.append(observation, network_plr)
-
-    # Check that all the observations are between 0 and 1
-    for ob in observation:
-        assert ob >= 0 and ob <= 1, f"Observation: {ob}"
-
-    return observation
-
-
-def create_network(network: object, config: object, lower_energy: float = 0):
-
-    # Set a random initial energy value between 50% and 100% of the initial energy
-    # init_energy = np.random.uniform(
-    #     low=config.network.protocol.init_energy*0.05, high=config.network.protocol.init_energy)
-    init_energy = config.network.protocol.init_energy
-
-    for node in network:
-        if node.node_id == 1:
-            continue
-        network.mark_as_non_cluster_head(node)
-        # Generate a random initial energy values with mean init_energy and standard deviation 0.1*init_energy
-        # remaining_energy = np.random.normal(
-        #     loc=init_energy, scale=0.01*init_energy)
-        # if remaining_energy > config.network.protocol.init_energy:
-        #     remaining_energy = config.network.protocol.init_energy
-        node.remaining_energy = max(init_energy, 0)
-        # packet sent and received are set to 0 by default
-        node.round_dead = 0
-        node.clear_stats()
-
-
-def create_clustered_network(network: object, config: object, lower_energy: float = 0):
-
-    create_network(network, config, lower_energy)
-
-    # Number of clusters
-    num_clusters = np.ceil(
-        network.alive_nodes() * config.network.protocol.cluster_head_percentage)
-    # print(f"Number of clusters: {num_clusters}")
-    # print the number of alive nodes
-    # print(f"Number of alive nodes: {network.alive_nodes()}")
-    #  x and y coordinates of nodes
-    x = []
-    y = []
-    for node in network:
-        if network.should_skip_node(node):
-            continue
-        x.append(node.x)
-        y.append(node.y)
-    coordinates = np.array(list(zip(x, y)))
-    # print(f"Coordinates: {coordinates}")
-    kmeans = KMeans(n_clusters=int(num_clusters), random_state=0, n_init=10)
-    # fit the model to the coordinates
-    kmeans.fit(coordinates)
-    # get the cluster centers
-    centers = kmeans.cluster_centers_
-    # get the cluster labels
-    labels = kmeans.labels_
-    # Assign cluster ids to the nodes
-    for node in network:
-        if network.should_skip_node(node):
-            continue
-        # get index of node in coordinates
-        index = np.where((coordinates[:, 0] == node.x) & (
-            coordinates[:, 1] == node.y))
-        # print(f"Node: {node.node_id}, index: {index}")
-        # get label of node
-        label = labels[index[0][0]]
-        # print(f"Node: {node.node_id}, label: {label}")
-        node.cluster_id = label
-    # Assign cluster heads
-    for cluster_id in range(int(num_clusters)):
-        cluster_nodes = []
-        for node in network:
-            if network.should_skip_node(node):
-                continue
-            if node.cluster_id == cluster_id:
-                cluster_nodes.append(node)
-        # get the cluster head with the highest remaining energy
-        cluster_head = max(
-            cluster_nodes, key=lambda node: node.remaining_energy)
-        # print(f"Node {cluster_head.node_id} is cluster head with cluster id {cluster_head.cluster_id}")
-        # set the cluster head
-        network.mark_as_cluster_head(
-            cluster_head, cluster_head.cluster_id)
-    # Assign the distance to cluster head
-    for node in network:
-        if network.should_skip_node(node):
-            continue
-        if node.is_cluster_head:
-            node.dst_to_cluster_head = node.dst_to_sink
+            reward += 1
+    else:
+        if alive_nodes <= 0:
+            done = True
+            reward = 2
+            print(f"Number of rounds: {round_number}")
+            # print how many times the same action was taken
+            action_0 = 0
+            action_1 = 0
+            for round in stats:
+                if stats[round]["action"] == 0:
+                    action_0 += 1
+                else:
+                    action_1 += 1
+            print(f"Number of times action 0 was taken: {action_0}")
+            print(f"Number of times action 1 was taken: {action_1}")
+            # print the last round number
+            print(f"Last round number: {round_number}")
         else:
-            cluster_head = network.get_cluster_head(node)
-            # print(f"Node {cluster_head.node_id} is cluster head with cluster id {cluster_head.cluster_id} of node {node.node_id}")
-            node.dst_to_cluster_head = network.distance_between_nodes(
-                node, cluster_head)
+            reward += 1
+
+    obs = get_obs(network=network, config=config,
+                  prev_action=prev_action, same_cluster_heads=same_cluster_heads)
+
+    # print(f"Observation: {obs}")
+    # input("Press enter to continue...")
+
+    return action, same_cluster_heads, round_number, obs, reward, done, False, {}
