@@ -14,6 +14,7 @@ import os
 from stable_baselines3.common.monitor import Monitor
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
+from pynetsim.leach.rl.leach_rl_milp import LEACH_RL_MILP
 from pynetsim.config import PROTOCOLS
 from rich.progress import Progress
 from stable_baselines3 import DQN
@@ -53,21 +54,28 @@ def run_without_plotting(config, network, model, network_model, rounds):
         env = create_env(config, network, network_model)
         obs, _ = env.reset(options={"round": round})
 
-        while network.alive_nodes() > 0 and round < rounds:
+        done = False
+
+        while network.alive_nodes() > 0 and round < rounds and not done:
             print(f"Round: {round}")
             # Start the progress bar
-            round, obs = evaluate_round(
+            round, obs, info, done = evaluate_round(
                 round, config, network, model, network_model, round, env, obs)
             print(f"Alive nodes: {network.alive_nodes()}")
             # Update the progress bar
             progress.update(task, completed=round)
+        info_network = info["network"]
+        info_net_model = info["network_model"]
+        # export the metrics
+        info_network.set_stats_name("rl")
+        info_network.export_stats()
         progress.update(task, completed=rounds)
 
 
 def create_env(config, network, network_model):
     # Create the environment
-    env_name = config.network.protocol.name
-    env = PROTOCOLS[env_name](network, network_model)
+    # env_name = config.network.protocol.name
+    env = LEACH_RL_MILP(network, network_model, config)
     env = gym.wrappers.TimeLimit(
         env, max_episode_steps=config.network.protocol.max_steps)
     env = Monitor(env, args.log)
@@ -101,7 +109,7 @@ def evaluate_round(round, config, network, model, network_model, rounds, env, ob
     done = terminated or truncated
     print(f"Reward: {reward}, done: {done}")
 
-    return rounds, obs
+    return rounds, obs, info, done
 
 
 def evaluate(config, network, model, network_model, rounds, plot):
@@ -129,6 +137,7 @@ def main(args):
         config=config, network=network)
     network.set_model(network_model)
     network.initialize()
+    network_model.init()
 
     evaluate(config, network, args.model, network_model,
              rounds=config.network.protocol.rounds,

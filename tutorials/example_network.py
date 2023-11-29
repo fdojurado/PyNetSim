@@ -27,6 +27,7 @@ def main(args):
         config=config, network=network)
     network.set_model(network_model)
     network.initialize()
+    network_model.init()
     network.start()
 
 

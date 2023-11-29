@@ -10,6 +10,7 @@ from pynetsim.leach.surrogate.surrogate import SurrogateModel
 from pynetsim.utils import PyNetSimLogger
 from stable_baselines3 import DQN
 from pynetsim.leach.rl.leach_rl import LEACH_RL
+from pynetsim.leach.rl.leach_rl_milp import LEACH_RL_MILP
 import gymnasium as gym
 
 import numpy as np
@@ -104,12 +105,12 @@ def main(args):
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=3e-4,
+        learning_rate=7e-4,
         # buffer_size=50000,
         learning_starts=512,
         batch_size=128,
         # tau=1.0,
-        gamma=0.98,
+        gamma=0.90,
         # train_freq=4,
         target_update_interval=100,
         exploration_fraction=0.8,

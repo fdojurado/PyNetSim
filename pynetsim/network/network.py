@@ -293,11 +293,11 @@ class Network:
     def distance_between_nodes(self, node1: Node, node2: Node):
         return ((node1.x - node2.x)**2 + (node1.y - node2.y)**2)**0.5
 
-    def calculate_energy_tx_non_ch(self, distance):
-        return self.model.calculate_energy_tx_non_ch(distance)
+    def calculate_energy_tx_non_ch(self, src: int, dst: int):
+        return self.model.calculate_energy_tx_non_ch(src=src, dst=dst)
 
-    def calculate_energy_tx_ch(self, distance):
-        return self.model.calculate_energy_tx_ch(distance)
+    def calculate_energy_tx_ch(self, src: int):
+        return self.model.calculate_energy_tx_ch(src=src)
 
     def calculate_energy_rx_ch_per_node(self):
         return self.model.calculate_energy_rx()

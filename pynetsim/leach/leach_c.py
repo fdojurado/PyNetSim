@@ -160,6 +160,9 @@ class LEACH_C:
             self.run_with_plotting(
                 num_rounds)
 
+        # export the metrics
+        self.network.export_stats()
+
     def evaluate_round(self, round):
         round += 1
 

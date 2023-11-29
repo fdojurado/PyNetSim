@@ -20,16 +20,16 @@ def dist_between_nodes(network: object, node1: int, node2: int):
 
 
 def energy_spent_non_ch(network: object, src: int, dst: int):
-    src = network.get_node(src)
-    dst = network.get_node(dst)
-    return network.calculate_energy_tx_non_ch(
-        dist_between_nodes(network, src.node_id, dst.node_id))
+    # src = network.get_node(src)
+    # dst = network.get_node(dst)
+    return network.calculate_energy_tx_non_ch(src=src, dst=dst)
 
 
 def energy_spent_ch(network: object, src: int):
-    src = network.get_node(src)
+    # src = network.get_node(src)
     # print(f"CH: {src.node_id}, dst_to_sink: {src.dst_to_sink}")
-    return network.calculate_energy_tx_ch(src.dst_to_sink)
+    return network.calculate_energy_tx_ch(src=src)
+
 
 def calculate_energy_ch_rx_per_node(network: object):
     return network.calculate_energy_rx_ch_per_node()

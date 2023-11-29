@@ -279,25 +279,29 @@ class ClusterHeadModel:
             # logger.info(f"Predicted cluster heads: {outputs}")
             predicted = outputs > 0.5
             predicted = np.where(predicted == True)[0]
-            # logger.info(f"Predicted cluster heads 1: {predicted}")
+            # print(f"Predicted cluster heads 1: {predicted}")
+            # get the number of cluster heads excluding the ch 0
+            count_heads_count = 0
+            for ch in predicted:
+                if ch != 0:
+                    count_heads_count += 1
             # logger.info(
             #     f"Expected number of cluster heads: {num_cluster_heads*5}")
             #  if len(predicted) < num_cluster_heads then we need to add more cluster heads
             #  the cluster head with the highest probability will be selected that is not already a cluster head
-            if len(predicted) < num_cluster_heads*5:
+            if count_heads_count < num_cluster_heads*5:
+                # if there is cluster id 0 then remove it
+                if 0 in predicted:
+                    predicted = np.delete(predicted, 0)
                 # How many more cluster heads do we need?
-                num_more_chs = num_cluster_heads*5 - len(predicted)
+                num_more_chs = num_cluster_heads*5 - count_heads_count
                 num_more_chs = int(num_more_chs)
-                # Get the indices of the cluster heads that were not predicted
-                # print(f"Outputs: {outputs}")
-                # Sort the indices in descending order
                 indices = outputs.argsort()[::-1]
-                # print(f"Sorted indices: {indices}")
-                # print the values of the indices
-                # print(f"Sorted outputs: {outputs[indices]}")
                 count_more_chs = 0
                 while count_more_chs < num_more_chs:
                     for index in indices:
+                        if index == 0:
+                            continue
                         if index not in predicted:
                             predicted = np.insert(predicted, 0, index)
                             count_more_chs += 1

@@ -10,7 +10,7 @@ class Extended(NetworkModel):
         # Calculate the eamp from every node to
         self.eamp_matrix = self.calculate_eamp_matrix()
         # control packet transmission energy
-        self.ctrl_pkt_energy = self.eelect * 400
+        self.ctrl_pkt_energy = self.eelect * 1000
 
     def calculate_eamp_matrix(self):
         eamp_matrix = {}
@@ -37,8 +37,10 @@ class Extended(NetworkModel):
         return self.eelect_eda_ps + self.eamp_matrix[src][1]
 
     def energy_dissipation_control_packets(self, round: int):
+        # print("Energy dissipation control packets")
         # # This is only processed by centralized algorithms
         if self.config.network.protocol.name == "LEACH":
+            print("LEACH protocol, skipping")
             return
         if round-1 <= 0:
             prev_chs = []
@@ -57,6 +59,7 @@ class Extended(NetworkModel):
             # print node_ids of cluster heads
             # print("No new cluster heads")
             return
+        # print("New cluster heads, transmitting control packet")
         # chs = self.network.num_cluster_heads()
         # pkt_size = (4*chs+15) * 8
         # Reduce the energy of all nodes by the energy required to transmit the

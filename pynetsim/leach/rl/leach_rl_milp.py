@@ -8,22 +8,23 @@ import pynetsim.leach.rl as rl
 # from pynetsim.network.network import Network
 # from pynetsim.config import NETWORK_MODELS
 from pynetsim.leach.surrogate.surrogate import SurrogateModel
+from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 import pynetsim.leach.surrogate as leach_surrogate
 
 
 MAX_STEPS = 1000
 
 
-class LEACH_RL(gym.Env):
+class LEACH_RL_MILP(gym.Env):
     def __init__(self, network, net_model, config):
-        super(LEACH_RL, self).__init__()
-        self.name = "LEACH_RL"
+        super(LEACH_RL_MILP, self).__init__()
+        self.name = "LEACH_RL_MILP"
         self.network = network
         self.net_model = net_model
         self.config = config
         self.episode_network, self.episode_net_model = self.copy_network()
-        self.surrogate_model = SurrogateModel(config=self.config, network=self.episode_network,
-                                              net_model=self.episode_net_model)
+        self.milp_model = LEACH_CE_E(network=self.episode_network,
+                                     net_model=self.episode_net_model)
 
         self.max_steps = MAX_STEPS
         self._action = 0
@@ -65,8 +66,8 @@ class LEACH_RL(gym.Env):
             if node.is_cluster_head:
                 cluster_heads.append(node.node_id/100)
         # sort
-        # if len(cluster_heads) < 5:
-        #     cluster_heads.extend([0]*(5-len(cluster_heads)))
+        if len(cluster_heads) < 5:
+            cluster_heads.extend([0]*(5-len(cluster_heads)))
         cluster_heads.sort()
         return cluster_heads
 
@@ -82,7 +83,13 @@ class LEACH_RL(gym.Env):
         for node in self.episode_network:
             if node.node_id <= 1:
                 continue
-            membership.append(node.cluster_id/100)
+            if node.cluster_id is None:
+                print(f"Node {node.node_id} has no cluster id")
+                print(f"Node energy: {node.remaining_energy}")
+                print(f"alive nodes: {self.episode_network.alive_nodes()}")
+                membership.append(0)
+            else:
+                membership.append(node.cluster_id/100)
         return membership
 
     def _get_obs(self):
@@ -94,27 +101,11 @@ class LEACH_RL(gym.Env):
         assert all(
             [x >= -1 and x <= 1 for x in nodes_energy_consumption]), f"Nodes energy consumption: {nodes_energy_consumption}"
         current_cluster_heads = self.get_cluster_heads()
-        expected_num_cluster_heads = self.get_expected_num_cluster_heads()
-        if len(current_cluster_heads) < expected_num_cluster_heads:
-            print(
-                f"Lenght of current cluster heads: {len(current_cluster_heads)}, expected: {expected_num_cluster_heads}")
-            print(
-                f"Number of alive nodes: {self.episode_network.alive_nodes()}")
-            for node in self.episode_network:
-                print(f"Node {node.node_id} energy: {node.remaining_energy}")
-                if node.remaining_energy <= 0:
-                    print(f"Node {node.node_id} is dead")
-            for node in self.episode_network:
-                print(
-                    f"Node {node.node_id} is cluster head: {node.is_cluster_head}")
-            # print previous action
-            print(f"Previous action: {self.prev_action}")
-            # print current action
-            print(f"Current action: {self.action}")
+        # expected_num_cluster_heads = self.get_expected_num_cluster_heads()
         # assert len(
         #     current_cluster_heads) == expected_num_cluster_heads, f"Length of current cluster heads: {len(current_cluster_heads)}, expected: {expected_num_cluster_heads}"
-        assert all(
-            [x >= 0 and x <= 1 for x in current_cluster_heads]), f"Current cluster heads: {current_cluster_heads}"
+        # assert all(
+        #     [x >= 0 and x <= 1 for x in current_cluster_heads]), f"Current cluster heads: {current_cluster_heads}"
         num_times_ch = self._same_cluster_heads/400
         assert num_times_ch >= 0 and num_times_ch <= 1, f"Number of times CH: {num_times_ch}"
         membership = self.get_membership()
@@ -198,8 +189,6 @@ class LEACH_RL(gym.Env):
         self.action = int(action)
         done = False
         reward = 0
-        self.stats[self.round_number] = {}
-        self.stats[self.round_number]["action"] = self.action
 
         # Two actions, create a new set of clusters or stay in the same set
         if self.action == 0:
@@ -207,65 +196,48 @@ class LEACH_RL(gym.Env):
             # print("Stay in the same set of clusters")
             self.round_number += 1
             self.episode_net_model.dissipate_energy(round=self.round_number)
-            # reward += 0.1
+            # reward = 0.5
         if self.action == 1:
             self._same_cluster_heads += 1
             # print("Create a new set of clusters")
-            self.round_number = self.surrogate_model.evaluate_round(
+            self.round_number = self.milp_model.evaluate_round(
                 round=self.round_number)
-            # reward = self.episode_network.average_remaining_energy()/0.5
             reward += 0.1
+
         # Are there any dead nodes?
         alive_nodes = self.episode_network.alive_nodes()
-        if alive_nodes < 99:
+        if alive_nodes <= 0:
             done = True
             reward = 2
-            print(f"Number of rounds: {self.round_number}")
-            # print how many times the same action was taken
-            action_0 = 0
-            action_1 = 0
-            for round in self.stats:
-                if self.stats[round]["action"] == 0:
-                    action_0 += 1
-                else:
-                    action_1 += 1
-            print(f"Number of times action 0 was taken: {action_0}")
-            print(f"Number of times action 1 was taken: {action_1}")
-            # print the last round number
-            print(f"Last round number: {self.round_number}")
         else:
             reward += 1
 
         obs = self._get_obs()
 
-        # print(f"Observation: {obs}")
-        # input("Press enter to continue...")
-
-        return obs, reward, done, False, {}
+        return obs, reward, done, False, {'network': self.episode_network,
+                                          'network_model': self.episode_net_model}
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # Instantiate the model
         self.episode_network, self.episode_net_model = self.copy_network()
-        # update the network and net_model of the surrogate model
-        self.surrogate_model.update_network(
-            network=self.episode_network)
-        self.surrogate_model.update_network_model(
-            net_model=self.episode_net_model)
-        self.surrogate_model.initialize()
-        # we step the model one round to get the initial observation
-        self.round_number = self.surrogate_model.evaluate_round(round=0)
+        self.milp_model = LEACH_CE_E(network=self.episode_network,
+                                     net_model=self.episode_net_model,
+                                     alpha=54.82876630831832,
+                                     beta=14.53707859358856,
+                                     gamma=35.31010127750784)
+        for node in self.episode_network:
+            node.is_cluster_head = False
+            node.dst_to_sink = self.episode_network.distance_to_sink(node)
+
+        # lets set the first cluster heads
+        self.round_number = self.milp_model.evaluate_round(round=0)
+
         self._same_cluster_heads = 0
-        self.action = 0
+        self._prev_action = 0
+        self._action = 0
         obs = self._get_obs()
-        self.stats = {}
-
-        # input(f"Initial observation: {obs}")
-        # print all energy levels
-        # for node in self.episode_network:
-        #     print(
-        #         f"Node {node.node_id} energy: {node.remaining_energy}")
-
+        # input(f"Init observations: {obs}")
         return obs, {}
 
     def render(self, mode='human'):

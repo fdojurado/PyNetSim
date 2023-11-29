@@ -8,6 +8,7 @@ import pynetsim.leach.leach_milp as leach_milp
 import matplotlib.animation as animation
 
 from pynetsim import common
+from rich.progress import Progress
 
 
 class LEACH_CE_E:
@@ -22,17 +23,17 @@ class LEACH_CE_E:
         if 'alpha' in kwargs:
             self.alpha = kwargs['alpha']
         else:
-            self.alpha = 3
+            self.alpha = 54.82876630831832
         if 'beta' in kwargs:
             self.beta = kwargs['beta']
         else:
-            self.beta = 1
+            self.beta = 14.53707859358856
         if 'gamma' in kwargs:
             self.gamma = kwargs['gamma']
         else:
-            self.gamma = 2
-        self.network.set_stats_name(f'{self.name}_{self.alpha}_{self.beta}_{self.gamma}')
-
+            self.gamma = 35.31010127750784
+        self.network.set_stats_name(
+            f'{self.name}_{self.alpha}_{self.beta}_{self.gamma}')
 
     def create_model(self, cluster_heads, alive_nodes):
         model = pyo.ConcreteModel()
@@ -173,7 +174,8 @@ class LEACH_CE_E:
         return chs, node_cluster_head
 
     def run(self):
-        print(f"Running {self.name}...")
+        print(
+            f"Running {self.name} with alpha: {self.alpha}, beta: {self.beta}, gamma: {self.gamma}")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = False
 
@@ -190,6 +192,8 @@ class LEACH_CE_E:
         else:
             self.run_with_plotting(
                 num_rounds)
+        # export the metrics
+        self.network.export_stats()
 
     def evaluate_round(self, round):
         round += 1
@@ -217,13 +221,13 @@ class LEACH_CE_E:
 
     def run_without_plotting(self, num_rounds):
         round = 0
-        # with Progress() as progress:
-        # task = progress.add_task(
-        #     "[red]Running LEACH-CE...", total=num_rounds)
-        while self.network.alive_nodes() > 0 and round < num_rounds:
-            round = self.evaluate_round(round)
-            #     progress.update(task, completed=round)
-            # progress.update(task, completed=num_rounds)
+        with Progress() as progress:
+            task = progress.add_task(
+                f"[red]Running {self.name}...", total=num_rounds)
+            while self.network.alive_nodes() > 0 and round < num_rounds:
+                round = self.evaluate_round(round)
+                progress.update(task, completed=round)
+            progress.update(task, completed=num_rounds)
 
     def run_with_plotting(self, num_rounds):
         fig, ax = plt.subplots()
