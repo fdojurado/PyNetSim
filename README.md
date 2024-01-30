@@ -2,6 +2,8 @@
 
 # PyNetSim: Wireless Sensor Network Simulator
 
+**Warning:** This documentation is currently under construction. Some information may be incomplete or subject to change.
+
 PyNetSim stands out as a robust wireless sensor network simulator specifically crafted for the evaluation of LEACH-based protocols, including traditional LEACH and its variants like LEACH-C. Developed in Python, this tool provides a versatile and accessible platform for researchers and students to test, analyze, and refine their clustering algorithms in the context of wireless sensor networks.
 
 Key Features:
