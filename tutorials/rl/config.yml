@@ -1,13 +1,13 @@
 name: example network
 surrogate:
   # Path to the cluster head model
-  cluster_head_model: /Users/ffjla/PyNetSim/tutorials/surrogate/cluster_heads/ch_model.pt
+  cluster_head_model: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_heads/ch_model.pt
   # Cluster head path to the data, useful for mean and std
-  cluster_head_data: /Users/ffjla/PyNetSim/tutorials/surrogate/cluster_heads/data/data.csv
+  cluster_head_data: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_heads/data/data.csv
   # Path to the cluster assignment model
-  cluster_assignment_model: /Users/ffjla/PyNetSim/tutorials/surrogate/cluster_assignment/cluster_assignment_model.pt
+  cluster_assignment_model: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_assignment/cluster_assignment_model.pt
   # Cluster assignment path to the data, useful for mean and std
-  cluster_assignment_data: /Users/ffjla/PyNetSim/tutorials/surrogate/cluster_assignment/data/data.csv
+  cluster_assignment_data: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_assignment/data/data.csv
   # alpha, beta and gamma parameters for the surrogate model
   alpha: 54.82876630831832
   beta: 14.53707859358856
