@@ -1,13 +1,14 @@
 # This tutorial simple constructs a 200x200 network with 20 nodes and a transmission range of 80.
 # The network is plotted using matplotlib.
 
+import argparse
+import sys
+import os
+
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
 from pynetsim.utils import PyNetSimLogger
 
-import sys
-import os
-import argparse
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
@@ -17,10 +18,18 @@ logger_utility = PyNetSimLogger(log_file="my_log.log", namespace="Main")
 logger = logger_utility.get_logger()
 
 
-def main(args):
+def main(arguments):
+    """
+    Main function
+
+    :param arguments: Arguments
+    :type arguments: argparse.Namespace
+
+    :return: None
+    """
     # Load config
-    config = load_config(args.config)
-    logger.info(f"Loading config from {args.config}")
+    config = load_config(arguments.config)
+    logger.info("Loading config from %s", arguments.config)
 
     network = Network(config=config)
     network_model = NETWORK_MODELS[config.network.model](
