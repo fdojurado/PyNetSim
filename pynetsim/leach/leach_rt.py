@@ -12,6 +12,7 @@ import errno
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from rich.progress import Progress
 from decimal import Decimal as D
+from pynetsim.utils import RandomNumberGenerator
 
 
 class LEACH_RT:
@@ -21,6 +22,7 @@ class LEACH_RT:
         self.net_model = net_model
         self.elect = self.net_model.elect
         self.config = network.config
+        self.rng = RandomNumberGenerator(self.config)
         self.network = network
 
     def calculate_energy_consumption_per_round(self, network: object = None, net_model: object = None):
@@ -372,7 +374,7 @@ class LEACH_RT:
     def select_cluster_heads(self):
         nodes = [node.node_id for node in self.network]
         # Select self.max_chs cluster heads from the network
-        chs = np.random.choice(
+        chs = self.rng.get_np_random_choice(
             nodes, size=int(self.max_chs), replace=False)
         print(f"Cluster heads: {chs}")
         # Set them as cluster heads

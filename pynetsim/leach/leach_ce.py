@@ -8,7 +8,7 @@ import pyomo.environ as pyo
 import copy
 
 # from rich.progress import Progress
-
+from pynetsim.utils import RandomNumberGenerator
 
 class LEACH_CE:
 
@@ -17,6 +17,7 @@ class LEACH_CE:
         self.net_model = net_model
         self.config = network.config
         self.network = network
+        self.rng = RandomNumberGenerator(self.config)
         # Define parameters
         self.alpha = 1.0  # Weighting coefficient for energy consumption
         self.beta = 1.0   # Weighting coefficient for balanced cluster energy
@@ -134,7 +135,7 @@ class LEACH_CE:
         number_of_cluster_heads = len(clusters)-2
         print(f"Number of cluster heads: {number_of_cluster_heads}")
         # Select randomly from the nodes
-        selected_nodes = np.random.choice(
+        selected_nodes = self.rng.get_np_random_choice(
             nodes, size=number_of_cluster_heads, replace=False)
         print(f"Selected nodes: {selected_nodes}")
         # Set the x_i variables to 1 for the selected nodes

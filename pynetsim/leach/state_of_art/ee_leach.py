@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from rich.progress import Progress
+from pynetsim.utils import RandomNumberGenerator
 
 
 class EE_LEACH:
@@ -23,6 +24,7 @@ class EE_LEACH:
         self.net_model = net_model
         self.config = network.config
         self.network = network
+        self.rng = RandomNumberGenerator(self.config)
 
     def cluster_heads_candidates(self):
         # Average energy of the network
@@ -44,7 +46,8 @@ class EE_LEACH:
         # print(f"Potential cluster heads: {potential_cluster_heads}")
 
         # Select a random population of size max_chs from the potential cluster heads
-        return np.random.choice(potential_cluster_heads, self.max_chs, replace=False)
+        # return np.random.choice(potential_cluster_heads, self.max_chs, replace=False)
+        return self.rng.get_np_random_choice(potential_cluster_heads, self.max_chs, replace=False)
 
     def node_distance_to_cluster_candidate(self, node,
                                            cluster_head_assignments):

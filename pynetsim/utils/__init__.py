@@ -1,3 +1,5 @@
+import random
+import numpy as np
 from rich.logging import RichHandler
 
 import logging
@@ -66,3 +68,66 @@ class Timer:
             logger.info(f"{self.name}: {self.end - self.start}")
         else:
             logger.info(f"Time taken: {self.end - self.start}")
+
+
+class RandomNumberGenerator:
+    """
+    Random number generator.
+
+    :param seed: Seed for the random number generator
+    :type seed: int
+    """
+
+    def __init__(self, config):
+        self.seed = config.seed
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        logger.info("Random seed: %s", self.seed)
+
+    def get_random(self):
+        """Generate a random float between 0 and 1."""
+        return random.random()
+
+    def get_random_int(self, low, high):
+        """Generate a random integer between low (inclusive) and high (inclusive)."""
+        return random.randint(low, high)
+
+    def get_random_choice(self, seq):
+        """Return a random element from the non-empty sequence seq."""
+        return random.choice(seq)
+
+    def get_np_random(self):
+        """Generate a random float between 0 and 1 using NumPy."""
+        return np.random.random()
+
+    def get_np_random_int(self, low, high):
+        """Generate a random integer between low (inclusive) and high (inclusive) using NumPy."""
+        return np.random.randint(low, high + 1)
+
+    def get_np_random_choice(self, seq, size=None, replace=True):
+        """
+        Return a random sample from a given 1-D array using NumPy.
+
+        :param seq: 1-D array-like or list from which to sample.
+        :type seq: list or np.ndarray
+        :param size: Number of samples to draw.
+        :type size: int or None
+        :param replace: Whether the sample is with replacement.
+        :type replace: bool
+        :return: Random sample from seq.
+        :rtype: np.ndarray
+        """
+        return np.random.choice(seq, size=size, replace=replace)
+
+    def get_uniform(self, a, b):
+        """
+        Generate a random float between a and b.
+
+        :param a: Lower bound of the range.
+        :type a: float
+        :param b: Upper bound of the range.
+        :type b: float
+        :return: Random float between a and b.
+        :rtype: float
+        """
+        return random.uniform(a, b)

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from rich.progress import Progress
+from pynetsim.utils import RandomNumberGenerator
 
 
 class LEACH_C:
@@ -13,6 +14,7 @@ class LEACH_C:
         self.net_model = net_model
         self.config = network.config
         self.network = network
+        self.rng = RandomNumberGenerator(self.config)
 
     def potential_cluster_heads(self, network_avg_energy):
         potential_cluster_heads = []
@@ -75,7 +77,7 @@ class LEACH_C:
         #     f"Potential cluster heads: {cluster_heads}, length: {len(cluster_heads)}, number of cluster heads: {number_of_cluster_heads}")
         if len(cluster_heads) < number_of_cluster_heads:
             number_of_cluster_heads = len(cluster_heads)
-        best = np.random.choice(
+        best = self.rng.get_np_random_choice(
             cluster_heads, size=number_of_cluster_heads, replace=False)
 
         # Evaluate the initial solution
@@ -105,7 +107,7 @@ class LEACH_C:
             #     candidate = np.append(curr, cluster_head)
 
             # Select random chunk of cluster heads of size number_of_cluster_heads as potential cluster heads
-            candidate = np.random.choice(
+            candidate = self.rng.get_np_random_choice(
                 cluster_heads, size=number_of_cluster_heads, replace=False)
 
             # Evaluate the current solution
@@ -123,7 +125,7 @@ class LEACH_C:
 
             t = initial_temp / (i + 1)
             metropolis = np.exp(-diff / t)
-            if diff < 0 or np.random.rand() < metropolis:
+            if diff < 0 or self.rng.get_random() < metropolis:
                 curr, curr_eval = candidate, candidate_eval
 
         # print(

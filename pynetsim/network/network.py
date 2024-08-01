@@ -5,7 +5,7 @@ from pynetsim.node.node import Node
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
-import random
+from pynetsim.utils import RandomNumberGenerator
 
 
 def ensure_connected(func):
@@ -31,6 +31,7 @@ class Network:
         self.stats = Statistics(self, config)
         self.nodes = {}
         self.cluster_heads_per_round = {}
+        self.rng = RandomNumberGenerator(self.config)
 
     def set_model(self, model):
         self.model = model
@@ -365,8 +366,8 @@ class Network:
                     node = Node(i, x, y, energy=2)
                     self.nodes[i] = node
                     continue
-                x = random.uniform(0, self.width)
-                y = random.uniform(0, self.height)
+                x = self.rng.get_uniform(0, self.width)
+                y = self.rng.get_uniform(0, self.height)
                 node = Node(
                     i, x, y, energy=self.config.network.protocol.init_energy)
                 self.nodes[i] = node  # node_id: node

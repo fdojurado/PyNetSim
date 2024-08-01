@@ -41,6 +41,7 @@ NETWORK_MODELS = {
 }
 
 
+DEFAULT_SEED = 42
 DEFAULT_NUM_SENSOR = 100
 DEFAULT_TRANSMISSION_RANGE = 80
 DEFAULT_WIDTH = 200
@@ -133,6 +134,7 @@ class SurrogateConfiguration:
 class Configuration:
     def __init__(self, config_dict):
         self.name = config_dict.get('name')
+        self.seed = config_dict.get('seed', DEFAULT_SEED)
         self.surrogate = SurrogateConfiguration(
             config_dict.get('surrogate', {}))
         self.network = NetworkConfiguration(config_dict.get('network', {}))

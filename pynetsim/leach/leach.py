@@ -1,9 +1,9 @@
-import random
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pynetsim.common as common
 
 from rich.progress import Progress
+from pynetsim.utils import RandomNumberGenerator
 
 
 class LEACH:
@@ -13,6 +13,7 @@ class LEACH:
         self.net_model = net_model
         self.config = network.config
         self.network = network
+        self.rng = RandomNumberGenerator(self.config)
 
     def select_cluster_heads(self, probability, tleft, num_cluster_heads):
         for node in self.network:
@@ -34,7 +35,7 @@ class LEACH:
 
     def should_select_cluster_head(self, node, probability):
         return (not node.is_cluster_head and node.rounds_to_become_cluster_head == 0
-                and random.random() < probability)
+                and self.rng.get_random() < probability)
 
     def mark_as_cluster_head(self, node, num_cluster_heads, tleft):
         num_cluster_heads += 1

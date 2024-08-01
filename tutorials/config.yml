@@ -1,4 +1,5 @@
 name: example network
+seed: 1234
 network:
   plot: False
   num_sensor: 100
