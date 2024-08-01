@@ -1,5 +1,6 @@
 name: example network
 network:
+  plot: False
   num_sensor: 100
   transmission_range: 60
   model: extended

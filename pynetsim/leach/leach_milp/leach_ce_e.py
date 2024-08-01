@@ -203,7 +203,8 @@ class LEACH_CE_E:
         print(
             f"Running {self.name} with alpha: {self.alpha}, beta: {self.beta}, gamma: {self.gamma}")
         num_rounds = self.config.network.protocol.rounds
-        plot_clusters_flag = False
+        plot_clusters_flag = self.config.network.plot
+        plot_refresh = self.config.network.plot_refresh
 
         for node in self.network:
             node.is_cluster_head = False
@@ -217,7 +218,7 @@ class LEACH_CE_E:
                 num_rounds)
         else:
             self.run_with_plotting(
-                num_rounds)
+                num_rounds, plot_refresh)
         # export the metrics
         self.network.export_stats()
 
@@ -255,7 +256,7 @@ class LEACH_CE_E:
                 progress.update(task, completed=round)
             progress.update(task, completed=num_rounds)
 
-    def run_with_plotting(self, num_rounds):
+    def run_with_plotting(self, num_rounds, plot_refresh):
         fig, ax = plt.subplots()
         common.plot_clusters(network=self.network, round=0, ax=ax)
 
@@ -269,7 +270,7 @@ class LEACH_CE_E:
             ax.clear()
             common.plot_clusters(network=self.network, round=round, ax=ax)
 
-            plt.pause(0.1)
+            plt.pause(plot_refresh)
 
         ani = animation.FuncAnimation(
             fig, animate, frames=range(0, num_rounds + 1), repeat=False)

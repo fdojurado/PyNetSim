@@ -49,7 +49,8 @@ class LEACH:
         print("Running LEACH protocol...")
         p = self.config.network.protocol.cluster_head_percentage
         num_rounds = self.config.network.protocol.rounds
-        plot_clusters_flag = False  # Set this to False to not plot clusters
+        plot_clusters_flag = self.config.network.plot
+        plot_refresh = self.config.network.plot_refresh
 
         for node in self.network:
             node.is_cluster_head = False
@@ -63,7 +64,7 @@ class LEACH:
                 num_rounds, p)
         else:
             self.run_with_plotting(
-                num_rounds, p)
+                num_rounds, p, plot_refresh)
 
         # export the metrics
         self.network.export_stats()
@@ -94,7 +95,7 @@ class LEACH:
                 progress.update(task, completed=round)
             progress.update(task, completed=num_rounds)
 
-    def run_with_plotting(self, num_rounds, p):
+    def run_with_plotting(self, num_rounds, p, plot_refresh):
         fig, ax = plt.subplots()
         common.plot_clusters(network=self.network,
                              round=0, ax=ax)
@@ -110,7 +111,7 @@ class LEACH:
             common.plot_clusters(network=self.network,
                                  round=round, ax=ax)
 
-            plt.pause(0.1)
+            plt.pause(plot_refresh)
 
         ani = animation.FuncAnimation(
             fig, animate, frames=range(1, num_rounds + 1), repeat=False)

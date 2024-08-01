@@ -61,7 +61,8 @@ class EC_LEACH:
     def run(self):
         print(f"Running {self.name}...")
         num_rounds = self.config.network.protocol.rounds
-        plot_clusters_flag = False
+        plot_clusters_flag = self.config.network.plot
+        plot_refresh = self.config.network.plot_refresh
 
         for node in self.network:
             node.is_cluster_head = False
@@ -75,7 +76,7 @@ class EC_LEACH:
                 num_rounds)
         else:
             self.run_with_plotting(
-                num_rounds)
+                num_rounds, plot_refresh)
 
     def evaluate_round(self, round):
         round += 1
@@ -126,7 +127,7 @@ class EC_LEACH:
             ax.clear()
             common.plot_clusters(network=self.network, round=round, ax=ax)
 
-            plt.pause(0.1)
+            plt.pause(plot_refresh)
 
         ani = animation.FuncAnimation(
             fig, animate, frames=range(0, num_rounds + 1), repeat=False)

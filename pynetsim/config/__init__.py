@@ -45,6 +45,8 @@ DEFAULT_NUM_SENSOR = 100
 DEFAULT_TRANSMISSION_RANGE = 80
 DEFAULT_WIDTH = 200
 DEFAULT_HEIGHT = 200
+DEFAULT_PLOT = False
+DEFAULT_PLOT_REFRESH = 0.1
 DEFAULT_NUM_SINK = 1
 DEFAULT_DEFAULT_MODEL = "simple"
 # Protocol defaults
@@ -96,6 +98,8 @@ class NetworkConfiguration:
         self.transmission_range = network_dict.get(
             'transmission_range', DEFAULT_TRANSMISSION_RANGE)
         self.model = network_dict.get('model', DEFAULT_DEFAULT_MODEL)
+        self.plot = network_dict.get('plot', DEFAULT_PLOT)
+        self.plot_refresh = network_dict.get('plot_refresh', DEFAULT_PLOT_REFRESH)
         self.protocol = ProtocolConfiguration(
             network_dict.get('protocol', {}))
         self.width = network_dict.get('width', DEFAULT_WIDTH)
@@ -136,13 +140,12 @@ class Configuration:
 
 def load_config(file_path):
     try:
-        with open(file_path, 'r') as config_file:
+        with open(file_path, 'r', encoding='utf-8') as config_file:
             config_data = yaml.safe_load(config_file)
             if config_data:
                 return Configuration(config_data)
-            else:
-                raise ValueError("Empty configuration file")
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Config file not found at {file_path}")
+            raise ValueError("Empty configuration file")
+    except FileNotFoundError as ex:
+        raise FileNotFoundError(f'Config file not found at {file_path}') from ex
     except yaml.YAMLError as e:
-        raise ValueError(f"Error parsing YAML file: {e}")
+        raise ValueError(f'Error parsing YAML file: {e}') from e
