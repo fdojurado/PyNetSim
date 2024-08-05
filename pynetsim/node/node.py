@@ -15,13 +15,18 @@ class Node:
         self.tsch_schedule = {}
         # LEACH
         self.__is_cluster_head = False
+        self.__is_main_cluster_head = False
         self.cluster_id = 0
+        self.mch_id = 0
         self.rounds_to_become_cluster_head = 0
         self.__remaining_energy = energy
+        self.__initial_energy = energy
+        self.__drain_rate = 0
         self.__energy_dissipated = 0
         self.__pkts_sent_to_bs = 0
         self.dst_to_sink = 0
         self.dst_to_cluster_head = 0
+        self.dst_to_mch = 0
         self.round_dead = 0
         self.__pkt_sent = 0
         self.__pkt_received = 0
@@ -38,8 +43,29 @@ class Node:
         self.__is_cluster_head = value
 
     @property
+    def is_main_cluster_head(self):
+        return self.__is_main_cluster_head
+
+    @is_main_cluster_head.setter
+    def is_main_cluster_head(self, value: bool):
+        assert isinstance(value, bool)
+        self.__is_main_cluster_head = value
+
+    @property
     def remaining_energy(self):
         return self.__remaining_energy
+
+    @property
+    def initial_energy(self):
+        return self.__initial_energy
+
+    @property
+    def drain_rate(self):
+        return self.__drain_rate
+
+    @drain_rate.setter
+    def drain_rate(self, value: float):
+        self.__drain_rate = value
 
     @remaining_energy.setter
     def remaining_energy(self, value: float):
@@ -71,6 +97,8 @@ class Node:
         return self.__pkt_received
 
     def energy_dissipation(self, energy: float, round: int):
+        # update the drain rate
+        self.drain_rate = energy
         # If remaining energy is empty, add the initial energy
         self.__remaining_energy -= energy
         # if round not in self.energy_dissipated added otherwise sum

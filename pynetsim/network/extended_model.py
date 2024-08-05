@@ -34,13 +34,21 @@ class Extended(NetworkModel):
         return self.eelect_ps + self.eamp_matrix[src][dst]
 
     def calculate_energy_tx_ch(self, src: int):
-        return self.eelect_eda_ps + self.eamp_matrix[src][1]
+        node = self.network.get_node(src)
+        if node.is_main_cluster_head:
+            return self.eelect_eda_ps + self.eamp_matrix[src][1]
+        else:
+            if node.mch_id != 0:
+                dst = self.network.get_node_with_mch_id(node.mch_id)
+                return self.eelect_eda_ps + self.eamp_matrix[src][dst.node_id]
+            else:
+                return self.eelect_eda_ps + self.eamp_matrix[src][1]
 
     def energy_dissipation_control_packets(self, round: int):
         # print("Energy dissipation control packets")
         # # This is only processed by centralized algorithms
-        if self.config.network.protocol.name == "LEACH":
-            print("LEACH protocol, skipping")
+        if self.config.network.protocol.name == "LEACH" or self.config.network.protocol.name == "LEACH-EE" or self.config.network.protocol.name == "LEACH-D":
+            print("LEACH-based protocol, skipping")
             return
         if round-1 <= 0:
             prev_chs = []

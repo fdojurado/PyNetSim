@@ -17,8 +17,10 @@ def plot_nodes(network, ax):
     for node in network:
         if node.node_id == 1:
             node.color = "black"
-        elif node.is_cluster_head:
+        elif node.is_cluster_head and not node.is_main_cluster_head:
             node.color = "red"
+        elif node.is_cluster_head and node.is_main_cluster_head:
+            node.color = "green"
         else:
             node.color = "blue"
         ax.plot(node.x, node.y, 'o', color=node.color)
@@ -30,17 +32,30 @@ def plot_cluster_connections(network, ax):
     if not cluster_heads_exist:
         # print("There are no cluster heads.")
         return
+    # print cluster heads
+    chs = [node for node in network if node.is_cluster_head]
+    # print(f"Cluster heads: {[ch.node_id for ch in chs]}")
     for node in network:
         if node.is_cluster_head or node.node_id == 1:
             continue
+        # print(f"Node {node.node_id} is not a cluster head.")
         cluster_head = network.get_cluster_head(node=node)
+        # if cluster_head:
+        #     print(
+        #         f"Node {node.node_id} is a member of cluster head {cluster_head.node_id}")
         ax.plot([node.x, cluster_head.x], [
                 node.y, cluster_head.y], 'k--', linewidth=0.5)
 
     for node in network:
-        if node.is_cluster_head:
+        if node.is_cluster_head and node.is_main_cluster_head:
             ax.plot([node.x, network.nodes[1].x], [
-                    node.y, network.nodes[1].y], 'k-', linewidth=1)
+                node.y, network.nodes[1].y], 'k-', linewidth=1)
+        elif node.is_cluster_head and node.mch_id != 0:
+            mch = network.get_mch(node=node)
+            ax.plot([node.x, mch.x], [node.y, mch.y], 'k-', linewidth=0.5)
+        elif node.is_cluster_head:
+            ax.plot([node.x, network.nodes[1].x], [
+                node.y, network.nodes[1].y], 'k-', linewidth=1)
 
 
 def plot_sink_connections(network, ax):

@@ -8,8 +8,8 @@ from pynetsim.utils import RandomNumberGenerator
 
 class LEACH:
 
-    def __init__(self, network, net_model: object):
-        self.name = "LEACH"
+    def __init__(self, network, net_model: object, name='LEACH'):
+        self.name = name
         self.net_model = net_model
         self.config = network.config
         self.network = network
@@ -47,7 +47,7 @@ class LEACH:
         return num_cluster_heads
 
     def run(self):
-        print("Running LEACH protocol...")
+        print("Running LEACH-based protocol...")
         p = self.config.network.protocol.cluster_head_percentage
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = self.config.network.plot

@@ -89,15 +89,26 @@ class NetworkModel(ABC):
                 continue
             ETx = self.calculate_energy_tx_ch(src=node.node_id)
             self.energy_dissipated(node=node, energy=ETx, round=round)
-            node.inc_pkts_sent_to_bs()
             node.inc_pkts_sent()
-            # Get the sink node
-            sink = self.network.get_node(1)
-            sink.inc_pkts_received()
-            node.inc_pkts_received()
-            if not self.network.alive(node):
-                self.network.mark_node_as_dead(node, round)
-                self.network.remove_node_from_cluster(node)
+            if node.is_main_cluster_head or node.mch_id == 0:
+                node.inc_pkts_sent_to_bs()
+                sink = self.network.get_node(1)
+                sink.inc_pkts_received()
+                node.inc_pkts_received()
+                if not self.network.alive(node):
+                    self.network.mark_node_as_dead(node, round)
+                    self.network.remove_node_from_cluster(node)
+            elif node.mch_id != 0:
+                dst = self.network.get_node_with_mch_id(node.mch_id)
+                ERx = self.calculate_energy_rx()
+                self.energy_dissipated(node=dst, energy=ERx, round=round)
+                if not self.network.alive(dst):
+                    self.network.mark_node_as_dead(dst, round)
+                    self.network.remove_node_from_cluster(dst)
+                node.inc_pkts_received()
+                if not self.network.alive(node):
+                    self.network.mark_node_as_dead(node, round)
+                    self.network.remove_node_from_cluster(node)
 
     def transfer_data_to_sink(self, node, round: int):
         if not self.network.alive(node):

@@ -10,6 +10,8 @@ from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.leach.leach_ce import LEACH_CE
 from pynetsim.leach.state_of_art.ec_leach import EC_LEACH
 from pynetsim.leach.state_of_art.ee_leach import EE_LEACH
+from pynetsim.leach.leach_ee import LEACH_EE
+from pynetsim.leach.leach_d import LEACH_D
 from pynetsim.leach.leach_rt import LEACH_RT
 from pynetsim.leach.leach_r import LEACH_R
 from pynetsim.leach.leach_k import LEACH_K
@@ -29,6 +31,8 @@ PROTOCOLS = {
     "LEACH-CE-D": LEACH_CE_D,
     "LEACH-CE-E": LEACH_CE_E,
     "LEACH-R": LEACH_R,
+    "LEACH-EE": LEACH_EE,
+    "LEACH-D": LEACH_D,
     "LEACH-RT": LEACH_RT,
     "EC-LEACH": EC_LEACH,
     "EE-LEACH": EE_LEACH,

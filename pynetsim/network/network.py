@@ -74,6 +74,14 @@ class Network:
         node.is_cluster_head = False
         node.cluster_id = 0
 
+    def mark_as_main_cluster_head(self, node: Node, cluster_id: int):
+        node.is_main_cluster_head = True
+        node.mch_id = cluster_id
+
+    def mark_as_non_main_cluster_head(self, node):
+        node.is_main_cluster_head = False
+        node.mch_id = 0
+
     def create_clusters(self):
         cluster_heads_exist = any(
             node.is_cluster_head for node in self)
@@ -86,6 +94,54 @@ class Network:
         for node in self:
             if not node.is_cluster_head and node.node_id != 1:
                 self.add_node_to_cluster(node=node)
+
+        return True
+
+    def print_clusters(self):
+        for node in self:
+            if not node.is_cluster_head:
+                ch = self.get_cluster_head(node)
+                if ch:
+                    print(
+                        f"Node {node.node_id} is a member of cluster head {ch.node_id}")
+            else:
+                print(f"Node {node.node_id} is a cluster head.")
+
+    def create_mch_clusters(self):
+        mch_exist = any(
+            node.is_main_cluster_head for node in self)
+        # print all cluster head ids
+        chs = [node.node_id for node in self if node.is_cluster_head]
+        # print(f"create_mch_clusters, cluster heads: {chs}")
+        if not mch_exist:
+            return False
+
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+
+            if not node.is_cluster_head:
+                continue
+
+            if not node.is_main_cluster_head:
+                # print(f"Node {node.node_id} is not a main cluster head.")
+                # self.mark_as_non_cluster_head(node)
+                self.add_ch_to_mch(node)
+                # print(
+                #     f"Node {node.node_id} is a member of MCH {node.mch_id} (ID: {self.get_mch(node).node_id})")
+
+        return True
+
+    def add_ch_to_mch(self, node):
+        distances = {mch.node_id: ((node.x - mch.x)**2 + (node.y - mch.y)**2)**0.5
+                     for mch in self if mch.is_main_cluster_head}
+        mch_id = min(distances, key=distances.get)
+        min_distance = distances[mch_id]
+        mch = self.get_node(mch_id)
+        mch.add_neighbor(node)
+        node.add_neighbor(mch)
+        node.dst_to_mch = min_distance
+        node.mch_id = mch.mch_id
 
     def add_node_to_cluster(self, node):
         distances = {cluster_head.node_id: ((node.x - cluster_head.x)**2 + (node.y - cluster_head.y)**2)**0.5
@@ -116,6 +172,9 @@ class Network:
     def get_cluster_head(self, node: Node):
         return self.get_node_with_cluster_id(node.cluster_id)
 
+    def get_mch(self, node: Node):
+        return self.get_node_with_mch_id(node.mch_id)
+
     def clear_clusters(self):
         for node in self:
             node.cluster_id = 0
@@ -125,6 +184,20 @@ class Network:
             if node.cluster_id == cluster_id and node.is_cluster_head:
                 return node
         return None
+
+    def get_node_with_mch_id(self, mch_id) -> Node:
+        for node in self:
+            if node.mch_id == mch_id and node.is_main_cluster_head:
+                return node
+        return None
+
+    # Get how many nodes are in the same mch id
+    def get_num_nodes_in_mch(self, mch_id):
+        num_nodes = 0
+        for node in self:
+            if node.mch_id == mch_id:
+                num_nodes += 1
+        return num_nodes
 
     def should_skip_node(self, node):
         return node.node_id == 1 or not self.alive(node)
@@ -165,6 +238,14 @@ class Network:
         if alive_nodes == 0:
             return 0
         return self.remaining_energy() / alive_nodes
+
+    def average_drain_rate(self):
+        drain_rate = 0
+        for node in self:
+            if self.should_skip_node(node):
+                continue
+            drain_rate += node.drain_rate
+        return drain_rate / self.alive_nodes()
 
     def average_pdr(self):
         pdr = 0
@@ -409,7 +490,7 @@ class Network:
 
         return self
 
-    def get_node(self, node_id: int):
+    def get_node(self, node_id: int) -> Node:
         return self.nodes[node_id]
 
     def add_node(self, node: Node):
