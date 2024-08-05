@@ -15,6 +15,7 @@ from pynetsim.leach.leach_d import LEACH_D
 from pynetsim.leach.leach_rt import LEACH_RT
 from pynetsim.leach.leach_r import LEACH_R
 from pynetsim.leach.leach_k import LEACH_K
+from pynetsim.leach.leach_cm import LEACH_CM
 from pynetsim.leach.leach_c import LEACH_C
 from pynetsim.leach.leach import LEACH
 
@@ -32,6 +33,7 @@ PROTOCOLS = {
     "LEACH-CE-E": LEACH_CE_E,
     "LEACH-R": LEACH_R,
     "LEACH-EE": LEACH_EE,
+    "LEACH-CM": LEACH_CM,
     "LEACH-D": LEACH_D,
     "LEACH-RT": LEACH_RT,
     "EC-LEACH": EC_LEACH,

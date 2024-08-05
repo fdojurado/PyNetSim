@@ -9,8 +9,8 @@ from pynetsim.utils import RandomNumberGenerator
 
 class LEACH_C:
 
-    def __init__(self, network, net_model: object):
-        self.name = "LEACH-C"
+    def __init__(self, network, net_model: object, name='LEACH-C'):
+        self.name = name
         self.net_model = net_model
         self.config = network.config
         self.network = network
@@ -144,7 +144,7 @@ class LEACH_C:
         self.simulated_annealing(chs)
 
     def run(self):
-        print("Running LEACH_C...")
+        print(f"Running {self.name}...")
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = self.config.network.plot
         plot_refresh = self.config.network.plot_refresh
@@ -188,7 +188,7 @@ class LEACH_C:
         round = 0
         with Progress() as progress:
             task = progress.add_task(
-                "[red]Running LEACH_C...", total=num_rounds)
+                f"[red]Running {self.name}..", total=num_rounds)
             while self.network.alive_nodes() > 0 and round < num_rounds:
                 round = self.evaluate_round(round)
                 progress.update(task, completed=round)
