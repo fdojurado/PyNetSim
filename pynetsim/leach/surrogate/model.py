@@ -20,10 +20,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import logging
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from pynetsim.utils import PyNetSimLogger
 from rich.progress import Progress
 
 # Constants
@@ -34,8 +34,7 @@ MODELS_PATH = os.path.join(SELF_PATH, "models")
 PLOTS_PATH = os.path.join(SELF_PATH, "plots")
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(namespace=__name__, log_file="my_log.log")
-logger = logger_utility.get_logger()
+logger = logging.getLogger("Main")
 
 
 class NetworkDataset(Dataset):

@@ -6,7 +6,7 @@ network:
   transmission_range: 60
   model: extended
   protocol:
-    name: LEACH-CE-E
+    name: LEACH
     init_energy: 0.5
     rounds: 8000
   width: 100

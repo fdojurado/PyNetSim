@@ -19,16 +19,16 @@ import pynetsim.common as common
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pynetsim.leach.surrogate as leach_surrogate
+import logging
 
 
-from pynetsim.utils import PyNetSimLogger, Timer
+from pynetsim.utils import Timer
 from rich.progress import Progress
 from pynetsim.leach.surrogate.cluster_heads import ClusterHeadModel
 from pynetsim.leach.surrogate.cluster_assignment import ClusterAssignmentModel
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(log_file="my_log.log", namespace=__name__)
-logger = logger_utility.get_logger()
+logger = logging.getLogger("Main")
 
 
 class SurrogateModel:

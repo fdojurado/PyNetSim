@@ -14,7 +14,8 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
+from rich.console import Console
+from rich.table import Table
 from pynetsim.statistics.stats import Statistics
 from pynetsim.tsch.schedule import TSCHSchedule
 
@@ -179,12 +180,24 @@ class Node:
     def get_routing_table(self):
         return self.routing_table
 
-    def print_routing_table(self):
+    def print_routing_table(self, rich=False):
         print("Routing table for node %d" % self.node_id)
+        if not rich:
+            for destination, next_hop in self.routing_table.items():
+                print("Destination: %d, Next hop: %d" %
+                      (destination, next_hop))
+            return
+        # print tich table
+        table = Table(title="Routing table for node %d" % self.node_id)
+        table.add_column("Destination", justify="right", style="cyan")
+        table.add_column("Next hop", justify="right", style="magenta")
         for destination, next_hop in self.routing_table.items():
-            print("Destination: %d, Next hop: %d" % (destination, next_hop))
+            table.add_row(str(destination), str(next_hop))
+        console = Console()
+        console.print(table)
 
     # -----------------TSCH operations-----------------
+
     def add_tsch_entry(self, ts, channel, cell_type, dst_id=None):
         self.tsch_schedule[ts] = TSCHSchedule(
             cell_type=cell_type, dst_id=dst_id, ch=channel, ts=ts)

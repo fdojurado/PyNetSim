@@ -14,6 +14,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pynetsim.common as common
@@ -21,6 +22,7 @@ import pynetsim.common as common
 from rich.progress import Progress
 from pynetsim.utils import RandomNumberGenerator
 
+logger = logging.getLogger("Main")
 
 class LEACH:
 
@@ -63,7 +65,7 @@ class LEACH:
         return num_cluster_heads
 
     def run(self):
-        print("Running LEACH-based protocol...")
+        logger.info("Running LEACH-based protocol...")
         p = self.config.network.protocol.cluster_head_percentage
         num_rounds = self.config.network.protocol.rounds
         plot_clusters_flag = self.config.network.plot

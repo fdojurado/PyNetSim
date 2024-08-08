@@ -21,16 +21,15 @@ from gymnasium import spaces
 import pandas as pd
 import copy
 import pynetsim.leach.rl as rl
+import logging
 # from pynetsim.network.network import Network
 # from pynetsim.config import NETWORK_MODELS
 from pynetsim.leach.surrogate.surrogate import SurrogateModel
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 import pynetsim.leach.surrogate as leach_surrogate
 
-from pynetsim.utils import PyNetSimLogger
+logger = logging.getLogger("Main")
 
-logger_utility = PyNetSimLogger(log_file="my_log.log", namespace=__name__)
-logger = logger_utility.get_logger()
 
 MAX_STEPS = 1000
 

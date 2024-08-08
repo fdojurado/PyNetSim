@@ -5,8 +5,7 @@ import argparse
 import sys
 import os
 
-from pynetsim.network.network import Network
-from pynetsim.config import load_config, NETWORK_MODELS
+from pynetsim import PyNetSim
 from pynetsim.utils import PyNetSimLogger
 
 
@@ -27,17 +26,10 @@ def main(arguments):
 
     :return: None
     """
-    # Load config
-    config = load_config(arguments.config)
-    logger.info("Loading config from %s", arguments.config)
+    # Create a PyNetSim instance
+    pynetsim = PyNetSim(config=arguments.config, print_rich=True)
 
-    network = Network(config=config)
-    network_model = NETWORK_MODELS[config.network.model](
-        config=config, network=network)
-    network.set_model(network_model)
-    network.initialize()
-    network_model.init()
-    network.start()
+    pynetsim.run()
 
 
 if __name__ == "__main__":

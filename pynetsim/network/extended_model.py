@@ -14,8 +14,11 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
+
 from pynetsim.network.model import NetworkModel
 
+logger = logging.getLogger("Main")
 
 class Extended(NetworkModel):
 
@@ -27,6 +30,10 @@ class Extended(NetworkModel):
         self.eamp_matrix = self.calculate_eamp_matrix()
         # control packet transmission energy
         self.ctrl_pkt_energy = self.eelect * 1000
+
+    def is_centralized(self):
+        output = self.config.network.protocol.name == "LEACH" or self.config.network.protocol.name == "LEACH-EE" or self.config.network.protocol.name == "LEACH-D"
+        return not output
 
     def calculate_eamp_matrix(self):
         eamp_matrix = {}
@@ -63,8 +70,8 @@ class Extended(NetworkModel):
     def energy_dissipation_control_packets(self, round: int):
         # print("Energy dissipation control packets")
         # # This is only processed by centralized algorithms
-        if self.config.network.protocol.name == "LEACH" or self.config.network.protocol.name == "LEACH-EE" or self.config.network.protocol.name == "LEACH-D":
-            print("LEACH-based protocol, skipping")
+        if not self.is_centralized():
+            logger.debug("LEACH-based protocol, skipping")
             return
         if round-1 <= 0:
             prev_chs = []

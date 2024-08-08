@@ -21,16 +21,15 @@ import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import pynetsim.leach.surrogate as leach_surrogate
-
+import logging
 
 from torch.utils.data import Dataset
-from pynetsim.utils import PyNetSimLogger
 from rich.progress import Progress
 
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(namespace=__name__, log_file="my_log.log")
-logger = logger_utility.get_logger()
+logger = logging.getLogger("Main")
+
 
 
 class ClusterHeadDataset(Dataset):

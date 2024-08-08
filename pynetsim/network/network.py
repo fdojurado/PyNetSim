@@ -14,6 +14,8 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
+
 from pynetsim.statistics.stats import Statistics
 from pynetsim.config import PROTOCOLS
 from pynetsim.node.node import Node
@@ -22,6 +24,9 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from pynetsim.utils import RandomNumberGenerator
+
+
+logger = logging.getLogger("Main")
 
 
 def ensure_connected(func):
@@ -53,6 +58,9 @@ class Network:
         self.model = model
 
     # -----------------LEACH-----------------
+
+    def is_centralized(self):
+        return self.model.is_centralized()
 
     def round_callback(self, round: int):
         chs = [
@@ -572,7 +580,7 @@ class Network:
         plt.show()
 
     def start(self):
-        print("Starting network...")
+        logger.info("Starting the network...")
         # Create a graph
         graph = nx.Graph()
         # Add the nodes to the graph
@@ -588,7 +596,7 @@ class Network:
 
         # Compute the shortest path from each node to the sink node
         shortest_paths = nx.single_source_dijkstra_path(graph, 1)
-        print("Shortest paths: ", shortest_paths)
+        logger.debug("Shortest paths: %s", shortest_paths)
 
         # Add the routing entries to each node.
         # The entries are of the form (sink, hop_n, hop_n-1, ..., source)
@@ -605,8 +613,8 @@ class Network:
                 node.add_routing_entry(1, next_hop)
 
         # Print the routing table for each node
-        for node in self:
-            node.print_routing_table()
+        # for node in self:
+        #     node.print_routing_table(rich=True)
 
         # Plot the network
         # self.plot_network()

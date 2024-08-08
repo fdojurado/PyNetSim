@@ -4,18 +4,17 @@ import pynetsim.leach.leach_milp as leach_milp
 import sys
 import os
 import random
+import logging
 
 from pynetsim.leach.leach_milp.leach_ce_e import LEACH_CE_E
 from pynetsim.network.network import Network
 from pynetsim.config import load_config, NETWORK_MODELS
-from pynetsim.utils import PyNetSimLogger
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SELF_PATH, "config.yml")
 
 # -------------------- Create logger --------------------
-logger_utility = PyNetSimLogger(log_file="my_log.log", namespace="Main")
-logger = logger_utility.get_logger()
+logger = logging.getLogger("Main")
 
 
 def main():
