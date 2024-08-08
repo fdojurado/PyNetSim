@@ -1,3 +1,20 @@
+#     PyNetSim: A Python-based Network Simulator for Low-Energy Adaptive Clustering Hierarchy (LEACH) Protocol
+#     Copyright (C) 2024  F. Fernando Jurado-Lasso (ffjla@dtu.dk)
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import yaml
 import os
 
@@ -106,7 +123,8 @@ class NetworkConfiguration:
             'transmission_range', DEFAULT_TRANSMISSION_RANGE)
         self.model = network_dict.get('model', DEFAULT_DEFAULT_MODEL)
         self.plot = network_dict.get('plot', DEFAULT_PLOT)
-        self.plot_refresh = network_dict.get('plot_refresh', DEFAULT_PLOT_REFRESH)
+        self.plot_refresh = network_dict.get(
+            'plot_refresh', DEFAULT_PLOT_REFRESH)
         self.protocol = ProtocolConfiguration(
             network_dict.get('protocol', {}))
         self.width = network_dict.get('width', DEFAULT_WIDTH)
@@ -154,6 +172,7 @@ def load_config(file_path):
                 return Configuration(config_data)
             raise ValueError("Empty configuration file")
     except FileNotFoundError as ex:
-        raise FileNotFoundError(f'Config file not found at {file_path}') from ex
+        raise FileNotFoundError(
+            f'Config file not found at {file_path}') from ex
     except yaml.YAMLError as e:
         raise ValueError(f'Error parsing YAML file: {e}') from e
