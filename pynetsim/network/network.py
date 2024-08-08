@@ -230,7 +230,7 @@ class Network:
         return node.remaining_energy > 0
 
     def mark_node_as_dead(self, node, round):
-        # print(f"Node {node.node_id} is dead.")
+        logger.info("Node %s is dead.", node.node_id)
         node.round_dead = round
 
     def alive_nodes(self):
