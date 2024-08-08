@@ -6,6 +6,7 @@ import sys
 import os
 
 from pynetsim import PyNetSim
+from pynetsim.plot.confidence_interval import plot_results, process_results
 from pynetsim.utils import PyNetSimLogger
 
 
@@ -30,6 +31,12 @@ def main(arguments):
     pynetsim = PyNetSim(config=arguments.config, print_rich=True)
 
     pynetsim.run()
+
+    # Plot the results
+    results_folder = pynetsim.config.save_path
+    output_folder = os.path.join(results_folder, "output")
+    dfs = process_results(results_folder, output_folder)
+    plot_results(dfs, results_folder)
 
 
 if __name__ == "__main__":

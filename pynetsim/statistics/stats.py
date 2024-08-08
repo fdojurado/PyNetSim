@@ -25,6 +25,12 @@ class Statistics(object):
     def __init__(self, network, config):
         self.network = network
         self.config = config
+        self.save_path = self.config.save_path
+        try:
+            os.makedirs(self.save_path)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
         self._round_stats = {}
         self.__name = self.config.network.protocol.name + '_' + \
             self.config.network.model
@@ -122,5 +128,5 @@ class Statistics(object):
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
-        with open('results/' + self.name + '.json', 'w') as outfile:
+        with open(self.save_path + self.name + '.json', 'w') as outfile:
             json.dump(self._round_stats, outfile)
