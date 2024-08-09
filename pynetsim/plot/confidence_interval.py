@@ -31,7 +31,7 @@ LEGEND_SIZE = 25
 LINE_WIDTH = 3.5
 
 protocols = {
-    'leach-rl': {
+    'leach-rlc': {
         'name': 'LEACH-RLC',
         'color': 'blue',
         'line_style': '-',
@@ -522,10 +522,7 @@ def plot_num_cluster_heads(results, output_folder):
     scaling_factor = 3
 
     for key, value in results.items():
-        print(f"Processing {key}")
-        print(f"Value: {value}")
         value = value['ch_count_two']
-        print(f"ch_count_two: {value}")
         mean = value['mean']
         ci = value['ci']
         max_rounds = len(mean)
@@ -625,7 +622,6 @@ def process_results(files, output):
     for input_file in files:
         input_files = load_input_data(input_file)
         df = common.process_data(input_files, output, export_csv=False)
-        print(df.head())
         processed_data, ch_count, ch_count_two = process_data(df)
         dfs[input_file] = {
             "processed_data": processed_data, "ch_count": ch_count, "ch_count_two": ch_count_two,

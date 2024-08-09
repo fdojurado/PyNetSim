@@ -96,7 +96,7 @@ py mult_sim_seed.py -c ./experiments/leach-c.yml -n leach-c -r 5
 
 ### Running LEACH-RLC
 
-Before running LEACH-RLC, you need to download the trained model from the following link: [Models](https://zenodo.org/records/13253417/files/models.zip?download=1&preview=1)
+Before running LEACH-RLC, you need to download the trained model from the following link: [Models](https://zenodo.org/records/13253417/files/models.zip?download=1&preview=1).
 
 Now, you need to extract the models.zip file and replace in the [LEACH-RLC yaml](tutorials/experiments/leach-rlc.yml) file the following fields:
 
@@ -118,10 +118,37 @@ To run five simulations of LEACH-RLC using the paper topology, you can run the b
 py rl/mult_sim_seed.py -c ./experiments/leach-rlc.yml -n leach-rlc -m /path/to/rl-agent/rl_model.zip -l dqn_leach_add_log/ -r 5
 ```
 
+### Running EE-LEACH
+
+To run five simulations of EE-LEACH using the paper topology, you can use the following command:
+
+```bash
+py mult_sim_seed.py -c ./experiments/ee-leach.yml -n ee-leach -r 5
+```
+
+### Running LEACH-D
+
+To run five simulations of LEACH-D using the paper topology, you can use the following command:
+
+```bash
+py mult_sim_seed.py -c ./experiments/leach-d.yml -n leach-d -r 5
+```
+
+### Running LEACH-CM
+
+To run five simulations of LEACH-CM using the paper topology, you can use the following command:
+
+```bash
+py mult_sim_seed.py -c ./experiments/leach-cm.yml -n leach-cm -r 5
+```
+
+
+### Plotting the Results
+
 We now have the results of the simulations in individual folders. To plot the results, you can use the following command:
 
 ```bash
-py plot_results.py -f ./results/leach/
+py plot_results.py -i /path/to/results/ -o /path/to/output/
 ```
 
 

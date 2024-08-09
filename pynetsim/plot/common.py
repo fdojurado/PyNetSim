@@ -218,8 +218,7 @@ def process_data(samples, output_folder, export_csv=True):
 
     # Iterate over the samples
     with Progress() as progress:
-        task = progress.add_task(
-            f"[cyan]Processing samples", total=file_size)
+        task = progress.add_task("[cyan]Processing samples", total=file_size)
 
         for name, data in samples.items():
             max_rounds = len(data)
