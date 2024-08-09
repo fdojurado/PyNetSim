@@ -148,7 +148,7 @@ py mult_sim_seed.py -c ./experiments/leach-cm.yml -n leach-cm -r 5
 We now have the results of the simulations in individual folders. To plot the results, you can use the following command:
 
 ```bash
-py plot_results.py -i /path/to/results/ -o /path/to/output/
+py plot_results.py -i /path/to/results/leach /path/to/results/leach-c -o /path/to/output/
 ```
 
 
