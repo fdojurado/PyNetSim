@@ -621,7 +621,6 @@ def plot_results(results, output_folder):
 
 
 def process_results(files, output):
-    files = files.split(" ")
     dfs = {}
     for input_file in files:
         input_files = load_input_data(input_file)

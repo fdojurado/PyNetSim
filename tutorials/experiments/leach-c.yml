@@ -1,28 +1,18 @@
 name: example network
-surrogate:
-  # Path to the cluster head model
-  cluster_head_model: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_heads/ch_model.pt
-  # Cluster head path to the data, useful for mean and std
-  cluster_head_data: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_heads/data/data.csv
-  # Path to the cluster assignment model
-  cluster_assignment_model: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_assignment/cluster_assignment_model.pt
-  # Cluster assignment path to the data, useful for mean and std
-  cluster_assignment_data: /Users/fernando/PyNetSim/tutorials/surrogate/cluster_assignment/data/data.csv
-  # alpha, beta and gamma parameters for the surrogate model
-  alpha: 54.82876630831832
-  beta: 14.53707859358856
-  gamma: 35.31010127750784
+seed: 1234
+save_path: /Users/fernando/PyNetSim/tutorials/experiments/results/leach-c/
 network:
+  plot: False
   num_sensor: 100
   transmission_range: 60
   model: extended
+  protocol:
+    name: LEACH-C
+    init_energy: 0.5
+    rounds: 8000
   width: 100
   height: 100
   num_sink: 1
-  protocol:
-    name: LEACH-RL
-    init_energy: 0.5
-    rounds: 8000
   nodes:
     - node_id: 1
       x: 50

@@ -32,8 +32,7 @@ class Statistics(object):
             if e.errno != errno.EEXIST:
                 raise
         self._round_stats = {}
-        self.__name = self.config.network.protocol.name + '_' + \
-            self.config.network.model
+        self.__name = self.config.name
 
     def add_round_stats(self, round, remaining_energy, dead_nodes, alive_nodes,
                         num_cluster_heads, pdr, plr,

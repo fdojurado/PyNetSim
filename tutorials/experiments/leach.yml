@@ -1,6 +1,6 @@
 name: example network
 seed: 1234
-save_path: /Users/fernando/PyNetSim/tutorials/results/leach/
+save_path: /Users/fernando/PyNetSim/tutorials/experiments/results/leach/
 network:
   plot: False
   num_sensor: 100
