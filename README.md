@@ -102,13 +102,13 @@ Now, you need to extract the models.zip file and replace in the [LEACH-RLC yaml]
 
 ```yaml
 # Path to the cluster head model
-cluster_head_model: /path/to/cluster_head_model.pt
+cluster_head_model: /path/to/cluster_heads/ch_model.pt
 # Cluster head path to the data, useful for mean and std
-cluster_head_data: /path/to/cluster_head_data.csv
+cluster_head_data: /path/to/cluster_heads/data/data.csv
 # Path to the cluster assignment model
-cluster_assignment_model: /path/to/cluster_assignment_model.pt
+cluster_assignment_model: /path/to/cluster_assignment/cluster_assignment_model.pt
 # Cluster assignment path to the data, useful for mean and std
-cluster_assignment_data: /path/to/cluster_assignment_data.csv
+cluster_assignment_data: /path/to/cluster_assignment/data/data.csv
 ```
 
 
