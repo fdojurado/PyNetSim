@@ -161,11 +161,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use PyNetSim in your research, please cite the following paper:
 
 ```
-@article{pynetsim,
+@article{jurado2025leach,
   title={LEACH-RLC: Enhancing IoT Data Transmission with Optimized Clustering and Reinforcement Learning},
   author={Jurado-Lasso, F Fernando and Jurado, JF and Fafoutis, Xenofon},
   journal={IEEE Internet of Things Journal},
-  year={2024},
+  year={2025},
   publisher={IEEE}
 }
 ```
